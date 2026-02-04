@@ -3,7 +3,7 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd Backend", "npm ci --prefer-offline --no-audit"]
+cmds = ["cd Backend", "npm install"]
 
 [phases.build]
 cmds = ["cd Backend", "echo 'Build complete'"]
