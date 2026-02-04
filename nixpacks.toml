@@ -3,13 +3,10 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd Backend", "npm install"]
+cmds = ["npm install --prefix Backend"]
 
 [phases.build]
-cmds = ["cd Backend", "echo 'Build complete'"]
+cmds = ["echo 'Build complete'"]
 
 [start]
-cmd = "cd Backend && node src/app.js"
-
-[variables]
-NODE_ENV = "production"
+cmd = "npm start --prefix Backend"
