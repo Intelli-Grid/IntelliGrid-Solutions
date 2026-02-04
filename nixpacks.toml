@@ -1,8 +1,15 @@
+# Nixpacks configuration for Railway
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd Backend && npm install"]
+cmds = ["cd Backend", "npm ci --prefer-offline --no-audit"]
+
+[phases.build]
+cmds = ["cd Backend", "echo 'Build complete'"]
 
 [start]
-cmd = "cd Backend && npm start"
+cmd = "cd Backend && node src/app.js"
+
+[variables]
+NODE_ENV = "production"
