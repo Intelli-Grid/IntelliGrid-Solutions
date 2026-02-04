@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 
 // Layout
 import Layout from './components/layout/Layout'
@@ -60,6 +61,7 @@ function App() {
                     }
                 />
             </Routes>
+            <SpeedInsights />
         </Layout>
     )
 }
