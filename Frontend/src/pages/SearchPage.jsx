@@ -150,7 +150,7 @@ export default function SearchPage() {
 
     return (
         <div className="container mx-auto px-4 py-16">
-            <InstantSearch searchClient={searchClient} indexName="ai_tools">
+            <InstantSearch searchClient={searchClient} indexName="intelligrid_tools">
                 <Configure hitsPerPage={12} />
 
                 {/* Header */}
