@@ -14,6 +14,9 @@ import DashboardPage from './pages/DashboardPage'
 import PricingPage from './pages/PricingPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import AdminPage from './pages/AdminPage'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import TermsOfServicePage from './pages/TermsOfServicePage'
+import RefundPolicyPage from './pages/RefundPolicyPage'
 
 function App() {
     return (
@@ -26,6 +29,11 @@ function App() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/category/:slug" element={<CategoryPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
+
+                {/* Legal Routes */}
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+                <Route path="/refund-policy" element={<RefundPolicyPage />} />
 
                 {/* Payment Routes */}
                 <Route path="/payment/success" element={<PaymentSuccessPage />} />
