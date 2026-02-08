@@ -55,7 +55,7 @@ class EmailService {
                     </body>
                 </html>
             `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
+            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
             sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
 
             const result = await this.client.sendTransacEmail(sendSmtpEmail)
@@ -108,7 +108,7 @@ class EmailService {
                     </body>
                 </html>
             `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
+            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
             sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
 
             await this.client.sendTransacEmail(sendSmtpEmail)
@@ -145,7 +145,7 @@ class EmailService {
                     </body>
                 </html>
             `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
+            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
             sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
 
             await this.client.sendTransacEmail(sendSmtpEmail)
@@ -184,7 +184,7 @@ class EmailService {
                     </body>
                 </html>
             `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
+            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
             sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
 
             await this.client.sendTransacEmail(sendSmtpEmail)
