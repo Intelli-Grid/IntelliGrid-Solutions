@@ -17,7 +17,8 @@ export default function HomePage() {
     const fetchTrendingTools = async () => {
         try {
             const response = await toolService.getTrendingTools(6)
-            setTrendingTools(response.tools || [])
+            console.log('Trending tools response:', response) // Debug log
+            setTrendingTools(response.data || response || [])
         } catch (error) {
             console.error('Error fetching trending tools:', error)
         } finally {
