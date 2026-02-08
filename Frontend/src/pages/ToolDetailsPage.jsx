@@ -25,10 +25,10 @@ export default function ToolDetailsPage() {
             const toolData = response.data || response
             setTool(toolData)
 
-            // Track view
-            if (toolData?._id) {
-                toolService.incrementViews(toolData._id).catch(console.error)
-            }
+            // Track view - TODO: Implement view tracking endpoint
+            // if (toolData?._id) {
+            //     toolService.incrementViews(toolData._id).catch(console.error)
+            // }
         } catch (err) {
             console.error('Error fetching tool:', err)
             setError(err.response?.data?.message || 'Failed to load tool details')
