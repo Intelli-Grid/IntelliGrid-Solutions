@@ -21,11 +21,13 @@ export default function ToolDetailsPage() {
             setLoading(true)
             setError(null)
             const response = await toolService.getToolBySlug(slug)
-            setTool(response.tool)
+            console.log('Tool details response:', response) // Debug log
+            const toolData = response.data || response
+            setTool(toolData)
 
             // Track view
-            if (response.tool?._id) {
-                toolService.incrementViews(response.tool._id).catch(console.error)
+            if (toolData?._id) {
+                toolService.incrementViews(toolData._id).catch(console.error)
             }
         } catch (err) {
             console.error('Error fetching tool:', err)
