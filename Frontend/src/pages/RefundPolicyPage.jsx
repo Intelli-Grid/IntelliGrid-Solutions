@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import SEO from '../components/common/SEO'
 
 function RefundPolicyPage() {
     useEffect(() => {
@@ -7,6 +8,12 @@ function RefundPolicyPage() {
 
     return (
         <div className="max-w-4xl mx-auto px-4 py-12">
+            <SEO
+                title="Refund Policy | IntelliGrid - 30-Day Money-Back Guarantee"
+                description="IntelliGrid offers a 30-day money-back guarantee on all subscriptions. Learn about our hassle-free refund process and customer-first approach."
+                keywords="refund policy, money-back guarantee, IntelliGrid refund, subscription refund, cancellation policy"
+                canonicalUrl="https://www.intelligrid.online/refund-policy"
+            />
             <h1 className="text-4xl font-bold mb-4">Refund Policy</h1>
             <p className="text-gray-600 mb-8">Last updated: February 07, 2026</p>
 

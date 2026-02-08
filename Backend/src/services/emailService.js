@@ -1,4 +1,8 @@
 import SibApiV3Sdk from '@sendinblue/client'
+import dotenv from 'dotenv'
+
+// Load environment variables
+dotenv.config()
 
 /**
  * Email Service using Brevo (formerly Sendinblue)
@@ -9,6 +13,9 @@ class EmailService {
             this.client = new SibApiV3Sdk.TransactionalEmailsApi()
             const apiKey = this.client.authentications['apiKey']
             apiKey.apiKey = process.env.BREVO_API_KEY
+            console.log('✅ Brevo email client initialized')
+        } else {
+            console.warn('⚠️  BREVO_API_KEY not found - email sending disabled')
         }
     }
 
@@ -16,7 +23,10 @@ class EmailService {
      * Send welcome email to new user
      */
     async sendWelcomeEmail(user) {
-        if (!this.client) return
+        if (!this.client) {
+            console.log('⚠️  Email client not initialized (BREVO_API_KEY missing)')
+            return
+        }
 
         try {
             const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
@@ -48,10 +58,13 @@ class EmailService {
             sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
             sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
 
-            await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Welcome email sent to:', user.email)
+            const result = await this.client.sendTransacEmail(sendSmtpEmail)
+            console.log('✅ Welcome email sent to:', user.email, '- Message ID:', result.messageId)
         } catch (error) {
-            console.error('❌ Error sending welcome email:', error)
+            console.error('❌ Error sending welcome email:', error.message)
+            if (error.response) {
+                console.error('Response:', error.response.body)
+            }
         }
     }
 
@@ -139,6 +152,45 @@ class EmailService {
             console.log('✅ Payment receipt sent to:', user.email)
         } catch (error) {
             console.error('❌ Error sending payment receipt:', error)
+        }
+    }
+
+    /**
+     * Send subscription cancellation email
+     */
+    async sendCancellationEmail(user, subscription) {
+        if (!this.client) return
+
+        try {
+            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+            sendSmtpEmail.subject = 'Subscription Cancelled - IntelliGrid'
+            sendSmtpEmail.htmlContent = `
+                <html>
+                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h1 style="color: #ef4444;">Subscription Cancelled</h1>
+                        <p>Hi ${user.firstName},</p>
+                        <p>Your subscription has been cancelled as requested.</p>
+                        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <p>Your access will continue until: <strong>${new Date(subscription.endDate).toLocaleDateString()}</strong></p>
+                        </div>
+                        <p>We're sorry to see you go! If you change your mind, you can resubscribe at any time.</p>
+                        <p>
+                            <a href="${process.env.FRONTEND_URL}/pricing" 
+                               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                                Resubscribe
+                            </a>
+                        </p>
+                        <p>The IntelliGrid Team</p>
+                    </body>
+                </html>
+            `
+            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'noreply@intelligrid.com' }
+            sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+
+            await this.client.sendTransacEmail(sendSmtpEmail)
+            console.log('✅ Cancellation email sent to:', user.email)
+        } catch (error) {
+            console.error('❌ Error sending cancellation email:', error)
         }
     }
 

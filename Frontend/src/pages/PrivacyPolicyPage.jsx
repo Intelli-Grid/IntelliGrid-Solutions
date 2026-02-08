@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import SEO from '../components/common/SEO'
 
 function PrivacyPolicyPage() {
     useEffect(() => {
@@ -8,6 +9,12 @@ function PrivacyPolicyPage() {
 
     return (
         <div className="max-w-4xl mx-auto px-4 py-12">
+            <SEO
+                title="Privacy Policy | IntelliGrid - Your Data, Your Rights"
+                description="Learn how IntelliGrid protects your privacy and handles your data. We're committed to transparency and GDPR compliance. Read our comprehensive privacy policy."
+                keywords="privacy policy, data protection, GDPR, user privacy, IntelliGrid privacy"
+                canonicalUrl="https://www.intelligrid.online/privacy-policy"
+            />
             <h1 className="text-4xl font-bold mb-4">Privacy Policy</h1>
             <p className="text-gray-600 mb-8">Last updated: February 07, 2026</p>
 

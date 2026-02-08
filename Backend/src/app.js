@@ -17,12 +17,16 @@ import authRoutes from './routes/authRoutes.js'
 import reviewRoutes from './routes/reviewRoutes.js'
 import paymentRoutes from './routes/paymentRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
+import gdprRoutes from './routes/gdprRoutes.js'
 
 // Load environment variables
 dotenv.config()
 
 // Initialize Express app
 const app = express()
+
+// Trust proxy (for Railway deployment)
+app.set('trust proxy', 1)
 
 // Initialize Sentry
 if (process.env.SENTRY_DSN) {
@@ -91,6 +95,7 @@ app.get('/api/v1', (req, res) => {
             reviews: '/api/v1/reviews',
             payment: '/api/v1/payment',
             analytics: '/api/v1/analytics',
+            gdpr: '/api/v1/gdpr',
         },
     })
 })
@@ -103,6 +108,7 @@ app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/reviews', reviewRoutes)
 app.use('/api/v1/payment', paymentRoutes)
 app.use('/api/v1/analytics', analyticsRoutes)
+app.use('/api/v1/gdpr', gdprRoutes)
 
 // 404 Handler
 app.use((req, res) => {

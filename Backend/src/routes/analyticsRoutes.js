@@ -1,5 +1,6 @@
 import express from 'express'
 import analyticsService from '../services/analyticsService.js'
+import { getRevenueAnalytics, getUserGrowthAnalytics, getToolAnalytics } from '../controllers/analyticsController.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import asyncHandler from '../utils/asyncHandler.js'
@@ -40,5 +41,14 @@ router.get(
         )
     })
 )
+
+// Get revenue analytics (admin only)
+router.get('/revenue', requireAuth, requireAdmin, getRevenueAnalytics)
+
+// Get user growth analytics (admin only)
+router.get('/user-growth', requireAuth, requireAdmin, getUserGrowthAnalytics)
+
+// Get tool analytics (admin only)
+router.get('/tools', requireAuth, requireAdmin, getToolAnalytics)
 
 export default router

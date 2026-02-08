@@ -118,7 +118,8 @@ class ToolService {
      * Get trending tools
      */
     async getTrendingTools(limit = 10) {
-        const tools = await Tool.find({ status: 'active', isTrending: true })
+        // Get tools sorted by views (most popular)
+        const tools = await Tool.find({ status: 'active' })
             .populate('category', 'name slug')
             .sort('-views -ratings.average')
             .limit(limit)

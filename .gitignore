@@ -1,47 +1,105 @@
 # Dependencies
 node_modules/
-Frontend/node_modules/
-Backend/node_modules/
-
-# Environment variables
-.env
-.env.local
-.env.production
-Frontend/.env
-Backend/.env
-
-# Build outputs
-Frontend/dist/
-Frontend/build/
-Backend/dist/
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-logs/
-
-# OS files
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-
-# IDE
-.vscode/
-.idea/
-*.iml
+.pnp
+.pnp.js
 
 # Testing
 coverage/
-.nyc_output/
-
-# Misc
-.cache/
-.temp/
-.tmp/
+*.test.js.snap
 
 # Production
 build/
 dist/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Documentation & Guides (Keep repo clean)
+*_GUIDE.md
+*_SUMMARY.md
+*_CHECKLIST.md
+*_PROCEDURES.md
+*_ROADMAP.md
+*_AUDIT.md
+*_COMPLETE.md
+*_PROGRESS.md
+*_RESULTS.md
+*_FIXES.md
+*_SETUP.md
+*_FIX.md
+*_REVIEW.md
+SESSION_*.md
+DAY_*.md
+LAUNCH_*.md
+DEPLOYMENT_*.md
+MONITORING_*.md
+PAYMENT_*.md
+EMAIL_*.md
+LEGAL_*.md
+PRODUCTION_*.md
+PRE_LAUNCH_*.md
+NEXT_SESSION_*.md
+QUICK_*.md
+URGENT_*.md
+VERCEL_*.md
+WEBHOOK_*.md
+VISUAL_*.md
+MONGODB_*.md
+FINAL_*.md
+COMPLETE_*.md
+*.txt
+
+# Keep only essential docs
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+
+# Backup files
+*.gz
+*.zip
+*.tar
+backups/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cache
+.cache/
+.parcel-cache/
+.next/
+out/
+
+# Misc
+*.md~
+.gemini/

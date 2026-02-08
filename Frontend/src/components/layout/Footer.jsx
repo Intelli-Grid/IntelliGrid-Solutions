@@ -61,27 +61,32 @@ export default function Footer() {
                                     Pricing
                                 </Link>
                             </li>
+                            <li>
+                                <Link to="/faq" className="text-sm text-gray-400 transition hover:text-white">
+                                    FAQ
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 
-                    {/* Company */}
+                    {/* Support */}
                     <div>
-                        <h3 className="mb-4 text-sm font-semibold text-white">Company</h3>
+                        <h3 className="mb-4 text-sm font-semibold text-white">Support</h3>
                         <ul className="space-y-2">
                             <li>
-                                <a href="#" className="text-sm text-gray-400 transition hover:text-white">
-                                    About
+                                <Link to="/faq" className="text-sm text-gray-400 transition hover:text-white">
+                                    Help Center
+                                </Link>
+                            </li>
+                            <li>
+                                <a href="mailto:support@intelligrid.online" className="text-sm text-gray-400 transition hover:text-white">
+                                    Contact Support
                                 </a>
                             </li>
                             <li>
-                                <a href="#" className="text-sm text-gray-400 transition hover:text-white">
-                                    Blog
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className="text-sm text-gray-400 transition hover:text-white">
-                                    Contact
-                                </a>
+                                <Link to="/refund-policy" className="text-sm text-gray-400 transition hover:text-white">
+                                    Refunds
+                                </Link>
                             </li>
                         </ul>
                     </div>
