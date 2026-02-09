@@ -146,6 +146,83 @@ async function scrapeProductHunt(browser) {
 }
 
 // ============================================
+// SCRAPER: GitHub Trending (Axios + Cheerio)
+// ============================================
+async function scrapeGitHub() {
+    console.log('\n🔍 Scraping GitHub Trending...')
+    const tools = []
+    try {
+        const response = await axios.get('https://github.com/trending/python?since=daily&spoken_language_code=en', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        })
+        const $ = cheerio.load(response.data)
+
+        $('article.Box-row').each((i, element) => {
+            const name = $(element).find('h2 a').text().trim().replace(/\s+/g, '')
+            const description = $(element).find('p').text().trim()
+            const url = 'https://github.com' + $(element).find('h2 a').attr('href')
+
+            if (name && description) {
+                tools.push({
+                    name,
+                    shortDescription: description,
+                    fullDescription: description,
+                    officialUrl: url,
+                    sourceUrl: url,
+                    category: 'Developer Tools',
+                    pricing: { type: 'free', price: 'Open Source' },
+                    tags: ['Open Source', 'GitHub', 'Python'],
+                    source: 'GitHub',
+                    isTrending: true
+                })
+            }
+        })
+    } catch (error) {
+        console.error('❌ GitHub scraping failed:', error.message)
+    }
+    console.log(`✅ Found ${tools.length} tools from GitHub`)
+    return tools
+}
+
+// ============================================
+// SCRAPER: Hacker News (Axios + Cheerio)
+// ============================================
+async function scrapeHackerNews() {
+    console.log('\n🔍 Scraping Hacker News...')
+    const tools = []
+    try {
+        const response = await axios.get('https://news.ycombinator.com/', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        })
+        const $ = cheerio.load(response.data)
+
+        $('.titleline > a').each((i, element) => {
+            const title = $(element).text()
+            const link = $(element).attr('href')
+
+            if (title.toLowerCase().includes('ai') || title.toLowerCase().includes('gpt') || title.toLowerCase().includes('llm')) {
+                tools.push({
+                    name: title,
+                    shortDescription: `Trending AI discussion on Hacker News: ${title}`,
+                    fullDescription: `Trending AI discussion on Hacker News: ${title}`,
+                    officialUrl: link,
+                    sourceUrl: link,
+                    category: 'News & Discussions',
+                    pricing: { type: 'unknown', price: '' },
+                    tags: ['Hacker News', 'AI', 'News'],
+                    source: 'Hacker News',
+                    isTrending: true
+                })
+            }
+        })
+    } catch (error) {
+        console.error('❌ Hacker News scraping failed:', error.message)
+    }
+    console.log(`✅ Found ${tools.length} tools from Hacker News`)
+    return tools
+}
+
+// ============================================
 // MAIN FUNCTION
 // ============================================
 async function main() {
@@ -154,7 +231,14 @@ async function main() {
     // Connect to DB
     await connectDB()
 
-    // Launch Browser
+    let allNewTools = []
+
+    // 1. Run Axios-based Scrapers (Fast)
+    const ghTools = await scrapeGitHub()
+    const hnTools = await scrapeHackerNews()
+    allNewTools = [...ghTools, ...hnTools]
+
+    // 2. Run Puppeteer-based Scraper (Product Hunt)
     const browser = await puppeteer.launch({
         headless: "new",
         args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -163,44 +247,52 @@ async function main() {
     try {
         // Scrape Sources
         const phTools = await scrapeProductHunt(browser)
+        allNewTools = [...allNewTools, ...phTools]
 
         // --- EXISTING TOOLS UPDATER ---
-        // Basic logic: Fetch random tools from DB that haven't been updated recently 
+        // Basic logic: Fetch random tools from DB that haven't been updated recently
         // and visit their websites to get fresh metadata
         console.log('\n🔄 Updating existing tools metadata...')
-        const outdatedTools = await Tool.find().sort({ updatedAt: 1 }).limit(10) // Update 10 oldest tools
+        const outdatedTools = await Tool.find({
+            $or: [
+                { fullDescription: { $exists: false } },
+                { fullDescription: "" }
+            ]
+        }).limit(5) // Prioritize tools with missing descriptions
 
         for (const tool of outdatedTools) {
             console.log(`   Checking ${tool.name}...`)
             if (tool.officialUrl) {
                 const meta = await enrichToolData(browser, tool.officialUrl)
                 if (meta) {
-                    if (meta.description && meta.description.length > 10) {
+                    if (meta.description && meta.description.length > 20) {
                         tool.fullDescription = meta.description
                         if (!tool.shortDescription) tool.shortDescription = meta.description.substring(0, 150)
+                        tool.updatedAt = new Date()
+                        await tool.save()
+                        console.log(`   ✅ Updated metadata for ${tool.name}`)
                     }
-                    if (meta.title) {
-                        // Optional: Update name if cleaner? Probably safer to keep original.
-                    }
-                    tool.updatedAt = new Date()
-                    await tool.save()
-                    console.log(`   ✅ Updated metadata for ${tool.name}`)
                 }
             }
         }
 
         // Save New Tools
-        console.log(`\n💾 Saving ${phTools.length} new tools...`)
+        console.log(`\n💾 Processing ${allNewTools.length} potential new tools...`)
         let newCount = 0
-        for (const toolData of phTools) {
+        for (const toolData of allNewTools) {
             const slug = createSlug(toolData.name)
             const existing = await Tool.findOne({ slug })
             if (!existing) {
-                await new Tool({ ...toolData, slug }).save()
-                newCount++
+                try {
+                    await new Tool({ ...toolData, slug }).save()
+                    newCount++
+                    process.stdout.write('.')
+                } catch (err) {
+                    // Ignore validation errors for now to keep running
+                }
             }
         }
-        console.log(`✅ Saved ${newCount} new tools`)
+        console.log(`\n✅ Successfully added ${newCount} NEW tools to the database!`)
 
     } catch (error) {
         console.error('Critical Error:', error)
