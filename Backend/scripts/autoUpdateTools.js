@@ -32,7 +32,7 @@ const toolSchema = new mongoose.Schema({
     sourceUrl: String,
     category: String,
     pricing: {
-        type: String,
+        type: { type: String },
         price: String
     },
     tags: [String],
@@ -52,7 +52,9 @@ async function scrapeProductHunt() {
 
     try {
         // Product Hunt has a public API (no auth needed for basic data)
-        const response = await axios.get('https://www.producthunt.com/topics/artificial-intelligence')
+        const response = await axios.get('https://www.producthunt.com/topics/artificial-intelligence', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        })
         const $ = cheerio.load(response.data)
 
         // Parse product cards (adjust selectors as needed)
@@ -94,7 +96,9 @@ async function scrapeReddit() {
 
     try {
         // Reddit JSON API (no auth needed)
-        const response = await axios.get('https://www.reddit.com/r/artificial/hot.json?limit=25')
+        const response = await axios.get('https://www.reddit.com/r/artificial/hot.json?limit=25', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        })
         const posts = response.data.data.children
 
         posts.forEach(post => {
@@ -136,7 +140,9 @@ async function scrapeGitHub() {
     const tools = []
 
     try {
-        const response = await axios.get('https://github.com/trending/python?since=daily&spoken_language_code=en')
+        const response = await axios.get('https://github.com/trending/python?since=daily&spoken_language_code=en', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+        })
         const $ = cheerio.load(response.data)
 
         $('article.Box-row').each((i, element) => {
