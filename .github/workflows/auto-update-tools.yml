@@ -25,13 +25,13 @@ jobs:
         working-directory: ./Backend
         run: npm ci
       
-      - name: Run auto-update script
+      - name: Run enhanced auto-update script
         working-directory: ./Backend
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
           ALGOLIA_ADMIN_KEY: ${{ secrets.ALGOLIA_ADMIN_KEY }}
-        run: node scripts/autoUpdateTools.js
+        run: node scripts/updateToolsEnhanced.js
       
       - name: Notify on success
         if: success()
