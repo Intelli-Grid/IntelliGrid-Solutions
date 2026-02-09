@@ -1,13 +1,21 @@
 /**
  * Enhanced AI Tools Scraper & Updater
  * Uses Puppeteer to bypass bot protection and extract rich metadata
+ * Syncs with Algolia
  */
 
 import puppeteer from 'puppeteer'
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
+import algoliasearch from 'algoliasearch'
+import axios from 'axios'
+import * as cheerio from 'cheerio'
 
 dotenv.config()
+
+// Algolia Init
+const client = algoliasearch(process.env.ALGOLIA_APP_ID, process.env.ALGOLIA_ADMIN_KEY)
+const index = client.initIndex('ai_tools_index')
 
 // MongoDB Connection
 const connectDB = async () => {
@@ -20,7 +28,7 @@ const connectDB = async () => {
     }
 }
 
-// Tool Schema
+// Tool Schema (MATCHING Backend/src/models/Tool.js)
 const toolSchema = new mongoose.Schema({
     name: String,
     slug: String,
@@ -28,15 +36,14 @@ const toolSchema = new mongoose.Schema({
     fullDescription: String,
     officialUrl: String,
     sourceUrl: String,
-    category: String,
-    pricing: {
-        type: { type: String },
-        price: String
-    },
+    category: String, // Simplified for script, ideally ObjectId but String works if loosely typed or handled
+    pricing: String, // Changed to String to match 'enum' in main model
     tags: [String],
     source: String,
     isTrending: Boolean,
-    createdAt: { type: Date, default: Date.now }
+    status: { type: String, default: 'active' },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
 })
 
 const Tool = mongoose.model('Tool', toolSchema)
@@ -59,7 +66,6 @@ async function enrichToolData(browser, url) {
         const page = await browser.newPage()
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
-        // Timeout after 15 seconds to be fast
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 })
 
         const metadata = await page.evaluate(() => {
@@ -72,15 +78,14 @@ async function enrichToolData(browser, url) {
             return {
                 title: document.title || getMeta('og:title'),
                 description: getMeta('description') || getMeta('og:description'),
-                image: getMeta('og:image'),
-                keywords: getMeta('keywords')
+                image: getMeta('og:image')
             }
         })
 
         await page.close()
         return metadata
     } catch (error) {
-        console.error(`⚠️ Failed to visit ${url}:`, error.message)
+        // console.error(`⚠️ Failed to visit ${url}:`, error.message)
         return null
     }
 }
@@ -97,12 +102,13 @@ async function scrapeProductHunt(browser) {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
         await page.goto('https://www.producthunt.com/topics/artificial-intelligence', { waitUntil: 'networkidle2' })
 
-        // Extract tools from page
         const extractedTools = await page.evaluate(() => {
-            const items = document.querySelectorAll('.styles_item__Yq_Hq') // Update selector if needed
+            // Updated selectors for Product Hunt's dynamic classes
+            // Looking for generic structures that resemble items
+            const items = document.querySelectorAll('[class*="styles_item__"]')
             return Array.from(items).map(item => {
-                const titleEl = item.querySelector('.styles_title__pzhVl')
-                const descEl = item.querySelector('.styles_tagline__vWwlg')
+                const titleEl = item.querySelector('h3') || item.querySelector('[class*="styles_title__"]')
+                const descEl = item.querySelector('[class*="styles_tagline__"]') || item.querySelector('p')
                 const linkEl = item.querySelector('a')
 
                 if (!titleEl || !linkEl) return null
@@ -112,14 +118,11 @@ async function scrapeProductHunt(browser) {
                     description: descEl ? descEl.innerText : '',
                     url: linkEl.href
                 }
-            }).filter(item => item !== null)
+            }).filter(item => item !== null && item.name)
         })
 
         if (extractedTools) {
             for (const tool of extractedTools) {
-                // Visit official site to get better data
-                // Note: PH links redirect, so we'd need to follow them first.
-                // For simplicity, we keep PH URL as source
                 tools.push({
                     name: tool.name,
                     shortDescription: tool.description,
@@ -127,7 +130,7 @@ async function scrapeProductHunt(browser) {
                     officialUrl: tool.url,
                     sourceUrl: tool.url,
                     category: 'AI Tools',
-                    pricing: { type: 'freemium', price: '' },
+                    pricing: 'Freemium',
                     tags: ['AI', 'Product Hunt', 'Trending'],
                     source: 'Product Hunt',
                     isTrending: true
@@ -146,7 +149,7 @@ async function scrapeProductHunt(browser) {
 }
 
 // ============================================
-// SCRAPER: GitHub Trending (Axios + Cheerio)
+// SCRAPER: GitHub Trending (Axios)
 // ============================================
 async function scrapeGitHub() {
     console.log('\n🔍 Scraping GitHub Trending...')
@@ -170,7 +173,7 @@ async function scrapeGitHub() {
                     officialUrl: url,
                     sourceUrl: url,
                     category: 'Developer Tools',
-                    pricing: { type: 'free', price: 'Open Source' },
+                    pricing: 'Free', // Schema expects String
                     tags: ['Open Source', 'GitHub', 'Python'],
                     source: 'GitHub',
                     isTrending: true
@@ -185,7 +188,7 @@ async function scrapeGitHub() {
 }
 
 // ============================================
-// SCRAPER: Hacker News (Axios + Cheerio)
+// SCRAPER: Hacker News (Axios)
 // ============================================
 async function scrapeHackerNews() {
     console.log('\n🔍 Scraping Hacker News...')
@@ -203,12 +206,12 @@ async function scrapeHackerNews() {
             if (title.toLowerCase().includes('ai') || title.toLowerCase().includes('gpt') || title.toLowerCase().includes('llm')) {
                 tools.push({
                     name: title,
-                    shortDescription: `Trending AI discussion on Hacker News: ${title}`,
+                    shortDescription: `Trending AI discussion: ${title}`,
                     fullDescription: `Trending AI discussion on Hacker News: ${title}`,
                     officialUrl: link,
                     sourceUrl: link,
-                    category: 'News & Discussions',
-                    pricing: { type: 'unknown', price: '' },
+                    category: 'News',
+                    pricing: 'Unknown', // Schema expects String
                     tags: ['Hacker News', 'AI', 'News'],
                     source: 'Hacker News',
                     isTrending: true
@@ -231,68 +234,101 @@ async function main() {
     // Connect to DB
     await connectDB()
 
+    // 1. Gather all tools
     let allNewTools = []
 
-    // 1. Run Axios-based Scrapers (Fast)
     const ghTools = await scrapeGitHub()
-    const hnTools = await scrapeHackerNews()
-    allNewTools = [...ghTools, ...hnTools]
+    allNewTools = [...allNewTools, ...ghTools]
 
-    // 2. Run Puppeteer-based Scraper (Product Hunt)
+    const hnTools = await scrapeHackerNews()
+    allNewTools = [...allNewTools, ...hnTools]
+
     const browser = await puppeteer.launch({
         headless: "new",
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
 
     try {
-        // Scrape Sources
         const phTools = await scrapeProductHunt(browser)
         allNewTools = [...allNewTools, ...phTools]
 
-        // --- EXISTING TOOLS UPDATER ---
-        // Basic logic: Fetch random tools from DB that haven't been updated recently
-        // and visit their websites to get fresh metadata
+        // 2. Update Existing Tools Metadata
         console.log('\n🔄 Updating existing tools metadata...')
         const outdatedTools = await Tool.find({
             $or: [
                 { fullDescription: { $exists: false } },
-                { fullDescription: "" }
+                { fullDescription: "" },
+                { fullDescription: { $regex: /^Trending AI discussion/ } } // Try to improve generic HN descriptions
             ]
-        }).limit(5) // Prioritize tools with missing descriptions
+        }).limit(5)
 
         for (const tool of outdatedTools) {
             console.log(`   Checking ${tool.name}...`)
-            if (tool.officialUrl) {
+            if (tool.officialUrl && !tool.officialUrl.includes('ycombinator.com')) {
                 const meta = await enrichToolData(browser, tool.officialUrl)
                 if (meta) {
                     if (meta.description && meta.description.length > 20) {
                         tool.fullDescription = meta.description
-                        if (!tool.shortDescription) tool.shortDescription = meta.description.substring(0, 150)
+                        if (!tool.shortDescription || tool.shortDescription.length < 20) {
+                            tool.shortDescription = meta.description.substring(0, 150) + '...'
+                        }
                         tool.updatedAt = new Date()
                         await tool.save()
-                        console.log(`   ✅ Updated metadata for ${tool.name}`)
+
+                        // Push Update to Algolia
+                        try {
+                            await index.saveObject({
+                                objectID: tool._id.toString(),
+                                name: tool.name,
+                                description: tool.shortDescription,
+                                category: tool.category,
+                                tags: tool.tags,
+                                pricing: tool.pricing,
+                                slug: tool.slug,
+                                popularity: tool.views || 0
+                            })
+                            console.log(`   ✅ Updated DB & Algolia for ${tool.name}`)
+                        } catch (algErr) {
+                            console.log(`   ⚠️ Updated DB but Algolia failed: ${algErr.message}`)
+                        }
                     }
                 }
             }
         }
 
-        // Save New Tools
+        // 3. Save New Tools
         console.log(`\n💾 Processing ${allNewTools.length} potential new tools...`)
         let newCount = 0
+
         for (const toolData of allNewTools) {
             const slug = createSlug(toolData.name)
             const existing = await Tool.findOne({ slug })
+
             if (!existing) {
                 try {
-                    await new Tool({ ...toolData, slug }).save()
+                    const newTool = new Tool({ ...toolData, slug })
+                    const savedTool = await newTool.save()
                     newCount++
                     process.stdout.write('.')
+
+                    // Push to Algolia
+                    await index.saveObject({
+                        objectID: savedTool._id.toString(),
+                        name: savedTool.name,
+                        description: savedTool.shortDescription,
+                        category: savedTool.category,
+                        tags: savedTool.tags,
+                        pricing: savedTool.pricing,
+                        slug: savedTool.slug,
+                        popularity: 0
+                    })
+
                 } catch (err) {
-                    // Ignore validation errors for now to keep running
+                    console.log(`\n❌ Error saving ${toolData.name}: ${err.message}`)
                 }
             }
         }
-        console.log(`\n✅ Successfully added ${newCount} NEW tools to the database!`)
+        console.log(`\n\n✅ Successfully added ${newCount} NEW tools to Database & Algolia!`)
 
     } catch (error) {
         console.error('Critical Error:', error)
