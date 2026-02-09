@@ -1,0 +1,42 @@
+name: Auto-Update AI Tools
+
+# Run daily at 2 AM UTC (7:30 AM IST)
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-tools:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: Backend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./Backend
+        run: npm ci
+      
+      - name: Run auto-update script
+        working-directory: ./Backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+          ALGOLIA_ADMIN_KEY: ${{ secrets.ALGOLIA_ADMIN_KEY }}
+        run: node scripts/autoUpdateTools.js
+      
+      - name: Notify on success
+        if: success()
+        run: echo "✅ AI tools updated successfully!"
+      
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ AI tools update failed!"
