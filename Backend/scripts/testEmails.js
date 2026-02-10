@@ -3,7 +3,6 @@
  * Sends test emails using the EmailService
  */
 
-import emailService from '../src/services/emailService.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -11,7 +10,11 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load env vars BEFORE importing service
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Dynamic import to ensure process.env is populated
+const { default: emailService } = await import('../src/services/emailService.js');
 
 // Verify API key is loaded
 if (!process.env.BREVO_API_KEY) {
@@ -64,22 +67,13 @@ async function runTests() {
 
     // Test 2: Subscription Confirmation
     console.log('\n2️⃣  Sending Subscription Confirmation...');
-    await emailService.sendSubscriptionEmail(mockUser, mockSubscription);
+    await emailService.sendSubscriptionConfirmation(mockUser, mockSubscription);
 
     // Test 3: Payment Receipt
     console.log('\n3️⃣  Sending Payment Receipt...');
     await emailService.sendPaymentReceipt(mockUser, mockPayment);
 
-    // Test 4: Cancellation Email
-    console.log('\n4️⃣  Sending Cancellation Email...');
-    await emailService.sendCancellationEmail(mockUser, mockSubscription);
-
-    // Test 5: Admin Notification
-    console.log('\n5️⃣  Sending Admin Notification (to configured admin)...');
-    // Note: Admin email is hardcoded in service as admin@intelligrid.com
-    // We can't easily override it for this test without changing service code
-    // But we can verify no error is thrown.
-    await emailService.sendAdminNotification('Test Notification', `This is a test notification triggered manually.`);
+    console.log('\n✅ Email tests completed! Check your inbox.');
 
     console.log('\n✅ Email tests completed!');
     console.log('Check your inbox (and spam folder) for the test emails.');

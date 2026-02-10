@@ -12,7 +12,7 @@ Run the automated verification script to check if your backend is live and confi
 **Command:**
 ```bash
 # Replace with your actual Railway URL if different
-node Backend/scripts/verifyDeployment.js https://intelligrid-backend-production.up.railway.app
+node Backend/scripts/verifyDeployment.js https://intelligrid-solutions-production.up.railway.app
 ```
 
 **What to look for:**
@@ -50,7 +50,7 @@ node Backend/scripts/testEmails.js yourname@example.com
 
 ### **Backend (Railway)**
 - [ ] Check Railway Logs for any startup errors.
-- [ ] Confirm `BREVO_API_KEY` and `SENTRY_DSN` are set in Variables.
+- [ ] Confirm `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` (support@intelligrid.store), and `SENTRY_DSN` are set.
 
 ### **Monitoring (Sentry)**
 - [ ] Log in to [Sentry.io](https://sentry.io).
