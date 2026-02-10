@@ -59,7 +59,7 @@ const couponSchema = new mongoose.Schema(
     }
 )
 
-couponSchema.index({ code: 1 })
+// code is already indexed by unique: true
 couponSchema.index({ validFrom: 1, validUntil: 1 })
 
 const Coupon = mongoose.model('Coupon', couponSchema)

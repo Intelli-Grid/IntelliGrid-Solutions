@@ -91,8 +91,7 @@ const userSchema = new mongoose.Schema(
 )
 
 // Indexes
-userSchema.index({ email: 1 })
-userSchema.index({ clerkId: 1 })
+// email and clerkId are already indexed by unique: true
 userSchema.index({ 'subscription.tier': 1, 'subscription.status': 1 })
 
 const User = mongoose.model('User', userSchema)
