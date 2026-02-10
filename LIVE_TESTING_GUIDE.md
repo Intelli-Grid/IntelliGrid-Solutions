@@ -51,11 +51,23 @@ node Backend/scripts/testEmails.js yourname@example.com
 ### **Backend (Railway)**
 - [ ] Check Railway Logs for any startup errors.
 - [ ] Confirm `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` (support@intelligrid.store), and `SENTRY_DSN` are set.
+- [ ] **Critical:** ensure `FRONTEND_URL` is set to `https://intelligrid.online` (avoids CORS errors).
 
 ### **Monitoring (Sentry)**
 - [ ] Log in to [Sentry.io](https://sentry.io).
 - [ ] Check if the project is creating "Issues" or "Transactions".
 - [ ] If no errors are listed, your app is stable! 🎉
+
+---
+
+### **Step 4: Data Initialization (Search)**
+
+Run the Algolia sync script to make tools searchable.
+
+**Command:**
+```bash
+node Backend/scripts/syncAlgolia.js
+```
 
 ---
 
