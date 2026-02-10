@@ -159,7 +159,8 @@ export default function PricingPage() {
                                 <div className="text-sm font-semibold text-white">PayPal</div>
                                 <div className="text-xs text-gray-400 mt-1">Cards & PayPal</div>
                             </button>
-                            <button
+                            {/* Cashfree temporarily disabled - sandbox environment issues */}
+                            {/* <button
                                 onClick={() => setPaymentMethod('cashfree')}
                                 className={`flex-1 rounded-xl border p-4 transition-all duration-300 ${paymentMethod === 'cashfree'
                                     ? 'border-accent-emerald bg-gradient-to-r from-accent-emerald/20 to-accent-cyan/20 shadow-glow-emerald'
@@ -169,7 +170,7 @@ export default function PricingPage() {
                                 <CreditCard className="mx-auto mb-2 h-6 w-6 text-white" />
                                 <div className="text-sm font-semibold text-white">Cashfree</div>
                                 <div className="text-xs text-gray-400 mt-1">UPI, Cards, Net Banking</div>
-                            </button>
+                            </button> */}
                         </div>
                     </div>
                 )}
