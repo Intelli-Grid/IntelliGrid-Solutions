@@ -6,6 +6,7 @@ import User from '../models/User.js'
 import Coupon from '../models/Coupon.js'
 import ApiError from '../utils/ApiError.js'
 import { nanoid } from 'nanoid'
+import emailService from './emailService.js'
 
 /**
  * Payment Service - Business logic for payments
@@ -100,6 +101,7 @@ class PaymentService {
                         reject(ApiError.internal('Failed to capture PayPal payment'))
                     } else {
                         // Update order status
+                        // Update order status
                         const order = await Order.findOneAndUpdate(
                             { orderId: paymentId },
                             {
@@ -108,11 +110,33 @@ class PaymentService {
                                 'paymentDetails.payerId': payerId,
                             },
                             { new: true }
-                        )
+                        ).populate('user')
 
                         if (order) {
                             // Update user subscription
-                            await this.activateSubscription(order.user, order.subscription)
+                            await this.activateSubscription(order.user._id, order.subscription)
+
+                            // Send confirmation emails (async)
+                            const subscriptionDetails = {
+                                tier: order.subscription.tier,
+                                duration: order.subscription.duration,
+                                amount: `${order.amount.currency} ${order.amount.total}`,
+                                nextBillingDate: new Date(Date.now() + (order.subscription.duration === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toLocaleDateString()
+                            }
+
+                            const paymentReceipt = {
+                                id: payment.id,
+                                createdAt: order.createdAt,
+                                planName: `${order.subscription.tier} ${order.subscription.duration}`,
+                                method: 'PayPal',
+                                amount: `${order.amount.currency} ${order.amount.total}`
+                            }
+
+                            emailService.sendSubscriptionConfirmation(order.user, subscriptionDetails)
+                                .catch(err => console.error('Failed to send subscription email:', err))
+
+                            emailService.sendPaymentReceipt(order.user, paymentReceipt)
+                                .catch(err => console.error('Failed to send receipt email:', err))
                         }
 
                         resolve({ payment, order })

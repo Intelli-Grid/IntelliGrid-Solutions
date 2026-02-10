@@ -5,6 +5,8 @@ import Order from '../models/Order.js'
 import ApiError from '../utils/ApiError.js'
 import { nanoid } from 'nanoid'
 
+import emailService from './emailService.js'
+
 /**
  * User Service - Business logic for users
  */
@@ -22,6 +24,11 @@ class UserService {
             avatar: clerkData.image_url,
             referralCode: nanoid(10),
         })
+
+        // Send welcome email (async, don't block response)
+        emailService.sendWelcomeEmail(user).catch(error =>
+            console.error('Failed to send welcome email:', error)
+        )
 
         return user
     }

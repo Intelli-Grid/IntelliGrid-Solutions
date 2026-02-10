@@ -1,224 +1,124 @@
-import SibApiV3Sdk from '@sendinblue/client'
+import * as SibApiV3Sdk from '@getbrevo/brevo'
 import dotenv from 'dotenv'
 
-// Load environment variables
 dotenv.config()
 
-/**
- * Email Service using Brevo (formerly Sendinblue)
- */
-class EmailService {
-    constructor() {
-        if (process.env.BREVO_API_KEY) {
-            this.client = new SibApiV3Sdk.TransactionalEmailsApi()
-            const apiKey = this.client.authentications['apiKey']
-            apiKey.apiKey = process.env.BREVO_API_KEY
-            console.log('✅ Brevo email client initialized')
-        } else {
-            console.warn('⚠️  BREVO_API_KEY not found - email sending disabled')
-        }
-    }
+let apiInstance = new SibApiV3Sdk.TransactionalEmailsApi()
+let apiKey = apiInstance.authentications['apiKey'];
+apiKey.apiKey = process.env.BREVO_API_KEY;
 
+
+class EmailService {
     /**
-     * Send welcome email to new user
+     * Send welcome email to new users
+     * @param {Object} user - User object { email, firstName }
      */
     async sendWelcomeEmail(user) {
-        if (!this.client) {
-            console.log('⚠️  Email client not initialized (BREVO_API_KEY missing)')
+        if (!process.env.BREVO_API_KEY || process.env.BREVO_API_KEY === 'your_brevo_api_key_here') {
+            console.warn('Brevo API key missing. Email not sent.')
             return
         }
 
-        try {
-            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-            sendSmtpEmail.subject = 'Welcome to IntelliGrid!'
-            sendSmtpEmail.htmlContent = `
-                <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1 style="color: #7c3aed;">Welcome to IntelliGrid! 🎉</h1>
-                        <p>Hi ${user.firstName || 'there'},</p>
-                        <p>Thank you for joining IntelliGrid, your comprehensive AI tools directory!</p>
-                        <p>With IntelliGrid, you can:</p>
-                        <ul>
-                            <li>Browse 3,690+ AI tools</li>
-                            <li>Search with instant results</li>
-                            <li>Save your favorite tools</li>
-                            <li>Get personalized recommendations</li>
-                        </ul>
-                        <p>
-                            <a href="${process.env.FRONTEND_URL}/tools" 
-                               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                                Start Exploring
-                            </a>
-                        </p>
-                        <p>Happy exploring!</p>
-                        <p>The IntelliGrid Team</p>
-                    </body>
-                </html>
-            `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
-            sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = 'Welcome to IntelliGrid! 🚀'
+        // Using HTML content for now as template ID depends on Brevo setup
+        sendSmtpEmail.htmlContent = `
+            <h1>Welcome ${user.firstName}!</h1>
+            <p>Thanks for joining IntelliGrid. We are excited to have you on board.</p>
+            <p>Start exploring our AI tools today!</p>
+        `
+        // If template ID is available:
+        // sendSmtpEmail.templateId = 1 
+        // sendSmtpEmail.params = { firstName: user.firstName }
 
-            const result = await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Welcome email sent to:', user.email, '- Message ID:', result.messageId)
+        try {
+            const data = await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Welcome email sent successfully:', data)
+            return data
         } catch (error) {
-            console.error('❌ Error sending welcome email:', error.message)
-            if (error.response) {
-                console.error('Response:', error.response.body)
+            console.error('Error sending welcome email:', error)
+            // specific Brevo error details might depend on the package version
+            if (error.response && error.response.body) {
+                console.error('Brevo Error Body:', error.response.body);
             }
         }
     }
 
     /**
      * Send subscription confirmation email
+     * @param {Object} user - User object
+     * @param {Object} subscription - Subscription details
      */
-    async sendSubscriptionEmail(user, subscription) {
-        if (!this.client) return
+    async sendSubscriptionConfirmation(user, subscription) {
+        if (!process.env.BREVO_API_KEY || process.env.BREVO_API_KEY === 'your_brevo_api_key_here') {
+            console.warn('Brevo API key missing. Email not sent.')
+            return
+        }
+
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = 'Your IntelliGrid Pro Subscription is Active! 🎉'
+        sendSmtpEmail.htmlContent = `
+            <h1>Subscription Confirmed! ✅</h1>
+            <p>Hi ${user.firstName},</p>
+            <p>Your subscription to <strong>${subscription.tier} (${subscription.duration})</strong> is now active.</p>
+            <p>Amount: ${subscription.amount}</p>
+            <p>Next Billing Date: ${subscription.nextBillingDate}</p>
+            <br>
+            <a href="${process.env.FRONTEND_URL}/dashboard">Go to Dashboard</a>
+        `
 
         try {
-            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-            sendSmtpEmail.subject = 'Subscription Confirmed - IntelliGrid Pro'
-            sendSmtpEmail.htmlContent = `
-                <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1 style="color: #7c3aed;">Subscription Confirmed! 🚀</h1>
-                        <p>Hi ${user.firstName},</p>
-                        <p>Your IntelliGrid Pro subscription is now active!</p>
-                        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                            <h3 style="margin-top: 0;">Subscription Details</h3>
-                            <p><strong>Plan:</strong> ${subscription.tier} (${subscription.duration})</p>
-                            <p><strong>Status:</strong> Active</p>
-                            <p><strong>Next Billing:</strong> ${new Date(subscription.nextBillingDate).toLocaleDateString()}</p>
-                        </div>
-                        <p>You now have access to:</p>
-                        <ul>
-                            <li>Unlimited favorites</li>
-                            <li>Advanced search filters</li>
-                            <li>Priority support</li>
-                            <li>Early access to new tools</li>
-                            <li>Ad-free experience</li>
-                        </ul>
-                        <p>
-                            <a href="${process.env.FRONTEND_URL}/dashboard" 
-                               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                                Go to Dashboard
-                            </a>
-                        </p>
-                        <p>Thank you for your support!</p>
-                        <p>The IntelliGrid Team</p>
-                    </body>
-                </html>
-            `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
-            sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
-
-            await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Subscription email sent to:', user.email)
+            const data = await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Subscription confirmation email sent:', data)
+            return data
         } catch (error) {
-            console.error('❌ Error sending subscription email:', error)
+            console.error('Error sending subscription email:', error)
         }
     }
 
     /**
-     * Send payment receipt email
+     * Send payment receipt
+     * @param {Object} user 
+     * @param {Object} payment 
      */
     async sendPaymentReceipt(user, payment) {
-        if (!this.client) return
-
-        try {
-            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-            sendSmtpEmail.subject = 'Payment Receipt - IntelliGrid'
-            sendSmtpEmail.htmlContent = `
-                <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1 style="color: #7c3aed;">Payment Receipt</h1>
-                        <p>Hi ${user.firstName},</p>
-                        <p>Thank you for your payment. Here are the details:</p>
-                        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                            <h3 style="margin-top: 0;">Payment Details</h3>
-                            <p><strong>Amount:</strong> $${payment.amount}</p>
-                            <p><strong>Transaction ID:</strong> ${payment.transactionId}</p>
-                            <p><strong>Date:</strong> ${new Date(payment.date).toLocaleDateString()}</p>
-                            <p><strong>Payment Method:</strong> ${payment.gateway}</p>
-                        </div>
-                        <p>If you have any questions, please contact our support team.</p>
-                        <p>The IntelliGrid Team</p>
-                    </body>
-                </html>
-            `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
-            sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
-
-            await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Payment receipt sent to:', user.email)
-        } catch (error) {
-            console.error('❌ Error sending payment receipt:', error)
+        if (!process.env.BREVO_API_KEY || process.env.BREVO_API_KEY === 'your_brevo_api_key_here') {
+            console.warn('Brevo API key missing. Email not sent.')
+            return
         }
-    }
 
-    /**
-     * Send subscription cancellation email
-     */
-    async sendCancellationEmail(user, subscription) {
-        if (!this.client) return
-
-        try {
-            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-            sendSmtpEmail.subject = 'Subscription Cancelled - IntelliGrid'
-            sendSmtpEmail.htmlContent = `
-                <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1 style="color: #ef4444;">Subscription Cancelled</h1>
-                        <p>Hi ${user.firstName},</p>
-                        <p>Your subscription has been cancelled as requested.</p>
-                        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                            <p>Your access will continue until: <strong>${new Date(subscription.endDate).toLocaleDateString()}</strong></p>
-                        </div>
-                        <p>We're sorry to see you go! If you change your mind, you can resubscribe at any time.</p>
-                        <p>
-                            <a href="${process.env.FRONTEND_URL}/pricing" 
-                               style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                                Resubscribe
-                            </a>
-                        </p>
-                        <p>The IntelliGrid Team</p>
-                    </body>
-                </html>
-            `
-            sendSmtpEmail.sender = { name: 'IntelliGrid', email: 'support@intelligrid.store' }
-            sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
-
-            await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Cancellation email sent to:', user.email)
-        } catch (error) {
-            console.error('❌ Error sending cancellation email:', error)
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
         }
-    }
-
-    /**
-     * Send admin notification
-     */
-    async sendAdminNotification(subject, message) {
-        if (!this.client) return
+        sendSmtpEmail.subject = 'Payment Receipt - IntelliGrid Pro'
+        sendSmtpEmail.htmlContent = `
+            <h1>Payment Receipt</h1>
+            <p>Hi ${user.firstName},</p>
+            <p>Thank you for your payment.</p>
+            <p>Receipt #${payment.id}</p>
+            <p>Date: ${new Date(payment.createdAt).toLocaleDateString()}</p>
+            <p>Total: ${payment.amount}</p>
+        `
 
         try {
-            const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-            sendSmtpEmail.subject = `[IntelliGrid Admin] ${subject}`
-            sendSmtpEmail.htmlContent = `
-                <html>
-                    <body style="font-family: Arial, sans-serif;">
-                        <h2>${subject}</h2>
-                        <p>${message}</p>
-                        <p><small>This is an automated notification from IntelliGrid.</small></p>
-                    </body>
-                </html>
-            `
-            sendSmtpEmail.sender = { name: 'IntelliGrid System', email: 'system@intelligrid.com' }
-            sendSmtpEmail.to = [{ email: 'admin@intelligrid.com', name: 'Admin' }]
-
-            await this.client.sendTransacEmail(sendSmtpEmail)
-            console.log('✅ Admin notification sent')
+            const data = await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Receipt email sent:', data)
+            return data
         } catch (error) {
-            console.error('❌ Error sending admin notification:', error)
+            console.error('Error sending receipt email:', error)
         }
     }
 }
