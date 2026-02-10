@@ -65,7 +65,14 @@ export default function PaymentSuccessPage() {
 
             console.log('Verification Response:', response)
 
-            if (response.success || response.success === true || response.statusCode === 200) {
+            // Check multiple success indicators
+            const isSuccess =
+                response.success === true ||
+                response.statusCode === 200 ||
+                response.payment?.state === 'approved' ||
+                response.order?.status === 'completed'
+
+            if (isSuccess) {
                 setStatus('success')
                 setMessage('Payment successful! Your subscription is active.')
                 setTimeout(() => navigate('/dashboard'), 3000)

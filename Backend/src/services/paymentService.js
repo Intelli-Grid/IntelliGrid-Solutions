@@ -128,8 +128,8 @@ class PaymentService {
     async createCashfreeOrder(userId, subscriptionData) {
         const { tier, duration } = subscriptionData
 
-        // Calculate amount
-        const pricing = this.getSubscriptionPricing(tier, duration)
+        // Calculate amount (INR for Cashfree)
+        const pricing = this.getSubscriptionPricing(tier, duration, 'INR')
 
         const orderData = {
             order_id: `order_${nanoid(16)}`,
@@ -151,6 +151,8 @@ class PaymentService {
                 { headers: getCashfreeHeaders() }
             )
 
+            console.log('Cashfree API Response:', JSON.stringify(response.data, null, 2))
+
             // Create order in database
             const order = await Order.create({
                 orderId: response.data.order_id,
@@ -165,16 +167,24 @@ class PaymentService {
                 status: 'pending',
             })
 
+            // Cashfree returns payment_session_id which is used to create the payment link
+            const paymentSessionId = response.data.payment_session_id
+            const orderId = response.data.order_id
+
+            // Cashfree hosted checkout URL - use payment session ID
+            const checkoutUrl = `https://sandbox.cashfree.com/pg/pay/${paymentSessionId}`
+
             return {
-                orderId: response.data.order_id,
-                paymentSessionId: response.data.payment_session_id,
-                payment_session_id: response.data.payment_session_id,
-                payment_link: response.data.payment_link || `https://sandbox.cashfree.com/pg/orders/${response.data.order_id}`,
+                orderId: orderId,
+                paymentSessionId: paymentSessionId,
+                payment_session_id: paymentSessionId,
+                payment_link: checkoutUrl,
+                paymentUrl: checkoutUrl, // Fallback for frontend
                 order,
             }
         } catch (error) {
-            console.error('Cashfree order creation error:', error)
-            throw ApiError.internal('Failed to create Cashfree order')
+            console.error('Cashfree order creation error:', error.response?.data || error.message)
+            throw ApiError.internal(`Failed to create Cashfree order: ${error.response?.data?.message || error.message}`)
         }
     }
 
@@ -238,12 +248,22 @@ class PaymentService {
 
     /**
      * Get subscription pricing
+     * @param {string} tier - Subscription tier (free/pro)
+     * @param {string} duration - Duration (monthly/yearly)
+     * @param {string} currency - Currency code (USD/INR)
      */
-    getSubscriptionPricing(tier, duration) {
-        const pricing = {
+    getSubscriptionPricing(tier, duration, currency = 'USD') {
+        const pricingUSD = {
             free: { monthly: 0, yearly: 0 },
             pro: { monthly: 9, yearly: 89 },
         }
+
+        const pricingINR = {
+            free: { monthly: 0, yearly: 0 },
+            pro: { monthly: 999, yearly: 8999 },
+        }
+
+        const pricing = currency === 'INR' ? pricingINR : pricingUSD
 
         if (!pricing[tier] || !pricing[tier][duration]) {
             throw new Error(`Invalid tier (${tier}) or duration (${duration})`)
@@ -253,6 +273,7 @@ class PaymentService {
             amount: pricing[tier][duration],
             tier,
             duration,
+            currency,
         }
     }
 
