@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { HelmetProvider } from 'react-helmet-async'
 import * as Sentry from '@sentry/react'
+import ErrorFallback from './components/ErrorFallback.jsx'
 import App from './App'
 import './index.css'
 
@@ -33,9 +34,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
       <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <Sentry.ErrorBoundary fallback={({ error }) => <ErrorFallback error={error} />}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </Sentry.ErrorBoundary>
       </ClerkProvider>
     </HelmetProvider>
   </React.StrictMode>

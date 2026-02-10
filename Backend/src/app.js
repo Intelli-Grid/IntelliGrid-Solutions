@@ -5,7 +5,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
-import * as Sentry from '@sentry/node'
+import { initSentry, sentryErrorHandler } from './config/sentry.js'
 import connectDB from './config/database.js'
 import { connectRedis } from './config/redis.js'
 
@@ -28,15 +28,9 @@ const app = express()
 // Trust proxy (for Railway deployment)
 app.set('trust proxy', 1)
 
-// Initialize Sentry
+// Initialize Sentry (Must be first middleware)
 if (process.env.SENTRY_DSN) {
-    Sentry.init({
-        dsn: process.env.SENTRY_DSN,
-        environment: process.env.NODE_ENV,
-        tracesSampleRate: 1.0,
-    })
-    app.use(Sentry.Handlers.requestHandler())
-    app.use(Sentry.Handlers.tracingHandler())
+    initSentry(app)
 }
 
 // Connect to Database
@@ -121,7 +115,7 @@ app.use((req, res) => {
 
 // Sentry Error Handler
 if (process.env.SENTRY_DSN) {
-    app.use(Sentry.Handlers.errorHandler())
+    sentryErrorHandler(app)
 }
 
 // Global Error Handler
