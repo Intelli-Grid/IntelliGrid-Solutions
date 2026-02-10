@@ -3,46 +3,81 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { paymentService } from '../services'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
+import { useAuth } from '@clerk/clerk-react'
+
 export default function PaymentSuccessPage() {
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
+    const { isLoaded, userId, getToken } = useAuth()
     const [status, setStatus] = useState('processing')
     const [message, setMessage] = useState('Processing your payment...')
 
     useEffect(() => {
-        verifyPayment()
-    }, [])
+        const checkAuthAndVerify = async () => {
+            if (isLoaded && userId) {
+                try {
+                    const token = await getToken()
+                    if (token) {
+                        // Token is ready, interceptor should pick it up via window.Clerk or we can rely on session being active
+                        verifyPayment()
+                    } else {
+                        console.log("Waiting for token...")
+                    }
+                } catch (e) {
+                    console.error("Error getting token:", e)
+                }
+            } else if (isLoaded && !userId) {
+                setStatus('error')
+                setMessage('Authentication required. Please log in.')
+            }
+        }
+
+        checkAuthAndVerify()
+    }, [isLoaded, userId, getToken])
 
     const verifyPayment = async () => {
         try {
-            const orderId = searchParams.get('orderId') || searchParams.get('token')
             const paymentMethod = searchParams.get('method') || 'paypal'
-
-            if (!orderId) {
-                setStatus('error')
-                setMessage('Invalid payment session')
-                return
-            }
 
             let response
             if (paymentMethod === 'paypal') {
-                response = await paymentService.capturePayPalPayment(orderId)
+                const paymentId = searchParams.get('paymentId')
+                const payerId = searchParams.get('PayerID')
+
+                if (!paymentId || !payerId) {
+                    setStatus('error')
+                    setMessage('Missing payment details (ID or Payer).')
+                    return
+                }
+
+                response = await paymentService.capturePayPalPayment(paymentId, payerId)
             } else {
+                const orderId = searchParams.get('orderId')
+
+                if (!orderId) {
+                    setStatus('error')
+                    setMessage('Invalid payment session')
+                    return
+                }
+
                 response = await paymentService.verifyCashfreePayment(orderId)
             }
 
-            if (response.success) {
+            console.log('Verification Response:', response)
+
+            if (response.success || response.success === true || response.statusCode === 200) {
                 setStatus('success')
-                setMessage('Payment successful! Your subscription is now active.')
+                setMessage('Payment successful! Your subscription is active.')
                 setTimeout(() => navigate('/dashboard'), 3000)
             } else {
                 setStatus('error')
-                setMessage(response.message || 'Payment verification failed')
+                // Debugging: Show exactly what we got
+                setMessage(`Failed: ${JSON.stringify(response)}`)
             }
         } catch (error) {
             console.error('Payment verification error:', error)
             setStatus('error')
-            setMessage(error.response?.data?.message || 'Payment verification failed')
+            setMessage(`Error: ${error.message} | ${JSON.stringify(error.response?.data)}`)
         }
     }
 

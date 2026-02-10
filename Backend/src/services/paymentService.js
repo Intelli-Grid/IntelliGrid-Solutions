@@ -55,7 +55,7 @@ class PaymentService {
             paypal.payment.create(createPaymentJson, async (error, payment) => {
                 if (error) {
                     console.error('PayPal order creation error:', error)
-                    reject(ApiError.internal('Failed to create PayPal order'))
+                    reject(ApiError.internal(`Failed to create PayPal order: ${JSON.stringify(error)}`))
                 } else {
                     // Create order in database
                     const order = await Order.create({

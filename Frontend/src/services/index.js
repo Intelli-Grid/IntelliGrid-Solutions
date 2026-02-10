@@ -163,8 +163,8 @@ export const paymentService = {
     },
 
     // Capture PayPal payment
-    capturePayPalPayment: async (orderId) => {
-        const response = await apiClient.post('/payment/paypal/capture-order', { orderId })
+    capturePayPalPayment: async (paymentId, payerId) => {
+        const response = await apiClient.post('/payment/paypal/capture', { paymentId, payerId })
         return response.data
     },
 
@@ -176,7 +176,7 @@ export const paymentService = {
 
     // Verify Cashfree payment
     verifyCashfreePayment: async (orderId) => {
-        const response = await apiClient.post('/payment/cashfree/verify-payment', { orderId })
+        const response = await apiClient.post('/payment/cashfree/verify', { orderId })
         return response.data
     },
 }

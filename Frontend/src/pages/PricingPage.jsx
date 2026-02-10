@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, Sparkles, Star, Zap, TrendingUp, Shield, CreditCard, Clock } from 'lucide-react'
+import { Check, X, Sparkles, Star, Zap, TrendingUp, Shield, CreditCard, Clock, Loader2 } from 'lucide-react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import { paymentService } from '../services'
