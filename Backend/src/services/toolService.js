@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import Tool from '../models/Tool.js'
 import Category from '../models/Category.js'
 import ApiError from '../utils/ApiError.js'
@@ -28,7 +29,29 @@ class ToolService {
         // Build query
         const query = { status }
 
-        if (category) query.category = category
+        if (category) {
+            if (mongoose.Types.ObjectId.isValid(category)) {
+                query.category = category
+            } else {
+                const categoryDoc = await Category.findOne({
+                    $or: [{ slug: category }, { name: category }],
+                })
+
+                if (categoryDoc) {
+                    query.category = categoryDoc._id
+                } else {
+                    return {
+                        tools: [],
+                        pagination: {
+                            page,
+                            limit,
+                            total: 0,
+                            pages: 0,
+                        },
+                    }
+                }
+            }
+        }
         if (pricing) query.pricing = pricing
         if (isFeatured !== undefined) query.isFeatured = isFeatured
         if (isTrending !== undefined) query.isTrending = isTrending
