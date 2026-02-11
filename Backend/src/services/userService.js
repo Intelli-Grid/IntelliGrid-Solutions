@@ -15,20 +15,36 @@ class UserService {
      * Create user from Clerk webhook
      */
     async createUser(clerkData) {
-        const user = await User.create({
-            clerkId: clerkData.id,
-            email: clerkData.email_addresses[0]?.email_address,
-            firstName: clerkData.first_name,
-            lastName: clerkData.last_name,
-            username: clerkData.username,
-            avatar: clerkData.image_url,
-            referralCode: nanoid(10),
-        })
+        const email = clerkData.email_addresses[0]?.email_address
 
-        // Send welcome email (async, don't block response)
-        emailService.sendWelcomeEmail(user).catch(error =>
-            console.error('Failed to send welcome email:', error)
-        )
+        // Check if user exists by email
+        let user = await User.findOne({ email })
+
+        if (user) {
+            // User exists, link new Clerk ID and update details
+            user.clerkId = clerkData.id
+            if (clerkData.first_name) user.firstName = clerkData.first_name
+            if (clerkData.last_name) user.lastName = clerkData.last_name
+            if (clerkData.image_url) user.avatar = clerkData.image_url
+            await user.save()
+            console.log(`Updated existing user ${email} with new Clerk ID`)
+        } else {
+            // Create new user
+            user = await User.create({
+                clerkId: clerkData.id,
+                email,
+                firstName: clerkData.first_name,
+                lastName: clerkData.last_name,
+                username: clerkData.username,
+                avatar: clerkData.image_url,
+                referralCode: nanoid(10),
+            })
+
+            // Send welcome email (async, don't block response) - only for new users
+            emailService.sendWelcomeEmail(user).catch((error) =>
+                console.error('Failed to send welcome email:', error)
+            )
+        }
 
         return user
     }
