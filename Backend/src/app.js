@@ -7,7 +7,10 @@ import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import { initSentry, sentryErrorHandler } from './config/sentry.js'
 import connectDB from './config/database.js'
-import { connectRedis } from './config/redis.js'
+import redisClient, { connectRedis } from './config/redis.js'
+
+import mongoose from 'mongoose'
+import renewalService from './services/renewalService.js'
 
 // Import routes
 import toolRoutes from './routes/toolRoutes.js'
@@ -24,6 +27,8 @@ dotenv.config()
 
 // Initialize Express app
 const app = express()
+
+console.log('🚀 INTELLIGRID BACKEND - VERSION 2.1 (Fixes Applied)')
 
 // Trust proxy (for Railway deployment)
 app.set('trust proxy', 1)
@@ -65,11 +70,21 @@ const limiter = rateLimit({
 app.use('/api/', limiter)
 
 // Health Check Route
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'success',
-        message: 'IntelliGrid API is running',
+// Health Check Route
+app.get('/health', async (req, res) => {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected'
+
+    const isHealthy = dbStatus === 'connected' && redisStatus === 'connected'
+
+    res.status(isHealthy ? 200 : 503).json({
+        status: isHealthy ? 'success' : 'error',
+        message: isHealthy ? 'All systems operational' : 'System issues detected',
         timestamp: new Date().toISOString(),
+        services: {
+            database: dbStatus,
+            redis: redisStatus
+        },
         environment: process.env.NODE_ENV,
     })
 })
@@ -147,6 +162,9 @@ app.listen(PORT, () => {
     console.log(`   - Reviews: /api/v1/reviews`)
     console.log(`   - Payment: /api/v1/payment`)
     console.log(`   - Analytics: /api/v1/analytics`)
+
+    // Start Renewal Scheduler
+    renewalService.startScheduler()
 })
 
 export default app
