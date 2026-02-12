@@ -13,6 +13,7 @@ class ToolService {
      * Get all tools with pagination, filtering, and sorting
      */
     async getAllTools(options = {}) {
+        console.log('DEBUG: getAllTools options:', JSON.stringify(options))
         const {
             page = 1,
             limit = 20,
