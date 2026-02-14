@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
-import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/clerk-react'
+import { SignedIn, SignedOut, UserButton, SignInButton, useUser } from '@clerk/clerk-react'
 import { Search, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const { user } = useUser()
+    const isAdmin = user?.publicMetadata?.role === 'admin'
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/50 backdrop-blur-xl">

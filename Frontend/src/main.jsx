@@ -7,6 +7,9 @@ import * as Sentry from '@sentry/react'
 import ErrorFallback from './components/ErrorFallback.jsx'
 import App from './App'
 import './index.css'
+import { ToastProvider } from './context/ToastContext'
+import Toaster from './components/common/Toaster'
+import { initGA } from './utils/analytics'
 
 // Initialize Sentry
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -30,14 +33,22 @@ if (!CLERK_PUBLISHABLE_KEY) {
   console.warn('Missing Clerk Publishable Key')
 }
 
+// Initialize Google Analytics
+initGA()
+
+
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
       <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
         <Sentry.ErrorBoundary fallback={({ error }) => <ErrorFallback error={error} />}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter>
+              <App />
+              <Toaster />
+            </BrowserRouter>
+          </ToastProvider>
         </Sentry.ErrorBoundary>
       </ClerkProvider>
     </HelmetProvider>

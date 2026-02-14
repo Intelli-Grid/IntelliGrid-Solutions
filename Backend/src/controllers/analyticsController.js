@@ -8,99 +8,116 @@ export const getRevenueAnalytics = async (req, res) => {
         const daysAgo = new Date()
         daysAgo.setDate(daysAgo.getDate() - parseInt(days))
 
-        // Get all users with subscription data
-        const users = await User.find().lean()
+        // 1. Get Subscription Metrics from Users
+        const users = await User.find().select('subscription email name').lean()
 
-        // Calculate subscription breakdown
         const subscriptionBreakdown = {
             free: 0,
             proMonthly: 0,
             proYearly: 0
         }
 
-        let activeSubscriptions = 0
         let totalMRR = 0
-        let totalARR = 0
+        let activeSubscriptions = 0
 
         users.forEach(user => {
-            if (user.subscriptionPlan === 'Free') {
+            const plan = user.subscription?.plan || 'Free'
+
+            if (plan === 'Free' || !user.subscription || user.subscription.status !== 'active') {
                 subscriptionBreakdown.free++
-            } else if (user.subscriptionPlan === 'Pro Monthly') {
+            } else if (plan === 'Pro Monthly' && user.subscription.status === 'active') {
                 subscriptionBreakdown.proMonthly++
                 activeSubscriptions++
                 totalMRR += 9.99
-            } else if (user.subscriptionPlan === 'Pro Yearly') {
+            } else if (plan === 'Pro Yearly' && user.subscription.status === 'active') {
                 subscriptionBreakdown.proYearly++
                 activeSubscriptions++
-                totalMRR += 99.99 / 12 // Convert yearly to monthly
+                totalMRR += 99.99 / 12
             }
         })
 
-        totalARR = totalMRR * 12
+        const totalARR = totalMRR * 12
 
-        // Calculate revenue by plan
-        const revenueByPlan = {
-            proMonthly: subscriptionBreakdown.proMonthly * 9.99,
-            proYearly: subscriptionBreakdown.proYearly * 99.99
+        // 2. Get Revenue History (Grouping by day for the chart)
+        // Group by day: YYYY-MM-DD
+        const revenueHistory = await Order.aggregate([
+            {
+                $match: {
+                    status: 'completed',
+                    createdAt: { $gte: daysAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                    dailyRevenue: { $sum: "$amount.total" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ])
+
+        // 3. Get Recent Transactions
+        const recentOrders = await Order.find({
+            createdAt: { $gte: daysAgo }
+        })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .populate('user', 'email name')
+            .lean()
+
+        // 4. Calculate Payment Success Rate
+        const totalOrdersPeriod = await Order.countDocuments({ createdAt: { $gte: daysAgo } })
+
+        // Count successful orders
+        const successCount = await Order.countDocuments({
+            createdAt: { $gte: daysAgo },
+            status: 'completed'
+        })
+
+        // Count failed orders
+        const failedCount = await Order.countDocuments({
+            createdAt: { $gte: daysAgo },
+            status: { $in: ['failed', 'cancelled'] }
+        })
+
+        const paymentStats = {
+            total: totalOrdersPeriod,
+            successful: successCount,
+            failed: failedCount,
+            successRate: totalOrdersPeriod > 0
+                ? ((successCount / totalOrdersPeriod) * 100).toFixed(1)
+                : 100
         }
 
-        // Get payment statistics (if Payment model exists)
-        let paymentStats = {
-            successful: 0,
-            failed: 0,
-            successRate: 0
-        }
-
-        let recentTransactions = []
-        let totalRevenue = 0
-
-        try {
-            // Find orders created in the last X days
-            const recentOrders = await Order.find({
-                createdAt: { $gte: daysAgo }
-            }).sort({ createdAt: -1 }).limit(10).lean()
-
-            const allOrders = await Order.find({
-                createdAt: { $gte: daysAgo }
-            }).lean()
-
-            paymentStats.successful = allOrders.filter(p => p.status === 'completed').length
-            paymentStats.failed = allOrders.filter(p => p.status === 'failed').length
-            paymentStats.successRate = allOrders.length > 0
-                ? (paymentStats.successful / allOrders.length) * 100
-                : 0
-
-            totalRevenue = allOrders
-                .filter(p => p.status === 'completed')
-                .reduce((sum, p) => sum + (p.amount?.total || 0), 0)
-
-            recentTransactions = recentOrders.map(p => ({
-                date: p.createdAt,
-                userEmail: p.user?.email || 'Unknown', // This might need a populate if user not directly available? Order has user ID.
-                // If we want user email we need to populate 'user'. But Order schema has 'user' as ObjectId. 
-                // Let's populate 'user' in the query above.
-                plan: p.subscription?.tier || 'Unknown',
-                amount: p.amount?.total || 0,
-                status: p.status === 'completed' ? 'success' : (p.status === 'failed' ? 'failed' : 'pending')
-            }))
-        } catch (error) {
-            console.log('Error fetching order stats:', error)
-            console.log('Payment model not available, using estimated data')
-            // Use estimated data based on subscriptions
-            totalRevenue = revenueByPlan.proMonthly + revenueByPlan.proYearly
-            paymentStats.successful = activeSubscriptions
-            paymentStats.successRate = 100
-        }
+        // 5. Calculate Total Revenue (All time)
+        const totalRevenueResult = await Order.aggregate([
+            { $match: { status: 'completed' } },
+            { $group: { _id: null, total: { $sum: '$amount.total' } } }
+        ])
+        const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0
 
         const analytics = {
-            mrr: totalMRR,
-            arr: totalARR,
-            totalRevenue,
+            mrr: parseFloat(totalMRR.toFixed(2)),
+            arr: parseFloat(totalARR.toFixed(2)),
+            totalRevenue: parseFloat(totalRevenue.toFixed(2)),
             activeSubscriptions,
             subscriptionBreakdown,
-            revenueByPlan,
             paymentStats,
-            recentTransactions
+            recentTransactions: recentOrders.map(order => ({
+                id: order._id,
+                date: order.createdAt,
+                userEmail: order.user ? order.user.email : 'Deleted User',
+                userName: order.user ? order.user.name : 'Unknown',
+                plan: order.subscription?.tier || 'Pro',
+                amount: order.amount?.total || 0,
+                status: order.status,
+                gateway: order.paymentGateway
+            })),
+            revenueChart: revenueHistory.map(item => ({
+                date: item._id,
+                amount: item.dailyRevenue
+            }))
         }
 
         res.json({

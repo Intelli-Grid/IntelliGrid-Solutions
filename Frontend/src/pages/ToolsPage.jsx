@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { toolService } from '../services'
 import ToolCard from '../components/tools/ToolCard'
+import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Pagination from '../components/common/Pagination'
@@ -120,7 +121,13 @@ export default function ToolsPage() {
             </div>
 
             {/* Loading State */}
-            {loading && <LoadingSpinner text="Loading tools..." />}
+            {loading && (
+                <div className="mb-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[...Array(9)].map((_, i) => (
+                        <ToolCardSkeleton key={i} />
+                    ))}
+                </div>
+            )}
 
             {/* Error State */}
             {error && !loading && <ErrorMessage message={error} onRetry={fetchTools} />}

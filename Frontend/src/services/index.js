@@ -191,3 +191,50 @@ export const analyticsService = {
         return response.data
     },
 }
+
+/**
+ * Admin Service - API calls for admin operations
+ */
+export const adminService = {
+    // Get dashboard stats
+    getStats: async () => {
+        const response = await apiClient.get('/admin/stats')
+        return response.data
+    },
+
+    // Get pending tools
+    getPendingTools: async () => {
+        const response = await apiClient.get('/admin/tools/pending')
+        return response.data
+    },
+
+    // Approve tool
+    approveTool: async (id) => {
+        const response = await apiClient.put(`/admin/tools/${id}/approve`)
+        return response.data
+    },
+
+    // Delete tool
+    deleteTool: async (id) => {
+        const response = await apiClient.delete(`/admin/tools/${id}`)
+        return response.data
+    },
+
+    // Get pending reviews
+    getPendingReviews: async () => {
+        const response = await apiClient.get('/admin/reviews/pending')
+        return response.data
+    },
+
+    // Approve review
+    approveReview: async (id) => {
+        const response = await apiClient.put(`/admin/reviews/${id}/approve`)
+        return response.data
+    },
+
+    // Get payments
+    getPayments: async (params = {}) => {
+        const response = await apiClient.get('/admin/payments', { params })
+        return response.data
+    },
+}

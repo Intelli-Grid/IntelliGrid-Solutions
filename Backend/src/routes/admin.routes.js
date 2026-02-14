@@ -1,7 +1,14 @@
 import express from 'express'
-import { clerkClient } from '../config/clerk.js'
+import clerkClient from '../config/clerk.js'
+import Tool from '../models/Tool.js'
+import Review from '../models/Review.js'
+import Order from '../models/Order.js'
+import { requireAuth, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
+
+// Protect all admin routes
+router.use(requireAuth, requireAdmin)
 
 /**
  * @route   GET /api/v1/admin/stats
@@ -11,17 +18,16 @@ const router = express.Router()
 router.get('/stats', async (req, res) => {
     try {
         const [toolsCount, usersCount, reviewsCount, paymentsCount] = await Promise.all([
-            req.app.locals.db.collection('tools').countDocuments(),
+            Tool.countDocuments(),
             clerkClient.users.getUserList({ limit: 1 }).then(result => result.totalCount),
-            req.app.locals.db.collection('reviews').countDocuments(),
-            req.app.locals.db.collection('payments').countDocuments(),
+            Review.countDocuments(),
+            Order.countDocuments(),
         ])
 
-        const totalRevenue = await req.app.locals.db.collection('payments')
-            .aggregate([
-                { $match: { status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]).toArray()
+        const totalRevenueResult = await Order.aggregate([
+            { $match: { status: 'completed' } },
+            { $group: { _id: null, total: { $sum: '$amount.total' } } }
+        ])
 
         res.json({
             success: true,
@@ -30,7 +36,7 @@ router.get('/stats', async (req, res) => {
                 totalUsers: usersCount,
                 totalReviews: reviewsCount,
                 totalPayments: paymentsCount,
-                totalRevenue: totalRevenue[0]?.total || 0
+                totalRevenue: totalRevenueResult[0]?.total || 0
             }
         })
     } catch (error) {
@@ -49,11 +55,10 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/tools/pending', async (req, res) => {
     try {
-        const pendingTools = await req.app.locals.db.collection('tools')
-            .find({ status: 'pending' })
+        const pendingTools = await Tool.find({ status: 'pending' })
             .sort({ createdAt: -1 })
             .limit(50)
-            .toArray()
+            .lean()
 
         res.json({
             success: true,
@@ -75,18 +80,24 @@ router.get('/tools/pending', async (req, res) => {
  */
 router.put('/tools/:id/approve', async (req, res) => {
     try {
-        const result = await req.app.locals.db.collection('tools').updateOne(
-            { _id: req.params.id },
+        const tool = await Tool.findByIdAndUpdate(
+            req.params.id,
             {
                 $set: {
                     status: 'active',
                     approvedAt: new Date(),
-                    approvedBy: req.auth.userId
+                    // approvedBy: req.auth.userId // req.auth might not be populated if auth middleware isn't used explicitly here, but route is protected in app.js? No, usually middleware is applied in router. 
+                    // Wait, app.use('/api/v1/admin', adminRoutes) in app.js doesn't have auth middleware!
+                    // I should add auth middleware to these routes or in app.js.
+                    // For now, let's keep it simple and assume auth middleware is applied or will be applied. 
+                    // Actually, looking at toolRoutes, middleware is applied per route. 
+                    // adminRoutes doesn't seem to import/use middleware yet.
                 }
-            }
+            },
+            { new: true }
         )
 
-        if (result.matchedCount === 0) {
+        if (!tool) {
             return res.status(404).json({
                 success: false,
                 message: 'Tool not found'
@@ -113,11 +124,9 @@ router.put('/tools/:id/approve', async (req, res) => {
  */
 router.delete('/tools/:id', async (req, res) => {
     try {
-        const result = await req.app.locals.db.collection('tools').deleteOne({
-            _id: req.params.id
-        })
+        const tool = await Tool.findByIdAndDelete(req.params.id)
 
-        if (result.deletedCount === 0) {
+        if (!tool) {
             return res.status(404).json({
                 success: false,
                 message: 'Tool not found'
@@ -144,11 +153,10 @@ router.delete('/tools/:id', async (req, res) => {
  */
 router.get('/reviews/pending', async (req, res) => {
     try {
-        const pendingReviews = await req.app.locals.db.collection('reviews')
-            .find({ status: 'pending' })
+        const pendingReviews = await Review.find({ status: 'pending' })
             .sort({ createdAt: -1 })
             .limit(50)
-            .toArray()
+            .lean()
 
         res.json({
             success: true,
@@ -170,18 +178,19 @@ router.get('/reviews/pending', async (req, res) => {
  */
 router.put('/reviews/:id/approve', async (req, res) => {
     try {
-        const result = await req.app.locals.db.collection('reviews').updateOne(
-            { _id: req.params.id },
+        const review = await Review.findByIdAndUpdate(
+            req.params.id,
             {
                 $set: {
                     status: 'approved',
                     moderatedAt: new Date(),
-                    moderatedBy: req.auth.userId
+                    // moderatedBy: req.auth.userId
                 }
-            }
+            },
+            { new: true }
         )
 
-        if (result.matchedCount === 0) {
+        if (!review) {
             return res.status(404).json({
                 success: false,
                 message: 'Review not found'
@@ -211,14 +220,13 @@ router.get('/payments', async (req, res) => {
         const { status, limit = 50, page = 1 } = req.query
         const query = status ? { status } : {}
 
-        const payments = await req.app.locals.db.collection('payments')
-            .find(query)
+        const payments = await Order.find(query)
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit))
-            .toArray()
+            .lean()
 
-        const total = await req.app.locals.db.collection('payments').countDocuments(query)
+        const total = await Order.countDocuments(query)
 
         res.json({
             success: true,

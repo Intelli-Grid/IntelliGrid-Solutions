@@ -112,7 +112,7 @@ const faqData = [
 
 export default function FAQPage() {
     const [searchQuery, setSearchQuery] = useState('')
-    const [openIndex, setOpenIndex] = useState(null)
+    const [openQuestion, setOpenQuestion] = useState(null)
 
     // Filter FAQs based on search query
     const filteredFAQs = faqData.map(category => ({
@@ -124,9 +124,8 @@ export default function FAQPage() {
         )
     })).filter(category => category.questions.length > 0)
 
-    const toggleQuestion = (categoryIndex, questionIndex) => {
-        const index = `${categoryIndex}-${questionIndex}`
-        setOpenIndex(openIndex === index ? null : index)
+    const toggleQuestion = (question) => {
+        setOpenQuestion(openQuestion === question ? null : question)
     }
 
     return (
@@ -184,8 +183,7 @@ export default function FAQPage() {
 
                                 <div className="space-y-3">
                                     {category.questions.map((item, questionIndex) => {
-                                        const index = `${categoryIndex}-${questionIndex}`
-                                        const isOpen = openIndex === index
+                                        const isOpen = openQuestion === item.q
 
                                         return (
                                             <div
@@ -193,7 +191,7 @@ export default function FAQPage() {
                                                 className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all"
                                             >
                                                 <button
-                                                    onClick={() => toggleQuestion(categoryIndex, questionIndex)}
+                                                    onClick={() => toggleQuestion(item.q)}
                                                     className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
                                                 >
                                                     <span className="text-lg font-semibold text-white pr-4">

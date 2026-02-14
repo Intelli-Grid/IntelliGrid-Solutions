@@ -53,6 +53,8 @@ IntelliGrid is a full-stack AI tools directory platform featuring:
 - ✅ Payment transaction tracking
 - ✅ Analytics & reports
 - ✅ Platform settings
+- ✅ Revenue Dashboard (MRR/ARR)
+- ✅ System Health Monitoring
 
 ### Technical Features
 - ✅ RESTful API (35+ endpoints)
@@ -65,6 +67,8 @@ IntelliGrid is a full-stack AI tools directory platform featuring:
 - ✅ Input validation
 - ✅ CORS configuration
 - ✅ Security headers (Helmet)
+- ✅ Email Automation (Brevo)
+- ✅ SEO Optimization (Sitemap, Schema)
 
 ---
 
@@ -210,6 +214,8 @@ CASHFREE_SECRET_KEY=your_cashfree_secret
 ALGOLIA_APP_ID=your_algolia_id
 ALGOLIA_ADMIN_KEY=your_algolia_key
 REDIS_URL=redis://localhost:6379
+BREVO_API_KEY=your_brevo_key
+SENTRY_DSN=your_sentry_dsn
 ```
 
 ### Frontend (.env)

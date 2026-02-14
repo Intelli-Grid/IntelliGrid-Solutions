@@ -1,3 +1,5 @@
+# .gitignore - Professional Production Repository
+
 # Dependencies
 node_modules/
 .pnp
@@ -7,16 +9,20 @@ node_modules/
 coverage/
 *.test.js.snap
 
-# Production
+# Production builds
 build/
 dist/
 
-# Environment Variables
+# Environment Variables (NEVER commit these)
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+*.env
 
 # Logs
 logs/
@@ -43,51 +49,13 @@ Thumbs.db
 .classpath
 .settings/
 
-# Documentation & Guides (Keep repo clean)
-*_GUIDE.md
-*_SUMMARY.md
-*_CHECKLIST.md
-*_PROCEDURES.md
-*_ROADMAP.md
-*_AUDIT.md
-*_COMPLETE.md
-*_PROGRESS.md
-*_RESULTS.md
-*_FIXES.md
-*_SETUP.md
-*_FIX.md
-*_REVIEW.md
-SESSION_*.md
-DAY_*.md
-LAUNCH_*.md
-DEPLOYMENT_*.md
-MONITORING_*.md
-PAYMENT_*.md
-EMAIL_*.md
-LEGAL_*.md
-PRODUCTION_*.md
-PRE_LAUNCH_*.md
-NEXT_SESSION_*.md
-QUICK_*.md
-URGENT_*.md
-VERCEL_*.md
-WEBHOOK_*.md
-VISUAL_*.md
-MONGODB_*.md
-FINAL_*.md
-COMPLETE_*.md
-*.txt
-
-# Keep only essential docs
-!README.md
-!LICENSE
-!CONTRIBUTING.md
-
 # Backup files
 *.gz
 *.zip
 *.tar
 backups/
+*.backup
+*.bak
 
 # Temporary files
 tmp/
@@ -103,3 +71,67 @@ out/
 # Misc
 *.md~
 .gemini/
+
+# ============================================
+# DOCUMENTATION & GUIDES (Keep repo clean)
+# ============================================
+# All guides, checklists, and documentation files
+# These should be kept locally but NOT in the repository
+
+*_GUIDE.md
+*_SUMMARY.md
+*_CHECKLIST.md
+*_PROCEDURES.md
+*_ROADMAP.md
+*_AUDIT.md
+*_COMPLETE.md
+*_PROGRESS.md
+*_RESULTS.md
+*_FIXES.md
+*_SETUP.md
+*_FIX.md
+*_REVIEW.md
+*_REPORT.md
+*_PLAN.md
+*_STRATEGY.md
+*_EXECUTION.md
+*_PREPARATION.md
+*_READINESS.md
+
+# Session and progress tracking
+SESSION_*.md
+DAY_*.md
+LAUNCH_*.md
+DEPLOYMENT_*.md
+MONITORING_*.md
+PAYMENT_*.md
+EMAIL_*.md
+LEGAL_*.md
+PRODUCTION_*.md
+PRE_LAUNCH_*.md
+NEXT_*.md
+QUICK_*.md
+URGENT_*.md
+VERCEL_*.md
+WEBHOOK_*.md
+VISUAL_*.md
+MONGODB_*.md
+FINAL_*.md
+COMPLETE_*.md
+START_*.md
+FIX_*.md
+
+# Specific files to exclude
+CONFIGURATION_VERIFIED_100_PERCENT.md
+PASSIVE_INCOME_AUDIT_REPORT.md
+ADMIN_SECURITY_CONFIG.md
+SOCIAL_LOGIN_QUICK_REF.md
+
+# ============================================
+# KEEP ONLY ESSENTIAL DOCUMENTATION
+# ============================================
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+!CHANGELOG.md
+!CODE_OF_CONDUCT.md

@@ -121,6 +121,66 @@ class EmailService {
             console.error('Error sending receipt email:', error)
         }
     }
+
+    /**
+     * Send renewal reminder
+     * @param {Object} user
+     * @param {Object} subscription
+     */
+    async sendRenewalReminder(user, subscription) {
+        if (!process.env.BREVO_API_KEY) return
+
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = 'Your Subscription Renews Soon 📅'
+        sendSmtpEmail.htmlContent = `
+            <h1>Renewal Reminder</h1>
+            <p>Hi ${user.firstName},</p>
+            <p>Your ${subscription.tier} subscription will renew on ${new Date(subscription.endDate).toLocaleDateString()}.</p>
+            <p>To avoid interruption, ensure your payment method is up to date.</p>
+        `
+
+        try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Renewal reminder sent to:', user.email)
+        } catch (error) {
+            console.error('Error sending renewal reminder:', error)
+        }
+    }
+
+    /**
+     * Send payment failure alert
+     * @param {Object} user 
+     */
+    async sendPaymentFailure(user) {
+        if (!process.env.BREVO_API_KEY) return
+
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: user.email, name: user.firstName }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = 'Payment Failed ❌'
+        sendSmtpEmail.htmlContent = `
+            <h1>Action Required: Payment Failed</h1>
+            <p>Hi ${user.firstName},</p>
+            <p>We were unable to process your latest payment. Your subscription may be paused.</p>
+            <p>Please update your payment method to continue using IntelliGrid Pro.</p>
+            <a href="${process.env.FRONTEND_URL}/dashboard">Update Payment Method</a>
+        `
+
+        try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Payment failure email sent to:', user.email)
+        } catch (error) {
+            console.error('Error sending payment failure email:', error)
+        }
+    }
 }
 
 export default new EmailService()

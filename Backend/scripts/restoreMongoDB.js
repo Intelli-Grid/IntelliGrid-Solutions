@@ -36,7 +36,7 @@ async function restoreDatabase(backupFile) {
         console.log(`   Created: ${backupData.timestamp}`)
         console.log(`   Database: ${backupData.database}`)
         console.log(`   Collections: ${Object.keys(backupData.collections).length}`)
-        console.log(`   Total Documents: ${Object.values(backupData.collections).reduce((sum, docs) => sum + docs.length, 0)}`)
+        console.log(`   Total Documents: ${Object.values(backupData.collections).reduce((sum, col) => sum + (Array.isArray(col) ? col.length : col.documents.length), 0)}`)
 
         // Confirmation prompt
         console.log('\n⚠️  WARNING: This will DELETE all existing data and replace it with the backup!')
@@ -55,10 +55,16 @@ async function restoreDatabase(backupFile) {
 
         // Restore each collection
         let totalRestored = 0
-        for (const [collectionName, documents] of Object.entries(backupData.collections)) {
+        let totalIndexes = 0
+
+        for (const [collectionName, data] of Object.entries(backupData.collections)) {
             console.log(`\n🔄 Restoring collection: ${collectionName}`)
 
             const collection = mongoose.connection.db.collection(collectionName)
+
+            // Handle both new and old backup format
+            const documents = Array.isArray(data) ? data : data.documents
+            const indexes = Array.isArray(data) ? [] : data.indexes || []
 
             // Clear existing data
             const deleteResult = await collection.deleteMany({})
@@ -72,11 +78,28 @@ async function restoreDatabase(backupFile) {
             } else {
                 console.log(`   ℹ️  No documents to restore`)
             }
+
+            // Restore Indexes
+            if (indexes.length > 0) {
+                // Filter out _id index as it's created automatically
+                const validIndexes = indexes.filter(idx => idx.name !== '_id_')
+
+                if (validIndexes.length > 0) {
+                    try {
+                        await collection.createIndexes(validIndexes)
+                        console.log(`   ✅ Restored ${validIndexes.length} indexes`)
+                        totalIndexes += validIndexes.length
+                    } catch (err) {
+                        console.warn(`   ⚠️  Index creation warning: ${err.message}`)
+                    }
+                }
+            }
         }
 
         console.log('\n📊 Restoration Summary:')
         console.log(`   Collections Restored: ${Object.keys(backupData.collections).length}`)
         console.log(`   Total Documents Restored: ${totalRestored}`)
+        console.log(`   Total Indexes Restored: ${totalIndexes}`)
 
         await mongoose.connection.close()
         console.log('\n✅ Database restoration completed successfully!')

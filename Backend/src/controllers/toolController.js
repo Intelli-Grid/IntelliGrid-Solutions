@@ -35,9 +35,6 @@ class ToolController {
     getToolById = asyncHandler(async (req, res) => {
         const tool = await toolService.getToolById(req.params.id)
 
-        // Increment view count
-        await toolService.incrementViews(req.params.id)
-
         res.status(200).json(
             new ApiResponse(200, tool, 'Tool retrieved successfully')
         )
@@ -49,9 +46,6 @@ class ToolController {
      */
     getToolBySlug = asyncHandler(async (req, res) => {
         const tool = await toolService.getToolBySlug(req.params.slug)
-
-        // Increment view count
-        await toolService.incrementViews(tool._id)
 
         res.status(200).json(
             new ApiResponse(200, tool, 'Tool retrieved successfully')
@@ -139,6 +133,18 @@ class ToolController {
 
         res.status(200).json(
             new ApiResponse(200, null, 'Tool deleted successfully')
+        )
+    })
+
+    /**
+     * Increment tool views
+     * POST /api/v1/tools/:id/view
+     */
+    incrementViews = asyncHandler(async (req, res) => {
+        await toolService.incrementViews(req.params.id)
+
+        res.status(200).json(
+            new ApiResponse(200, null, 'View count incremented')
         )
     })
 }

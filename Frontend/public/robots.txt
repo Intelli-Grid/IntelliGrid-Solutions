@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://intelligrid.online/sitemap.xml

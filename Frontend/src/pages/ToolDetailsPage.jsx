@@ -5,6 +5,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import { Star, ExternalLink, Eye, Heart, Calendar, TrendingUp } from 'lucide-react'
 import { formatNumber, formatDate, getPricingDisplay } from '../utils/helpers'
+import { Helmet } from 'react-helmet-async'
 
 export default function ToolDetailsPage() {
     const { slug } = useParams()
@@ -25,10 +26,10 @@ export default function ToolDetailsPage() {
             const toolData = response.data || response
             setTool(toolData)
 
-            // Track view - TODO: Implement view tracking endpoint
-            // if (toolData?._id) {
-            //     toolService.incrementViews(toolData._id).catch(console.error)
-            // }
+            // Track view
+            if (toolData?._id) {
+                toolService.incrementViews(toolData._id).catch(console.error)
+            }
         } catch (err) {
             console.error('Error fetching tool:', err)
             setError(err.response?.data?.message || 'Failed to load tool details')
@@ -57,6 +58,30 @@ export default function ToolDetailsPage() {
         <div className="container mx-auto px-4 py-16">
             {/* Breadcrumb */}
             <div className="mb-8 flex items-center space-x-2 text-sm text-gray-400">
+                <Helmet>
+                    <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
+                    <meta name="description" content={tool.shortDescription} />
+                    <script type="application/ld+json">
+                        {JSON.stringify({
+                            "@context": "https://schema.org",
+                            "@type": "SoftwareApplication",
+                            "name": tool.name,
+                            "description": tool.shortDescription,
+                            "applicationCategory": typeof tool.category === 'object' ? tool.category.name : tool.category || "BusinessApplication",
+                            "operatingSystem": "Web",
+                            "aggregateRating": tool.ratings?.count > 0 ? {
+                                "@type": "AggregateRating",
+                                "ratingValue": tool.ratings.average,
+                                "reviewCount": tool.ratings.count
+                            } : undefined,
+                            "offers": {
+                                "@type": "Offer",
+                                "price": tool.pricing?.amount || "0",
+                                "priceCurrency": "USD"
+                            }
+                        })}
+                    </script>
+                </Helmet>
                 <Link to="/" className="hover:text-white">
                     Home
                 </Link>
@@ -183,7 +208,9 @@ export default function ToolDetailsPage() {
                                 {tool.category && (
                                     <div>
                                         <div className="mb-1 text-gray-400">Category</div>
-                                        <div className="text-white">{tool.category}</div>
+                                        <div className="text-white">
+                                            {typeof tool.category === 'object' ? tool.category.name : tool.category}
+                                        </div>
                                     </div>
                                 )}
                                 <div>

@@ -20,6 +20,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
             <button
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 1}
+                aria-label="Previous Page"
                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
                 <ChevronLeft className="h-5 w-5" />
@@ -29,6 +30,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
                 <>
                     <button
                         onClick={() => onPageChange(1)}
+                        aria-label="Go to page 1"
                         className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                     >
                         1
@@ -41,9 +43,11 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
                 <button
                     key={page}
                     onClick={() => onPageChange(page)}
+                    aria-label={`Go to page ${page}`}
+                    aria-current={page === currentPage ? 'page' : undefined}
                     className={`flex h-10 w-10 items-center justify-center rounded-lg transition ${page === currentPage
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                         }`}
                 >
                     {page}
@@ -55,6 +59,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
                     {endPage < totalPages - 1 && <span className="text-gray-600">...</span>}
                     <button
                         onClick={() => onPageChange(totalPages)}
+                        aria-label={`Go to page ${totalPages}`}
                         className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                     >
                         {totalPages}
@@ -65,6 +70,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
             <button
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
+                aria-label="Next Page"
                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
                 <ChevronRight className="h-5 w-5" />

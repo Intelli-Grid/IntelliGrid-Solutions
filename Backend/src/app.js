@@ -10,7 +10,7 @@ import connectDB from './config/database.js'
 import redisClient, { connectRedis } from './config/redis.js'
 
 import mongoose from 'mongoose'
-import renewalService from './services/renewalService.js'
+
 
 // Import routes
 import toolRoutes from './routes/toolRoutes.js'
@@ -20,7 +20,9 @@ import authRoutes from './routes/authRoutes.js'
 import reviewRoutes from './routes/reviewRoutes.js'
 import paymentRoutes from './routes/paymentRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
+
 import gdprRoutes from './routes/gdprRoutes.js'
+import adminRoutes from './routes/admin.routes.js'
 
 // Load environment variables
 dotenv.config()
@@ -104,7 +106,9 @@ app.get('/api/v1', (req, res) => {
             reviews: '/api/v1/reviews',
             payment: '/api/v1/payment',
             analytics: '/api/v1/analytics',
+
             gdpr: '/api/v1/gdpr',
+            admin: '/api/v1/admin',
         },
     })
 })
@@ -117,7 +121,9 @@ app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/reviews', reviewRoutes)
 app.use('/api/v1/payment', paymentRoutes)
 app.use('/api/v1/analytics', analyticsRoutes)
+
 app.use('/api/v1/gdpr', gdprRoutes)
+app.use('/api/v1/admin', adminRoutes)
 
 // 404 Handler
 app.use((req, res) => {
@@ -145,26 +151,6 @@ app.use((err, req, res, next) => {
         message: message,
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     })
-})
-
-// Start Server
-const PORT = process.env.PORT || 10000
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`)
-    console.log(`🌍 Environment: ${process.env.NODE_ENV}`)
-    console.log(`📡 API: http://localhost:${PORT}/api/v1`)
-    console.log(`💚 Health: http://localhost:${PORT}/health`)
-    console.log(`\n📋 Available Routes:`)
-    console.log(`   - Tools: /api/v1/tools`)
-    console.log(`   - Categories: /api/v1/categories`)
-    console.log(`   - User: /api/v1/user`)
-    console.log(`   - Auth: /api/v1/auth`)
-    console.log(`   - Reviews: /api/v1/reviews`)
-    console.log(`   - Payment: /api/v1/payment`)
-    console.log(`   - Analytics: /api/v1/analytics`)
-
-    // Start Renewal Scheduler
-    renewalService.startScheduler()
 })
 
 export default app

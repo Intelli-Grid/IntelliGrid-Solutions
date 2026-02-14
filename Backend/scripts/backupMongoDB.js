@@ -46,9 +46,13 @@ async function backupDatabase() {
 
             const collection = mongoose.connection.db.collection(collectionName)
             const documents = await collection.find({}).toArray()
+            const indexes = await collection.indexes()
 
-            backup.collections[collectionName] = documents
-            console.log(`✅ Backed up ${documents.length} documents from ${collectionName}`)
+            backup.collections[collectionName] = {
+                documents,
+                indexes
+            }
+            console.log(`✅ Backed up ${documents.length} documents and ${indexes.length} indexes from ${collectionName}`)
         }
 
         // Create filename with timestamp
@@ -71,7 +75,7 @@ async function backupDatabase() {
             timestamp: backup.timestamp,
             database: backup.database,
             collections: Object.keys(backup.collections).length,
-            totalDocuments: Object.values(backup.collections).reduce((sum, docs) => sum + docs.length, 0),
+            totalDocuments: Object.values(backup.collections).reduce((sum, col) => sum + col.documents.length, 0),
             sizeMB: fileSizeMB
         }
 

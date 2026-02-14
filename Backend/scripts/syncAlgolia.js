@@ -1,9 +1,20 @@
 import dotenv from 'dotenv'
-import connectDB from '../src/config/database.js'
-import { toolsIndex, configureToolsIndex } from '../src/config/algolia.js'
-import Tool from '../src/models/Tool.js'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
-dotenv.config()
+// Load env vars BEFORE imports that use them
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+dotenv.config({ path: path.join(__dirname, '../.env') })
+
+import mongoose from 'mongoose'
+import algoliasearch from 'algoliasearch'
+
+// Dynamic imports for modules that need env vars
+const { default: connectDB } = await import('../src/config/database.js')
+const { toolsIndex, configureToolsIndex } = await import('../src/config/algolia.js')
+const { default: Tool } = await import('../src/models/Tool.js')
+
 
 /**
  * Sync all tools to Algolia search index

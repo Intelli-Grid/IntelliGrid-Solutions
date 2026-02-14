@@ -44,6 +44,13 @@ router.get(
     toolController.getToolById
 )
 
+router.post(
+    '/:id/view',
+    validationRules.objectId('id'),
+    validate,
+    toolController.incrementViews
+)
+
 // Admin routes
 router.post(
     '/',

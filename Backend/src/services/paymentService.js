@@ -225,6 +225,7 @@ class PaymentService {
             const paymentStatus = response.data.order_status
 
             // Update order in database
+            // Update order in database
             const order = await Order.findOneAndUpdate(
                 { orderId },
                 {
@@ -232,11 +233,33 @@ class PaymentService {
                     'paymentDetails.transactionId': response.data.cf_order_id,
                 },
                 { new: true }
-            )
+            ).populate('user')
 
             if (order && paymentStatus === 'PAID') {
                 // Update user subscription
-                await this.activateSubscription(order.user, order.subscription)
+                await this.activateSubscription(order.user._id, order.subscription)
+
+                // Send Emails
+                const subscriptionDetails = {
+                    tier: order.subscription.tier,
+                    duration: order.subscription.duration,
+                    amount: `${order.amount.currency} ${order.amount.total}`,
+                    nextBillingDate: new Date(Date.now() + (order.subscription.duration === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toLocaleDateString()
+                }
+
+                const paymentReceipt = {
+                    id: response.data.cf_order_id || orderId,
+                    createdAt: order.createdAt,
+                    planName: `${order.subscription.tier} ${order.subscription.duration}`,
+                    method: 'Cashfree',
+                    amount: `${order.amount.currency} ${order.amount.total}`
+                }
+
+                emailService.sendSubscriptionConfirmation(order.user, subscriptionDetails)
+                    .catch(err => console.error('Failed to send subscription email:', err))
+
+                emailService.sendPaymentReceipt(order.user, paymentReceipt)
+                    .catch(err => console.error('Failed to send receipt email:', err))
             }
 
             return { payment: response.data, order }

@@ -115,8 +115,10 @@ toolSchema.pre('save', function (next) {
 // Indexes for search optimization
 toolSchema.index({ name: 'text', shortDescription: 'text', fullDescription: 'text' })
 toolSchema.index({ category: 1, status: 1 })
-toolSchema.index({ isFeatured: 1, isTrending: 1 })
-toolSchema.index({ createdAt: -1 })
+toolSchema.index({ status: 1, isFeatured: 1 }) // Optimize featured active tools
+toolSchema.index({ status: 1, isTrending: 1 }) // Optimize trending active tools
+toolSchema.index({ status: 1, views: -1 }) // Optimize most viewed active tools
+toolSchema.index({ status: 1, createdAt: -1 }) // Optimize latest active tools
 
 const Tool = mongoose.model('Tool', toolSchema)
 

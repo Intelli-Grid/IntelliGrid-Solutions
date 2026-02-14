@@ -5,15 +5,18 @@
     "main": "src/app.js",
     "type": "module",
     "scripts": {
-        "start": "node src/app.js",
-        "dev": "nodemon src/app.js",
+        "start": "node src/server.js",
+        "dev": "nodemon src/server.js",
         "import-tools": "node scripts/importTools.js",
         "sync-algolia": "node scripts/syncAlgolia.js",
         "backup": "node scripts/backupMongoDB.js",
         "restore": "node scripts/restoreMongoDB.js",
         "test:webhooks": "node scripts/testWebhooks.js",
         "test:emails": "node scripts/testEmails.js",
-        "health:check": "node scripts/healthCheck.js"
+        "health:check": "node scripts/healthCheck.js",
+        "generate-sitemap": "node scripts/generateSitemap.js",
+        "verify:launch": "node scripts/verifyLaunchReadiness.js",
+        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
     },
     "keywords": [
         "ai",
@@ -53,7 +56,10 @@
         "slugify": "^1.6.6"
     },
     "devDependencies": {
+        "cross-env": "^10.1.0",
+        "jest": "^30.2.0",
         "localtunnel": "^2.0.2",
-        "nodemon": "^3.0.2"
+        "nodemon": "^3.0.2",
+        "supertest": "^7.2.2"
     }
 }

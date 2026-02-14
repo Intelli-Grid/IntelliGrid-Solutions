@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { paymentService } from '../services'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { logEvent } from '../utils/analytics'
 
 import { useAuth } from '@clerk/clerk-react'
 
@@ -75,6 +76,14 @@ export default function PaymentSuccessPage() {
             if (isSuccess) {
                 setStatus('success')
                 setMessage('Payment successful! Your subscription is active.')
+
+                // Track Purchase
+                logEvent('purchase', {
+                    transaction_id: response.id || searchParams.get('paymentId') || 'unknown',
+                    value: response.amount?.total || 9.99, // Fallback if amount not in response
+                    currency: 'USD'
+                })
+
                 setTimeout(() => navigate('/dashboard'), 3000)
             } else {
                 setStatus('error')
