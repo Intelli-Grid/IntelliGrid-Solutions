@@ -1,0 +1,54 @@
+import { Link } from 'react-router-dom';
+import { Star } from 'lucide-react';
+
+export default function SimilarTools({ tools }) {
+    if (!tools || tools.length === 0) return null;
+
+    return (
+        <section className="mt-12 space-y-4">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                Tools like this
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {tools.map((tool) => (
+                    <Link
+                        key={tool._id}
+                        to={`/tools/${tool.slug}`}
+                        className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 transition-all duration-300 hover:scale-[1.02] hover:bg-white/10 hover:shadow-xl"
+                    >
+                        {/* Background Effect */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                        <div className="relative z-10 flex items-start gap-4">
+                            {/* Logo */}
+                            <div className="h-10 w-10 flex-shrink-0 rounded-lg bg-gray-900 border border-white/10 p-1">
+                                <img
+                                    src={tool.metadata?.logo || tool.logo || 'https://via.placeholder.com/40'}
+                                    alt={`${tool.name} logo`}
+                                    className="h-full w-full rounded-md object-contain"
+                                />
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="truncate font-medium text-white group-hover:text-purple-400 transition-colors">
+                                        {tool.name}
+                                    </h3>
+                                    <div className="flex items-center gap-1 text-xs text-yellow-500">
+                                        <Star className="h-3 w-3 fill-current" />
+                                        <span>{tool.ratings?.average?.toFixed(1) || 'N/A'}</span>
+                                    </div>
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-xs text-gray-400 group-hover:text-gray-300">
+                                    {tool.shortDescription}
+                                </p>
+                            </div>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </section>
+    );
+}

@@ -3,44 +3,57 @@ import { useParams, Link } from 'react-router-dom'
 import { toolService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
-import { Star, ExternalLink, Eye, Heart, Calendar, TrendingUp } from 'lucide-react'
-import { formatNumber, formatDate, getPricingDisplay } from '../utils/helpers'
 import { Helmet } from 'react-helmet-async'
+
+// New Components
+import ToolHero from '../components/tools/ToolHero'
+import ToolScreenshots from '../components/tools/ToolScreenshots'
+import ToolContent from '../components/tools/ToolContent'
+import SimilarTools from '../components/tools/SimilarTools'
 
 export default function ToolDetailsPage() {
     const { slug } = useParams()
     const [tool, setTool] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [relatedTools, setRelatedTools] = useState([])
 
     useEffect(() => {
-        fetchTool()
-    }, [slug])
+        const loadData = async () => {
+            try {
+                setLoading(true)
+                setError(null)
 
-    const fetchTool = async () => {
-        try {
-            setLoading(true)
-            setError(null)
-            const response = await toolService.getToolBySlug(slug)
-            console.log('Tool details response:', response) // Debug log
-            const toolData = response.data || response
-            setTool(toolData)
+                // 1. Fetch main tool data
+                const response = await toolService.getToolBySlug(slug)
+                const toolData = response.data || response
+                setTool(toolData)
 
-            // Track view
-            if (toolData?._id) {
-                toolService.incrementViews(toolData._id).catch(console.error)
+                // 2. Fetch related tools (if we have an ID)
+                if (toolData?._id) {
+                    toolService.incrementViews(toolData._id).catch(console.error)
+                    try {
+                        const related = await toolService.getRelatedTools(toolData._id)
+                        setRelatedTools(related.data || related)
+                    } catch (relatedErr) {
+                        console.warn("Failed to load related tools", relatedErr);
+                    }
+                }
+
+            } catch (err) {
+                console.error('Error fetching tool:', err)
+                setError(err.response?.data?.message || 'Failed to load tool details')
+            } finally {
+                setLoading(false)
             }
-        } catch (err) {
-            console.error('Error fetching tool:', err)
-            setError(err.response?.data?.message || 'Failed to load tool details')
-        } finally {
-            setLoading(false)
         }
-    }
+
+        loadData()
+    }, [slug])
 
     if (loading) {
         return (
-            <div className="container mx-auto px-4 py-16">
+            <div className="flex h-screen items-center justify-center bg-gray-900">
                 <LoadingSpinner text="Loading tool details..." />
             </div>
         )
@@ -48,185 +61,58 @@ export default function ToolDetailsPage() {
 
     if (error || !tool) {
         return (
-            <div className="container mx-auto px-4 py-16">
-                <ErrorMessage message={error} onRetry={fetchTool} />
+            <div className="container mx-auto px-4 py-16 text-center">
+                <ErrorMessage message={error} onRetry={() => window.location.reload()} />
+                <Link to="/tools" className="mt-8 inline-block text-purple-400 hover:text-purple-300">
+                    &larr; Back to Tools
+                </Link>
             </div>
         )
     }
 
     return (
-        <div className="container mx-auto px-4 py-16">
-            {/* Breadcrumb */}
-            <div className="mb-8 flex items-center space-x-2 text-sm text-gray-400">
-                <Helmet>
-                    <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
-                    <meta name="description" content={tool.shortDescription} />
-                    <script type="application/ld+json">
-                        {JSON.stringify({
-                            "@context": "https://schema.org",
-                            "@type": "SoftwareApplication",
-                            "name": tool.name,
-                            "description": tool.shortDescription,
-                            "applicationCategory": typeof tool.category === 'object' ? tool.category.name : tool.category || "BusinessApplication",
-                            "operatingSystem": "Web",
-                            "aggregateRating": tool.ratings?.count > 0 ? {
-                                "@type": "AggregateRating",
-                                "ratingValue": tool.ratings.average,
-                                "reviewCount": tool.ratings.count
-                            } : undefined,
-                            "offers": {
-                                "@type": "Offer",
-                                "price": tool.pricing?.amount || "0",
-                                "priceCurrency": "USD"
-                            }
-                        })}
-                    </script>
-                </Helmet>
-                <Link to="/" className="hover:text-white">
-                    Home
-                </Link>
-                <span>/</span>
-                <Link to="/tools" className="hover:text-white">
-                    Tools
-                </Link>
-                <span>/</span>
-                <span className="text-white">{tool.name}</span>
-            </div>
+        <div className="bg-gray-900 min-h-screen pb-16">
+            <Helmet>
+                <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
+                <meta name="description" content={tool.shortDescription} />
+                {/* Schema Markup */}
+                <script type="application/ld+json">
+                    {JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "SoftwareApplication",
+                        "name": tool.name,
+                        "description": tool.shortDescription,
+                        "applicationCategory": typeof tool.category === 'object' ? tool.category.name : tool.category || "BusinessApplication",
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "0",
+                            "priceCurrency": "USD"
+                        }
+                    })}
+                </script>
+            </Helmet>
 
-            <div className="grid gap-8 lg:grid-cols-3">
-                {/* Main Content */}
-                <div className="lg:col-span-2">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <div className="mb-4 flex items-start justify-between">
-                            <div>
-                                <h1 className="mb-2 text-4xl font-bold text-white">{tool.name}</h1>
-                                <p className="text-lg text-gray-400">{tool.shortDescription}</p>
-                            </div>
-                            {tool.isTrending && (
-                                <span className="inline-flex items-center space-x-1 rounded-full bg-orange-500/10 px-3 py-1 text-sm text-orange-400">
-                                    <TrendingUp className="h-4 w-4" />
-                                    <span>Trending</span>
-                                </span>
-                            )}
-                        </div>
+            <div className="container mx-auto px-4 pt-8">
+                {/* 1. Breadcrumb */}
+                <nav className="mb-6 flex items-center space-x-2 text-sm text-gray-500">
+                    <Link to="/" className="hover:text-white transition-colors">Home</Link>
+                    <span>/</span>
+                    <Link to="/tools" className="hover:text-white transition-colors">Tools</Link>
+                    <span>/</span>
+                    <span className="text-gray-300 truncate max-w-[200px]">{tool.name}</span>
+                </nav>
 
-                        {/* Stats */}
-                        <div className="flex flex-wrap items-center gap-6 text-sm">
-                            <div className="flex items-center space-x-2">
-                                <Star className="h-5 w-5 fill-yellow-500 text-yellow-500" />
-                                <span className="font-semibold text-white">
-                                    {tool.ratings?.average?.toFixed(1) || '0.0'}
-                                </span>
-                                <span className="text-gray-400">
-                                    ({formatNumber(tool.ratings?.count || 0)} reviews)
-                                </span>
-                            </div>
-                            <div className="flex items-center space-x-2 text-gray-400">
-                                <Eye className="h-5 w-5" />
-                                <span>{formatNumber(tool.views || 0)} views</span>
-                            </div>
-                            <div className="flex items-center space-x-2 text-gray-400">
-                                <Heart className="h-5 w-5" />
-                                <span>{formatNumber(tool.favorites || 0)} favorites</span>
-                            </div>
-                            <div className="flex items-center space-x-2 text-gray-400">
-                                <Calendar className="h-5 w-5" />
-                                <span>Added {formatDate(tool.createdAt)}</span>
-                            </div>
-                        </div>
-                    </div>
+                {/* 2. Hero Section */}
+                <ToolHero tool={tool} />
 
-                    {/* Description */}
-                    <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-                        <h2 className="mb-4 text-2xl font-bold text-white">About</h2>
-                        <p className="whitespace-pre-wrap text-gray-300">{tool.fullDescription}</p>
-                    </div>
+                {/* 3. Screenshots / Preview */}
+                <ToolScreenshots tool={tool} />
 
-                    {/* Tags */}
-                    {tool.tags && tool.tags.length > 0 && (
-                        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-                            <h2 className="mb-4 text-2xl font-bold text-white">Tags</h2>
-                            <div className="flex flex-wrap gap-2">
-                                {tool.tags.map((tag, index) => (
-                                    <span
-                                        key={index}
-                                        className="rounded-full bg-purple-500/10 px-4 py-2 text-sm text-purple-400"
-                                    >
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                {/* 4. Main Content (Tabs + Sidebar) */}
+                <ToolContent tool={tool} />
 
-                    {/* Reviews Section Placeholder */}
-                    <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                        <h2 className="mb-4 text-2xl font-bold text-white">Reviews</h2>
-                        <p className="text-center text-gray-400">Reviews coming soon...</p>
-                    </div>
-                </div>
-
-                {/* Sidebar */}
-                <div className="lg:col-span-1">
-                    <div className="sticky top-24 space-y-6">
-                        {/* CTA Card */}
-                        <div className="rounded-lg border border-white/10 bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-6">
-                            <div className="mb-4">
-                                <div className="mb-2 text-sm text-gray-400">Pricing</div>
-                                <div className="text-2xl font-bold text-white">
-                                    {getPricingDisplay(tool.pricing)}
-                                </div>
-                            </div>
-
-                            <a
-                                href={tool.officialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex w-full items-center justify-center space-x-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-3 font-medium text-white transition hover:opacity-90"
-                            >
-                                <span>Visit Website</span>
-                                <ExternalLink className="h-5 w-5" />
-                            </a>
-
-                            {tool.sourceUrl && (
-                                <a
-                                    href={tool.sourceUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="mt-3 block w-full rounded-lg border border-white/10 bg-white/5 px-6 py-3 text-center font-medium text-white transition hover:bg-white/10"
-                                >
-                                    Learn More
-                                </a>
-                            )}
-                        </div>
-
-                        {/* Info Card */}
-                        <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                            <h3 className="mb-4 font-semibold text-white">Information</h3>
-                            <div className="space-y-3 text-sm">
-                                {tool.category && (
-                                    <div>
-                                        <div className="mb-1 text-gray-400">Category</div>
-                                        <div className="text-white">
-                                            {typeof tool.category === 'object' ? tool.category.name : tool.category}
-                                        </div>
-                                    </div>
-                                )}
-                                <div>
-                                    <div className="mb-1 text-gray-400">Status</div>
-                                    <div className="text-white capitalize">{tool.status || 'Active'}</div>
-                                </div>
-                                {tool.isFeatured && (
-                                    <div>
-                                        <div className="mb-1 text-gray-400">Featured</div>
-                                        <div className="text-purple-400">Yes</div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                {/* 5. Similar Tools */}
+                <SimilarTools tools={relatedTools} />
             </div>
         </div>
     )

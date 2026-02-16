@@ -263,6 +263,28 @@ class ToolService {
 
         return tool
     }
+
+    /**
+     * Get related tools
+     */
+    async getRelatedTools(toolId, limit = 3) {
+        const tool = await Tool.findById(toolId)
+        if (!tool) {
+            throw ApiError.notFound('Tool not found')
+        }
+
+        const relatedTools = await Tool.find({
+            category: tool.category,
+            _id: { $ne: tool._id },
+            status: 'active'
+        })
+            .populate('category', 'name slug')
+            .sort('-ratings.average -views')
+            .limit(limit)
+            .lean()
+
+        return relatedTools
+    }
 }
 
 export default new ToolService()

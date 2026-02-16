@@ -51,6 +51,14 @@ router.post(
     toolController.incrementViews
 )
 
+router.get(
+    '/:id/related',
+    validationRules.objectId('id'),
+    validate,
+    cacheMiddleware(600),
+    toolController.getRelatedTools
+)
+
 // Admin routes
 router.post(
     '/',

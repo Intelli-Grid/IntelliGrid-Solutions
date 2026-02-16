@@ -51,6 +51,14 @@ export const toolService = {
         const response = await apiClient.post(`/tools/${id}/view`)
         return response.data
     },
+
+    // Get related tools
+    getRelatedTools: async (id, limit = 3) => {
+        const response = await apiClient.get(`/tools/${id}/related`, {
+            params: { limit },
+        })
+        return response.data
+    },
 }
 
 /**

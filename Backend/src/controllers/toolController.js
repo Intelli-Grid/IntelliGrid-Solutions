@@ -147,6 +147,19 @@ class ToolController {
             new ApiResponse(200, null, 'View count incremented')
         )
     })
+
+    /**
+     * Get related tools
+     * GET /api/v1/tools/:id/related
+     */
+    getRelatedTools = asyncHandler(async (req, res) => {
+        const limit = parseInt(req.query.limit) || 3
+        const tools = await toolService.getRelatedTools(req.params.id, limit)
+
+        res.status(200).json(
+            new ApiResponse(200, tools, 'Related tools retrieved successfully')
+        )
+    })
 }
 
 export default new ToolController()
