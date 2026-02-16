@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { toolService } from '../services'
@@ -5,9 +6,9 @@ import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import { Helmet } from 'react-helmet-async'
 
-// New Components
-import ToolHero from '../components/tools/ToolHero'
+// New Components (E-commerce Style)
 import ToolScreenshots from '../components/tools/ToolScreenshots'
+import ToolProductInfo from '../components/tools/ToolProductInfo'
 import ToolContent from '../components/tools/ToolContent'
 import SimilarTools from '../components/tools/SimilarTools'
 
@@ -53,7 +54,7 @@ export default function ToolDetailsPage() {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-900">
+            <div className="flex h-screen items-center justify-center bg-gray-950">
                 <LoadingSpinner text="Loading tool details..." />
             </div>
         )
@@ -61,9 +62,9 @@ export default function ToolDetailsPage() {
 
     if (error || !tool) {
         return (
-            <div className="container mx-auto px-4 py-16 text-center">
+            <div className="container mx-auto px-4 py-16 text-center text-white">
                 <ErrorMessage message={error} onRetry={() => window.location.reload()} />
-                <Link to="/tools" className="mt-8 inline-block text-purple-400 hover:text-purple-300">
+                <Link to="/tools" className="mt-8 inline-block text-purple-400 hover:text-purple-300 underline">
                     &larr; Back to Tools
                 </Link>
             </div>
@@ -71,7 +72,7 @@ export default function ToolDetailsPage() {
     }
 
     return (
-        <div className="bg-gray-900 min-h-screen pb-16">
+        <div className="bg-gray-950 min-h-screen pb-24 text-white font-sans antialiased">
             <Helmet>
                 <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
                 <meta name="description" content={tool.shortDescription} />
@@ -85,34 +86,49 @@ export default function ToolDetailsPage() {
                         "applicationCategory": typeof tool.category === 'object' ? tool.category.name : tool.category || "BusinessApplication",
                         "offers": {
                             "@type": "Offer",
-                            "price": "0",
+                            "price": tool.pricing?.amount || "0",
                             "priceCurrency": "USD"
                         }
                     })}
                 </script>
             </Helmet>
 
-            <div className="container mx-auto px-4 pt-8">
+            <div className="container mx-auto px-4 pt-8 lg:pt-12 max-w-7xl">
                 {/* 1. Breadcrumb */}
-                <nav className="mb-6 flex items-center space-x-2 text-sm text-gray-500">
+                <nav className="mb-8 flex items-center space-x-2 text-sm font-medium text-gray-500">
                     <Link to="/" className="hover:text-white transition-colors">Home</Link>
                     <span>/</span>
                     <Link to="/tools" className="hover:text-white transition-colors">Tools</Link>
                     <span>/</span>
+                    {typeof tool.category === 'object' && (
+                        <>
+                            <Link to={`/tools?category=${tool.category.slug}`} className="hover:text-white transition-colors">{tool.category.name}</Link>
+                            <span>/</span>
+                        </>
+                    )}
                     <span className="text-gray-300 truncate max-w-[200px]">{tool.name}</span>
                 </nav>
 
-                {/* 2. Hero Section */}
-                <ToolHero tool={tool} />
+                {/* 2. Top Section: Product Grid (Gallery + Details) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">
+                    {/* Left: Gallery */}
+                    <ToolScreenshots tool={tool} />
 
-                {/* 3. Screenshots / Preview */}
-                <ToolScreenshots tool={tool} />
+                    {/* Right: Product Info */}
+                    <div className="sticky top-24">
+                        <ToolProductInfo tool={tool} />
+                    </div>
+                </div>
 
-                {/* 4. Main Content (Tabs + Sidebar) */}
-                <ToolContent tool={tool} />
+                {/* 3. Middle Section: Detailed Content Tabs */}
+                <div className="mt-24">
+                    <ToolContent tool={tool} />
+                </div>
 
-                {/* 5. Similar Tools */}
-                <SimilarTools tools={relatedTools} />
+                {/* 4. Bottom Section: Related Tools (Carousel style) */}
+                <div className="mt-24 border-t border-white/10 pt-16">
+                    <SimilarTools tools={relatedTools} />
+                </div>
             </div>
         </div>
     )
