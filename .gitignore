@@ -1,83 +1,47 @@
-# .gitignore - Professional Production Repository
+# .gitignore - Enterprise Production Repository
+# STRICT: Only deployment-critical files allowed in repository
 
-# Dependencies
+# ============================================
+# CRITICAL: NEVER COMMIT THESE
+# ============================================
+
+# Environment Variables & Secrets
+.env
+.env.*
+*.env
+config/secrets.js
+config/credentials.js
+
+# API Keys & Credentials
+**/credentials/
+**/secrets/
+**/*_credentials.json
+**/*_secrets.json
+**/*_keys.json
+CREDENTIALS_*.md
+
+# ============================================
+# DEPENDENCIES & BUILD ARTIFACTS
+# ============================================
+
+# Node modules
 node_modules/
 .pnp
 .pnp.js
 
-# Testing
-coverage/
-*.test.js.snap
-
-# Production builds
+# Build outputs
 build/
 dist/
-
-# Environment Variables (NEVER commit these)
-.env
-.env.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.production
-.env.production.local
-*.env
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# OS Files
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
-
-# IDE
-.vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
-.project
-.classpath
-.settings/
-
-# Backup files
-*.gz
-*.zip
-*.tar
-backups/
-*.backup
-*.bak
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Cache
+out/
+.next/
 .cache/
 .parcel-cache/
-.next/
-out/
-
-# Misc
-*.md~
-.gemini/
 
 # ============================================
-# DOCUMENTATION & GUIDES (Keep repo clean)
+# DOCUMENTATION & GUIDES (EXCLUDED)
 # ============================================
-# All guides, checklists, and documentation files
-# These should be kept locally but NOT in the repository
 
+# All documentation files (keep locally only)
 *_GUIDE.md
 *_SUMMARY.md
 *_CHECKLIST.md
@@ -97,41 +61,183 @@ out/
 *_EXECUTION.md
 *_PREPARATION.md
 *_READINESS.md
+*_BLUEPRINT.md
+*_IMPLEMENTATION.md
+*_STATUS.md
+STATUS.md
+*_ANALYSIS.md
 
-# Session and progress tracking
+# Session tracking files
 SESSION_*.md
+SESSION-*.md
 DAY_*.md
+DAY-*.md
 LAUNCH_*.md
+LAUNCH-*.md
 DEPLOYMENT_*.md
+DEPLOYMENT-*.md
 MONITORING_*.md
+MONITORING-*.md
 PAYMENT_*.md
+PAYMENT-*.md
 EMAIL_*.md
+EMAIL-*.md
 LEGAL_*.md
+LEGAL-*.md
 PRODUCTION_*.md
+PRODUCTION-*.md
 PRE_LAUNCH_*.md
+PRE-LAUNCH-*.md
 NEXT_*.md
+NEXT-*.md
 QUICK_*.md
+QUICK-*.md
 URGENT_*.md
+URGENT-*.md
 VERCEL_*.md
+VERCEL-*.md
 WEBHOOK_*.md
+WEBHOOK-*.md
 VISUAL_*.md
+VISUAL-*.md
 MONGODB_*.md
+MONGODB-*.md
 FINAL_*.md
+FINAL-*.md
 COMPLETE_*.md
+COMPLETE-*.md
 START_*.md
+START-*.md
 FIX_*.md
+FIX-*.md
+TEST_*.md
+TEST-*.md
+PROJECT_*.md
+PROJECT-*.md
+GROWTH_*.md
+GROWTH-*.md
 
-# Specific files to exclude
+# Specific sensitive documentation
+FIX-PUSH-PROTECTION.md
+LAUNCH-ANNOUNCEMENT-KIT.md
+LAUNCH-BLOCKERS-ACTION-PLAN.md
+LAUNCH-PREPARATION-COMPLETE.md
+LAUNCH-STRATEGY-COMPLETE.md
+NEXT-STEPS-CHECKLIST.md
+PRODUCTION-READINESS.md
+QUICK-LAUNCH-GUIDE.md
+QUICK-WIN-CHECKLIST.md
+QUICK-WIN-EXECUTION-GUIDE.md
+START-HERE-NOW.md
+New Text Document.txt
+*.report.html
+cleanup-repo.ps1
+cleanup-repository.ps1
+
 CONFIGURATION_VERIFIED_100_PERCENT.md
 PASSIVE_INCOME_AUDIT_REPORT.md
 ADMIN_SECURITY_CONFIG.md
 SOCIAL_LOGIN_QUICK_REF.md
+ZERO_BUDGET_DEVELOPMENT_SETUP.md
+
+# Documentation directories
+docs/
+documentation/
+guides/
+.docs/
 
 # ============================================
-# KEEP ONLY ESSENTIAL DOCUMENTATION
+# TEST & DEVELOPMENT FILES
 # ============================================
+
+# Test outputs
+coverage/
+*.test.js.snap
+test_*.txt
+test_*.json
+*_test_*.txt
+final_test_output.txt
+test_results*.txt
+
+# Development scripts
+scripts/test*.js
+scripts/dev*.js
+scripts/local*.js
+
+# ============================================
+# LOGS & TEMPORARY FILES
+# ============================================
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Backup files
+*.gz
+*.zip
+*.tar
+backups/
+*.backup
+*.bak
+*.old
+
+# ============================================
+# OS & IDE FILES
+# ============================================
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# ============================================
+# GEMINI AI ARTIFACTS
+# ============================================
+.gemini/
+
+# ============================================
+# DEPLOYMENT CONFIGS (Use environment variables)
+# ============================================
+
+# Vercel
+.vercel
+
+# Railway
+railway.json
+
+# ============================================
+# ALLOWED FILES (Essential for deployment)
+# ============================================
+
+# Keep these essential files
 !README.md
 !LICENSE
-!CONTRIBUTING.md
-!CHANGELOG.md
-!CODE_OF_CONDUCT.md
+!.gitignore
+!package.json
+!package-lock.json
+
+# Keep essential config examples (no secrets)
+!.env.example
+!config.example.js

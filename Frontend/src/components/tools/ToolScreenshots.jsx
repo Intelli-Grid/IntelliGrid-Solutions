@@ -28,7 +28,10 @@ export default function ToolScreenshots({ tool }) {
                     {/* Main Image */}
                     <img
                         src={imageSrc}
-                        alt="Product Screenshot"
+                        alt={`${tool.name} Screenshot`}
+                        loading="lazy"
+                        width="800"
+                        height="600"
                         className="relative z-10 max-h-[80%] max-w-[80%] object-contain drop-shadow-2xl transition-all duration-500 group-hover:scale-105"
                     />
 

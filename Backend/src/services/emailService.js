@@ -181,6 +181,107 @@ class EmailService {
             console.error('Error sending payment failure email:', error)
         }
     }
+
+    /**
+     * Send claim verification email
+     * @param {Object} claim - Claim object
+     * @param {Object} tool - Tool object
+     */
+    async sendClaimVerificationEmail(claim, tool) {
+        if (!process.env.BREVO_API_KEY) return
+
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: claim.email, name: 'Tool Owner' }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = `Received: Claim Request for ${tool.name}`
+        sendSmtpEmail.htmlContent = `
+            <h1>Claim Request Received</h1>
+            <p>Hello,</p>
+            <p>We have received your request to claim ownership of <strong>${tool.name}</strong> on IntelliGrid.</p>
+            <p>Our team will review your verification information and get back to you shortly.</p>
+            <p><strong>Claim ID:</strong> ${claim._id}</p>
+            <br>
+            <p>If you did not make this request, please ignore this email.</p>
+        `
+
+        try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Claim verification email sent to:', claim.email)
+        } catch (error) {
+            console.error('Error sending claim email:', error)
+        }
+    }
+
+    /**
+     * Send claim invitation email
+     * @param {Object} tool - Tool object
+     * @param {string} contactEmail - Founder email
+     */
+    async sendClaimInvitation(tool, contactEmail) {
+        if (!process.env.BREVO_API_KEY) return
+
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
+        sendSmtpEmail.to = [{ email: contactEmail }]
+        sendSmtpEmail.sender = {
+            email: process.env.BREVO_SENDER_EMAIL,
+            name: process.env.BREVO_SENDER_NAME
+        }
+        sendSmtpEmail.subject = `Your tool ${tool.name} is featured on IntelliGrid!`
+        sendSmtpEmail.htmlContent = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #7c3aed;">Great news!</h1>
+                <p>We've listed <strong>${tool.name}</strong> on IntelliGrid, the premier AI tool directory.</p>
+                <p>You can claim your listing to update details, view analytics, and respond to reviews.</p>
+                <br>
+                <a href="${process.env.FRONTEND_URL || 'https://intelligrid.online'}/tools/${tool.slug}" style="background-color: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">View & Claim Tool</a>
+                <br><br>
+                <p style="color: #666; font-size: 14px;">Best regards,<br>The IntelliGrid Team</p>
+            </div>
+        `
+
+        try {
+            await apiInstance.sendTransacEmail(sendSmtpEmail)
+            console.log('Claim invitation email sent to:', contactEmail)
+            return true
+        } catch (error) {
+            console.error('Error sending invitation email:', error)
+            return false
+        }
+    }
+
+    /**
+     * Add subscriber to Brevo
+     * @param {string} email
+     * @param {Object} attributes
+     */
+    async addSubscriber(email, attributes = {}) {
+        if (!process.env.BREVO_API_KEY) return
+
+        const contactsApi = new SibApiV3Sdk.ContactsApi()
+        const apiKey = contactsApi.authentications['apiKey']
+        apiKey.apiKey = process.env.BREVO_API_KEY
+
+        const createContact = new SibApiV3Sdk.CreateContact()
+        createContact.email = email
+        createContact.attributes = attributes
+        createContact.updateEnabled = true
+
+        if (process.env.BREVO_LIST_ID) {
+            createContact.listIds = [parseInt(process.env.BREVO_LIST_ID)]
+        }
+
+        try {
+            await contactsApi.createContact(createContact)
+            console.log('Subscriber added to Brevo:', email)
+            return true
+        } catch (error) {
+            console.error('Error adding subscriber to Brevo:', error && error.response ? error.response.body : error)
+            return false
+        }
+    }
 }
 
 export default new EmailService()

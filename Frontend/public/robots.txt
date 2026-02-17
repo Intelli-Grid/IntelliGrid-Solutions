@@ -1,3 +1,11 @@
 User-agent: *
 Allow: /
+
+# Block internal search/sort parameters to prevent duplicate content
+Disallow: /*?*
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /payment
+
+# Point to the dynamic sitemap
 Sitemap: https://intelligrid.online/sitemap.xml

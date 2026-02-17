@@ -5,12 +5,16 @@ import { toolService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import { Helmet } from 'react-helmet-async'
+import { generateToolSchema, generateBreadcrumbSchema } from '../utils/seoHelpers'
+
 
 // New Components (E-commerce Style)
 import ToolScreenshots from '../components/tools/ToolScreenshots'
 import ToolProductInfo from '../components/tools/ToolProductInfo'
 import ToolContent from '../components/tools/ToolContent'
 import SimilarTools from '../components/tools/SimilarTools'
+import ClaimToolModal from '../components/tools/ClaimToolModal'
+import EmbedToolModal from '../components/tools/EmbedToolModal'
 
 export default function ToolDetailsPage() {
     const { slug } = useParams()
@@ -18,6 +22,8 @@ export default function ToolDetailsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [relatedTools, setRelatedTools] = useState([])
+    const [isClaimModalOpen, setIsClaimModalOpen] = useState(false)
+    const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -71,25 +77,33 @@ export default function ToolDetailsPage() {
         )
     }
 
+    const breadcrumbItems = [
+        { name: 'Home', url: 'https://intelligrid.online' },
+        { name: 'Tools', url: 'https://intelligrid.online/tools' }
+    ]
+
+    if (typeof tool.category === 'object') {
+        breadcrumbItems.push({
+            name: tool.category.name,
+            url: `https://intelligrid.online/category/${tool.category.slug}`
+        })
+    }
+
+    breadcrumbItems.push({ name: tool.name, url: `https://intelligrid.online/tools/${tool.slug}` })
+
     return (
         <div className="bg-gray-950 min-h-screen pb-24 text-white font-sans antialiased">
             <Helmet>
                 <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
                 <meta name="description" content={tool.shortDescription} />
+                <link rel="canonical" href={`https://intelligrid.online/tools/${tool.slug}`} />
+
                 {/* Schema Markup */}
                 <script type="application/ld+json">
-                    {JSON.stringify({
-                        "@context": "https://schema.org",
-                        "@type": "SoftwareApplication",
-                        "name": tool.name,
-                        "description": tool.shortDescription,
-                        "applicationCategory": typeof tool.category === 'object' ? tool.category.name : tool.category || "BusinessApplication",
-                        "offers": {
-                            "@type": "Offer",
-                            "price": tool.pricing?.amount || "0",
-                            "priceCurrency": "USD"
-                        }
-                    })}
+                    {generateToolSchema(tool)}
+                </script>
+                <script type="application/ld+json">
+                    {generateBreadcrumbSchema(breadcrumbItems)}
                 </script>
             </Helmet>
 
@@ -116,7 +130,11 @@ export default function ToolDetailsPage() {
 
                     {/* Right: Product Info */}
                     <div className="sticky top-24">
-                        <ToolProductInfo tool={tool} />
+                        <ToolProductInfo
+                            tool={tool}
+                            onClaim={() => setIsClaimModalOpen(true)}
+                            onEmbed={() => setIsEmbedModalOpen(true)}
+                        />
                     </div>
                 </div>
 
@@ -127,9 +145,21 @@ export default function ToolDetailsPage() {
 
                 {/* 4. Bottom Section: Related Tools (Carousel style) */}
                 <div className="mt-24 border-t border-white/10 pt-16">
-                    <SimilarTools tools={relatedTools} />
+                    <SimilarTools tools={relatedTools} currentToolSlug={tool.slug} />
                 </div>
             </div>
+
+            {/* Modals */}
+            <ClaimToolModal
+                isOpen={isClaimModalOpen}
+                onClose={() => setIsClaimModalOpen(false)}
+                tool={tool}
+            />
+            <EmbedToolModal
+                isOpen={isEmbedModalOpen}
+                onClose={() => setIsEmbedModalOpen(false)}
+                tool={tool}
+            />
         </div>
     )
 }

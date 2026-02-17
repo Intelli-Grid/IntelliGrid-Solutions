@@ -1,0 +1,8 @@
+<svg width="200" height="40" viewBox="0 0 200 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="200" height="40" rx="4" fill="#111827"/>
+<rect x="0.5" y="0.5" width="199" height="39" rx="3.5" stroke="#374151"/>
+<path d="M16.5 13L20 25.5L23.5 13" stroke="#A855F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M26.5 13L30 25.5L33.5 13" stroke="#A855F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text fill="#F3F4F6" xml:space="preserve" style="white-space: pre" font-family="Inter, sans-serif" font-size="12" font-weight="bold" letter-spacing="0em"><tspan x="45" y="24">FEATURED ON</tspan></text>
+<text fill="#A855F7" xml:space="preserve" style="white-space: pre" font-family="Inter, sans-serif" font-size="12" font-weight="800" letter-spacing="0em"><tspan x="135" y="24">INTELLIGRID</tspan></text>
+</svg>

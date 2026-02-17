@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Github, Twitter, Linkedin } from 'lucide-react'
+import NewsletterForm from '../common/NewsletterForm'
 
 export default function Footer() {
     const currentYear = new Date().getFullYear()
@@ -7,7 +8,9 @@ export default function Footer() {
     return (
         <footer className="border-t border-white/10 bg-black/50 backdrop-blur-xl">
             <div className="container mx-auto px-4 py-12">
-                <div className="grid gap-8 md:grid-cols-4">
+                <NewsletterForm source="footer" className="mb-16" />
+
+                <div className="grid gap-8 md:grid-cols-5">
                     {/* Brand */}
                     <div className="space-y-4">
                         <div className="flex items-center space-x-2">
@@ -64,6 +67,33 @@ export default function Footer() {
                             <li>
                                 <Link to="/faq" className="text-sm text-gray-400 transition hover:text-white">
                                     FAQ
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* Popular Categories (Phase 2.3) */}
+                    <div>
+                        <h3 className="mb-4 text-sm font-semibold text-white">Popular</h3>
+                        <ul className="space-y-2">
+                            <li>
+                                <Link to="/category/text-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                    Writing AI
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/category/image-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                    Image Generators
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/category/video-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                    Video AI
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/category/coding-assistants" className="text-sm text-gray-400 transition hover:text-white">
+                                    Coding Tools
                                 </Link>
                             </li>
                         </ul>

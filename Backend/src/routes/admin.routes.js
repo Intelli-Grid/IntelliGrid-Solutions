@@ -3,7 +3,9 @@ import clerkClient from '../config/clerk.js'
 import Tool from '../models/Tool.js'
 import Review from '../models/Review.js'
 import Order from '../models/Order.js'
+import ClaimRequest from '../models/ClaimRequest.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import emailService from '../services/emailService.js'
 
 const router = express.Router()
 
@@ -147,6 +149,43 @@ router.delete('/tools/:id', async (req, res) => {
 })
 
 /**
+ * @route   POST /api/v1/admin/tools/:id/invite
+ * @desc    Send claim invitation to tool owner
+ * @access  Admin only
+ */
+router.post('/tools/:id/invite', async (req, res) => {
+    try {
+        const { contactEmail } = req.body
+        const tool = await Tool.findById(req.params.id)
+
+        if (!tool) {
+            return res.status(404).json({ success: false, message: 'Tool not found' })
+        }
+
+        const emailToSend = contactEmail || tool.contactEmail
+        if (!emailToSend) {
+            return res.status(400).json({ success: false, message: 'Contact email is required' })
+        }
+
+        const sent = await emailService.sendClaimInvitation(tool, emailToSend)
+        if (!sent) {
+            throw new Error('Email sending failed')
+        }
+
+        res.json({
+            success: true,
+            message: `Invitation sent successfully to ${emailToSend}`
+        })
+    } catch (error) {
+        console.error('Invitation error:', error)
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send invitation email'
+        })
+    }
+})
+
+/**
  * @route   GET /api/v1/admin/reviews/pending
  * @desc    Get pending reviews for moderation
  * @access  Admin only
@@ -154,6 +193,8 @@ router.delete('/tools/:id', async (req, res) => {
 router.get('/reviews/pending', async (req, res) => {
     try {
         const pendingReviews = await Review.find({ status: 'pending' })
+            .populate('user', 'firstName lastName email')
+            .populate('tool', 'name')
             .sort({ createdAt: -1 })
             .limit(50)
             .lean()
@@ -211,6 +252,44 @@ router.put('/reviews/:id/approve', async (req, res) => {
 })
 
 /**
+ * @route   PUT /api/v1/admin/reviews/:id/reject
+ * @desc    Reject a pending review
+ * @access  Admin only
+ */
+router.put('/reviews/:id/reject', async (req, res) => {
+    try {
+        const review = await Review.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    status: 'rejected',
+                    moderatedAt: new Date(),
+                }
+            },
+            { new: true }
+        )
+
+        if (!review) {
+            return res.status(404).json({
+                success: false,
+                message: 'Review not found'
+            })
+        }
+
+        res.json({
+            success: true,
+            message: 'Review rejected successfully'
+        })
+    } catch (error) {
+        console.error('Review rejection error:', error)
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reject review'
+        })
+    }
+})
+
+/**
  * @route   GET /api/v1/admin/payments
  * @desc    Get all payments with filters
  * @access  Admin only
@@ -243,6 +322,73 @@ router.get('/payments', async (req, res) => {
             success: false,
             message: 'Failed to fetch payments'
         })
+    }
+})
+
+// Claim Management Routes
+router.get('/claims/pending', async (req, res) => {
+    try {
+        const claims = await ClaimRequest.find({ status: 'pending' })
+            .populate('tool', 'name slug')
+            .populate('user', 'firstName lastName email avatar')
+            .sort({ createdAt: -1 })
+
+        res.json({
+            success: true,
+            claims
+        })
+    } catch (error) {
+        console.error('Pending claims error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch pending claims' })
+    }
+})
+
+router.put('/claims/:id/approve', async (req, res) => {
+    try {
+        const claim = await ClaimRequest.findById(req.params.id)
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
+
+        // Find user 
+        const User = (await import('../models/User.js')).default
+        let userId = claim.user
+
+        if (!userId) {
+            const user = await User.findOne({ email: claim.email })
+            if (!user) return res.status(400).json({ success: false, message: 'User not registered with this email' })
+            userId = user._id
+        }
+
+        // Update Tool
+        await Tool.findByIdAndUpdate(claim.tool, { isVerified: true, owner: userId })
+
+        // Update Claim
+        claim.status = 'approved'
+        claim.reviewedAt = new Date()
+
+        // Admin user logic skipped for brevity/simplicity, can add later if needed for audit
+
+        await claim.save()
+
+        res.json({ success: true, message: 'Claim approved' })
+    } catch (error) {
+        console.error('Claim approval error:', error)
+        res.status(500).json({ success: false, message: 'Failed to approve claim' })
+    }
+})
+
+router.put('/claims/:id/reject', async (req, res) => {
+    try {
+        const claim = await ClaimRequest.findByIdAndUpdate(
+            req.params.id,
+            { status: 'rejected', reviewedAt: new Date() },
+            { new: true }
+        )
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
+
+        res.json({ success: true, message: 'Claim rejected' })
+    } catch (error) {
+        console.error('Claim rejection error:', error)
+        res.status(500).json({ success: false, message: 'Failed to reject claim' })
     }
 })
 

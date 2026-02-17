@@ -2,7 +2,12 @@ import { ExternalLink, Heart, Share2, Check, TrendingUp, Star } from 'lucide-rea
 import { getPricingDisplay, formatNumber, formatDate } from '../../utils/helpers';
 import { useState } from 'react';
 
-export default function ToolProductInfo({ tool }) {
+// Update signature
+export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
+
+    // ... existing code
+
+
     if (!tool) return null;
 
     const [isFavorite, setIsFavorite] = useState(false); // Placeholder for real logic
@@ -83,8 +88,8 @@ export default function ToolProductInfo({ tool }) {
                     <button
                         onClick={() => setIsFavorite(!isFavorite)}
                         className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 font-medium transition-all hover:bg-white/5 ${isFavorite
-                                ? 'border-red-500/50 text-red-400 bg-red-500/10'
-                                : 'border-white/10 text-gray-300'
+                            ? 'border-red-500/50 text-red-400 bg-red-500/10'
+                            : 'border-white/10 text-gray-300'
                             }`}
                     >
                         <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
@@ -97,8 +102,45 @@ export default function ToolProductInfo({ tool }) {
                         <Share2 className="h-5 w-5" />
                         Share
                     </button>
+                    <button
+                        onClick={onEmbed}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3 font-medium text-gray-300 transition-all hover:bg-white/5"
+                        title="Embed Badge"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-5 w-5"
+                        >
+                            <polyline points="16 18 22 12 16 6"></polyline>
+                            <polyline points="8 6 2 12 8 18"></polyline>
+                        </svg>
+                        Embed
+                    </button>
                 </div>
             </div>
-        </div>
+
+
+            {/* Claim Tool Link */}
+            {
+                !tool.isVerified && (
+                    <div className="pt-2 text-center">
+                        <button
+                            onClick={onClaim}
+                            className="text-xs text-gray-500 hover:text-white underline underline-offset-4 transition-colors"
+                        >
+                            Is this your tool? Claim it to manage this page.
+                        </button>
+                    </div>
+                )
+            }
+        </div >
     );
 }

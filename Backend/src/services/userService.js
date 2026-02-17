@@ -166,6 +166,22 @@ class UserService {
      * Add favorite
      */
     async addFavorite(userId, toolId) {
+        // Check user subscription and limits
+        const user = await User.findById(userId)
+        if (!user) {
+            throw ApiError.notFound('User not found')
+        }
+
+        // Limit for free users: 10 favorites
+        const isPro = user.subscription?.tier === 'pro' && user.subscription?.status === 'active'
+
+        if (!isPro) {
+            const count = await Favorite.countDocuments({ user: userId })
+            if (count >= 10) {
+                throw ApiError.forbidden('Free plan limit reached. Upgrade to Pro to save more favorites.')
+            }
+        }
+
         // Check if already favorited
         const existing = await Favorite.findOne({ user: userId, tool: toolId })
 

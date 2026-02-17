@@ -96,6 +96,19 @@ const toolSchema = new mongoose.Schema(
             screenshots: [String],
             videoUrl: String,
         },
+        isVerified: {
+            type: Boolean,
+            default: false,
+        },
+        contactEmail: {
+            type: String,
+            trim: true,
+            lowercase: true,
+        },
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
     },
     {
         timestamps: true,

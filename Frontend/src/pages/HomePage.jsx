@@ -8,19 +8,24 @@ import SEO from '../components/common/SEO'
 
 export default function HomePage() {
     const [trendingTools, setTrendingTools] = useState([])
+    const [recentTools, setRecentTools] = useState([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        fetchTrendingTools()
+        fetchData()
     }, [])
 
-    const fetchTrendingTools = async () => {
+    const fetchData = async () => {
         try {
-            const response = await toolService.getTrendingTools(6)
-            console.log('Trending tools response:', response) // Debug log
-            setTrendingTools(response.data || response || [])
+            const [trendingDocs, recentDocs] = await Promise.all([
+                toolService.getTrendingTools(6),
+                toolService.getTools({ sort: '-createdAt', limit: 6 })
+            ])
+
+            setTrendingTools(trendingDocs.data || trendingDocs || [])
+            setRecentTools(recentDocs.data || recentDocs.tools || [])
         } catch (error) {
-            console.error('Error fetching trending tools:', error)
+            console.error('Error fetching tools:', error)
         } finally {
             setLoading(false)
         }
@@ -176,6 +181,45 @@ export default function HomePage() {
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
                         </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Recent Tools Section (Phase 2.3) */}
+            <section className="py-20 bg-primary-900 border-t border-white/5">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="mb-12 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-accent-emerald to-accent-cyan rounded-lg">
+                                <Sparkles className="h-6 w-6 text-white" />
+                            </div>
+                            <h2 className="text-3xl font-bold text-white">New Arrivals</h2>
+                        </div>
+                        <Link
+                            to="/tools?sort=-createdAt"
+                            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors group"
+                        >
+                            <span>View all</span>
+                            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                    </div>
+
+                    {loading ? (
+                        <LoadingSpinner text="Loading new tools..." />
+                    ) : recentTools.length > 0 ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {recentTools.map((tool, index) => (
+                                <div
+                                    key={tool._id}
+                                    className="animate-fade-in-up"
+                                    style={{ animationDelay: `${index * 0.1}s` }}
+                                >
+                                    <ToolCard tool={tool} />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center text-gray-500">No recent tools found.</div>
                     )}
                 </div>
             </section>

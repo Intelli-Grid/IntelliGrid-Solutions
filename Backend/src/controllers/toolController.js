@@ -1,6 +1,7 @@
 import toolService from '../services/toolService.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import asyncHandler from '../utils/asyncHandler.js'
+import ApiError from '../utils/ApiError.js'
 
 /**
  * Tool Controller - Handle tool-related requests
@@ -117,10 +118,20 @@ class ToolController {
      * PUT /api/v1/tools/:id
      */
     updateTool = asyncHandler(async (req, res) => {
-        const tool = await toolService.updateTool(req.params.id, req.body)
+        const tool = await toolService.getToolById(req.params.id)
+
+        // Check if user is authorized (admin or owner)
+        const isAdmin = req.user.role === 'admin'
+        const isOwner = tool.owner && tool.owner.toString() === req.user._id.toString()
+
+        if (!isAdmin && !isOwner) {
+            throw new ApiError(403, 'You are not authorized to update this tool')
+        }
+
+        const updatedTool = await toolService.updateTool(req.params.id, req.body)
 
         res.status(200).json(
-            new ApiResponse(200, tool, 'Tool updated successfully')
+            new ApiResponse(200, updatedTool, 'Tool updated successfully')
         )
     })
 
@@ -158,6 +169,57 @@ class ToolController {
 
         res.status(200).json(
             new ApiResponse(200, tools, 'Related tools retrieved successfully')
+        )
+    })
+    /**
+     * Compare tools
+     * GET /api/v1/tools/compare?slugs=tool1,tool2
+     */
+    compareTools = asyncHandler(async (req, res) => {
+        const { slugs } = req.query
+
+        if (!slugs) {
+            throw new Error('Slugs are required')
+        }
+
+        const slugArray = slugs.split(',').map(s => s.trim())
+        const tools = await toolService.compareTools(slugArray)
+
+        res.status(200).json(
+            new ApiResponse(200, tools, 'Comparison data retrieved successfully')
+        )
+    })
+    /**
+     * Submit claim request
+     * POST /api/v1/tools/:id/claim
+     */
+    submitClaimRequest = asyncHandler(async (req, res) => {
+        const { id } = req.params
+        const { email, role, verificationInfo } = req.body
+
+        if (!email || !role) {
+            throw new Error('Email and Role are required')
+        }
+
+        const claim = await toolService.claimTool(
+            id,
+            { email, role, verificationInfo },
+            req.user?._id // Pass user ID if authenticated
+        )
+
+        res.status(201).json(
+            new ApiResponse(201, claim, 'Claim request submitted successfully. We will review it shortly.')
+        )
+    })
+    /**
+     * Get managed tools
+     * GET /api/v1/tools/managed
+     */
+    getManagedTools = asyncHandler(async (req, res) => {
+        const tools = await toolService.getToolsByOwner(req.user._id)
+
+        res.status(200).json(
+            new ApiResponse(200, tools, 'Managed tools retrieved successfully')
         )
     })
 }

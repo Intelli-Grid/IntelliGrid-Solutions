@@ -21,18 +21,22 @@ export const getRevenueAnalytics = async (req, res) => {
         let activeSubscriptions = 0
 
         users.forEach(user => {
-            const plan = user.subscription?.plan || 'Free'
+            const sub = user.subscription || {}
+            const tier = sub.tier || 'free'
+            const duration = sub.duration
+            const status = sub.status
 
-            if (plan === 'Free' || !user.subscription || user.subscription.status !== 'active') {
+            if (tier === 'pro' && status === 'active') {
+                activeSubscriptions++
+                if (duration === 'monthly') {
+                    subscriptionBreakdown.proMonthly++
+                    totalMRR += 9.99
+                } else if (duration === 'yearly') {
+                    subscriptionBreakdown.proYearly++
+                    totalMRR += 89.99 / 12
+                }
+            } else {
                 subscriptionBreakdown.free++
-            } else if (plan === 'Pro Monthly' && user.subscription.status === 'active') {
-                subscriptionBreakdown.proMonthly++
-                activeSubscriptions++
-                totalMRR += 9.99
-            } else if (plan === 'Pro Yearly' && user.subscription.status === 'active') {
-                subscriptionBreakdown.proYearly++
-                activeSubscriptions++
-                totalMRR += 99.99 / 12
             }
         })
 

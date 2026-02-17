@@ -15,8 +15,11 @@ const ToolsPage = lazy(() => import('./pages/ToolsPage'))
 const ToolDetailsPage = lazy(() => import('./pages/ToolDetailsPage'))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
 const CategoryPage = lazy(() => import('./pages/CategoryPage'))
+const ComparisonPage = lazy(() => import('./pages/ComparisonPage'))
+const CollectionDetailsPage = lazy(() => import('./pages/CollectionDetailsPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
 const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'))
+const PaymentCancelPage = lazy(() => import('./pages/PaymentCancelPage'))
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'))
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'))
 const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'))
@@ -53,8 +56,10 @@ function App() {
                         <Route path="/" element={<HomePage />} />
                         <Route path="/tools" element={<ToolsPage />} />
                         <Route path="/tools/:slug" element={<ToolDetailsPage />} />
+                        <Route path="/collections/:idOrSlug" element={<CollectionDetailsPage />} />
                         <Route path="/search" element={<SearchPage />} />
                         <Route path="/category/:slug" element={<CategoryPage />} />
+                        <Route path="/compare/:slugs" element={<ComparisonPage />} />
                         <Route path="/pricing" element={<PricingPage />} />
 
                         {/* Legal Routes */}
@@ -65,7 +70,7 @@ function App() {
 
                         {/* Payment Routes */}
                         <Route path="/payment/success" element={<PaymentSuccessPage />} />
-                        <Route path="/payment/cancel" element={<PaymentSuccessPage />} />
+                        <Route path="/payment/cancel" element={<PaymentCancelPage />} />
 
                         {/* Protected Routes */}
                         <Route

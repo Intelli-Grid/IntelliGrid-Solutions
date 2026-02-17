@@ -59,6 +59,26 @@ export const toolService = {
         })
         return response.data
     },
+
+    // Claim tool
+    claimTool: async (id, data) => {
+        const response = await apiClient.post(`/tools/${id}/claim`, data)
+        return response.data
+    },
+
+    // Get managed tools
+    getManagedTools: async () => {
+        const response = await apiClient.get('/tools/managed')
+        return response.data
+    },
+
+    // Compare tools
+    compareTools: async (toolSlugs) => {
+        const response = await apiClient.get('/tools/compare', {
+            params: { slugs: toolSlugs.join(',') }
+        })
+        return response.data
+    },
 }
 
 /**
@@ -240,9 +260,115 @@ export const adminService = {
         return response.data
     },
 
+    // Reject review
+    rejectReview: async (id) => {
+        const response = await apiClient.put(`/admin/reviews/${id}/reject`)
+        return response.data
+    },
+
     // Get payments
     getPayments: async (params = {}) => {
         const response = await apiClient.get('/admin/payments', { params })
+        return response.data
+    },
+
+    // Get pending claims
+    getPendingClaims: async () => {
+        const response = await apiClient.get('/admin/claims/pending')
+        return response.data
+    },
+
+    // Approve claim
+    approveClaim: async (id) => {
+        const response = await apiClient.put(`/admin/claims/${id}/approve`)
+        return response.data
+    },
+
+    // Reject claim
+    rejectClaim: async (id) => {
+        const response = await apiClient.put(`/admin/claims/${id}/reject`)
+        return response.data
+    },
+
+    // Send claim invitation
+    sendInvitation: async (id, data = {}) => {
+        const response = await apiClient.post(`/admin/tools/${id}/invite`, data)
+        return response.data
+    },
+
+    // Update tool (Admin only)
+    updateTool: async (id, data) => {
+        const response = await apiClient.put(`/tools/${id}`, data)
+        return response.data
+    },
+}
+
+/**
+ * Collection Service - API calls for collections
+ */
+export const collectionService = {
+    // Get public collections
+    getPublicCollections: async (params = {}) => {
+        const response = await apiClient.get('/collections/public', { params })
+        return response.data
+    },
+
+    // Get collection by ID
+    getCollectionById: async (id) => {
+        const response = await apiClient.get(`/collections/${id}`)
+        return response.data
+    },
+
+    // Get my collections
+    getMyCollections: async () => {
+        const response = await apiClient.get('/collections/me')
+        return response.data
+    },
+
+    // Create collection
+    createCollection: async (data) => {
+        const response = await apiClient.post('/collections', data)
+        return response.data
+    },
+
+    // Update collection
+    updateCollection: async (id, data) => {
+        const response = await apiClient.put(`/collections/${id}`, data)
+        return response.data
+    },
+
+    // Delete collection
+    deleteCollection: async (id) => {
+        const response = await apiClient.delete(`/collections/${id}`)
+        return response.data
+    },
+
+    // Add tool to collection
+    addTool: async (collectionId, toolId) => {
+        const response = await apiClient.post(`/collections/${collectionId}/tools`, { toolId })
+        return response.data
+    },
+
+    // Remove tool from collection
+    removeTool: async (collectionId, toolId) => {
+        const response = await apiClient.delete(`/collections/${collectionId}/tools/${toolId}`)
+        return response.data
+    },
+}
+
+/**
+ * Newsletter Service - API calls for newsletter
+ */
+export const newsletterService = {
+    // Subscribe
+    subscribe: async (email, source = 'website') => {
+        const response = await apiClient.post('/newsletter/subscribe', { email, source })
+        return response.data
+    },
+
+    // Unsubscribe (optional, though usually handled via email link, good to have API)
+    unsubscribe: async (email) => {
+        const response = await apiClient.post('/newsletter/unsubscribe', { email })
         return response.data
     },
 }

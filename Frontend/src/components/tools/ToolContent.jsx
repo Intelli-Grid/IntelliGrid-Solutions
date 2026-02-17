@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { Tag, CheckCircle } from 'lucide-react';
+import ToolReviews from './ToolReviews';
 
 export default function ToolContent({ tool }) {
     if (!tool) return null;
@@ -17,8 +18,8 @@ export default function ToolContent({ tool }) {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`pb-4 font-medium text-sm lg:text-base transition-colors whitespace-nowrap focus:outline-none relative ${activeTab === tab
-                                ? 'text-white'
-                                : 'text-gray-400 hover:text-white'
+                            ? 'text-white'
+                            : 'text-gray-400 hover:text-white'
                             }`}
                     >
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -102,12 +103,7 @@ export default function ToolContent({ tool }) {
 
                 {/* 3. REVIEWS TAB */}
                 {activeTab === 'reviews' && (
-                    <div className="flex flex-col items-center justify-center h-48 text-gray-400 animate-in fade-in slide-in-from-bottom-2 duration-300 bg-white/5 rounded-xl border border-dashed border-white/10">
-                        <p className="mb-4">No reviews yet. Be the first to share your experience!</p>
-                        <button className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                            Write a Review
-                        </button>
-                    </div>
+                    <ToolReviews tool={tool} />
                 )}
 
                 {/* 4. ALTERNATIVES TAB */}

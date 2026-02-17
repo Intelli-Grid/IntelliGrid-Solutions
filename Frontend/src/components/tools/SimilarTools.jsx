@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Star } from 'lucide-react';
 
-export default function SimilarTools({ tools }) {
+export default function SimilarTools({ tools, currentToolSlug }) {
     if (!tools || tools.length === 0) return null;
 
     return (
@@ -44,6 +44,21 @@ export default function SimilarTools({ tools }) {
                                 <p className="mt-1 line-clamp-2 text-xs text-gray-400 group-hover:text-gray-300">
                                     {tool.shortDescription}
                                 </p>
+
+                                {/* Comparison Link */}
+                                {currentToolSlug && (
+                                    <div className="mt-3">
+                                        <object>
+                                            <Link
+                                                to={`/compare/${currentToolSlug}-vs-${tool.slug}`}
+                                                className="inline-flex items-center text-xs font-medium text-purple-400 hover:text-purple-300 transition-colors z-20 relative"
+                                                onClick={(e) => e.stopPropagation()} // Prevent parent Link click
+                                            >
+                                                Compare vs {tool.name} &rarr;
+                                            </Link>
+                                        </object>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </Link>

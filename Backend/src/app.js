@@ -23,6 +23,9 @@ import analyticsRoutes from './routes/analyticsRoutes.js'
 
 import gdprRoutes from './routes/gdprRoutes.js'
 import adminRoutes from './routes/admin.routes.js'
+import seoRoutes from './routes/seoRoutes.js'
+import collectionRoutes from './routes/collectionRoutes.js'
+import newsletterRoutes from './routes/newsletterRoutes.js'
 
 // Load environment variables
 dotenv.config()
@@ -61,6 +64,9 @@ const corsOptions = {
 }
 app.use(cors(corsOptions))
 
+// SEO Routes (Sitemap) - Must be before rate limiter or strictly rate limited differently if needed
+app.use('/', seoRoutes)
+
 // Rate Limiting
 const limiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
@@ -71,7 +77,6 @@ const limiter = rateLimit({
 })
 app.use('/api/', limiter)
 
-// Health Check Route
 // Health Check Route
 app.get('/health', async (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
@@ -109,6 +114,7 @@ app.get('/api/v1', (req, res) => {
 
             gdpr: '/api/v1/gdpr',
             admin: '/api/v1/admin',
+            collections: '/api/v1/collections',
         },
     })
 })
@@ -124,6 +130,8 @@ app.use('/api/v1/analytics', analyticsRoutes)
 
 app.use('/api/v1/gdpr', gdprRoutes)
 app.use('/api/v1/admin', adminRoutes)
+app.use('/api/v1/collections', collectionRoutes)
+app.use('/api/v1/newsletter', newsletterRoutes)
 
 // 404 Handler
 app.use((req, res) => {

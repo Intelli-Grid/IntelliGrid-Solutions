@@ -2,6 +2,8 @@ import mongoose from 'mongoose'
 import Tool from '../models/Tool.js'
 import Category from '../models/Category.js'
 import ApiError from '../utils/ApiError.js'
+import ClaimRequest from '../models/ClaimRequest.js'
+import emailService from './emailService.js'
 import { syncToolToAlgolia, deleteToolFromAlgolia, toolsIndex } from '../config/algolia.js'
 import { invalidateCache } from '../middleware/cache.js'
 
@@ -284,6 +286,67 @@ class ToolService {
             .lean()
 
         return relatedTools
+    }
+    /**
+     * Compare tools
+     */
+    async compareTools(slugs) {
+        if (!slugs || slugs.length < 2) {
+            throw ApiError.badRequest('At least two tools are required for comparison')
+        }
+
+        const tools = await Tool.find({
+            slug: { $in: slugs },
+            status: 'active'
+        })
+            .populate('category', 'name slug')
+            .lean()
+
+        // Create a map to return tools in the requested order if needed, 
+        // or just return the list found.
+        return tools
+    }
+
+    /**
+     * Claim tool
+     */
+    async claimTool(toolId, claimData, userId = null) {
+        const tool = await Tool.findById(toolId)
+        if (!tool) {
+            throw ApiError.notFound('Tool not found')
+        }
+
+        // Check if already claimed by this email
+        const existingClaim = await ClaimRequest.findOne({
+            tool: toolId,
+            email: claimData.email,
+        })
+
+        if (existingClaim) {
+            throw ApiError.badRequest('You have already submitted a claim for this tool.')
+        }
+
+        const claim = await ClaimRequest.create({
+            tool: toolId,
+            user: userId,
+            ...claimData,
+        })
+
+        // Send email
+        emailService.sendClaimVerificationEmail(claim, tool).catch(console.error)
+
+        return claim
+    }
+    /**
+     * Get tools by owner
+     */
+    async getToolsByOwner(userId) {
+        const tools = await Tool.find({ owner: userId })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean()
+
+        return tools
     }
 }
 

@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/sitemap.xml",
+            "destination": "https://intelligrid-production.up.railway.app/sitemap.xml"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

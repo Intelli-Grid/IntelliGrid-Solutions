@@ -26,8 +26,22 @@ router.get(
 )
 
 router.get(
+    '/compare',
+    // Cache for 60 minutes
+    cacheMiddleware(3600),
+    toolController.compareTools
+)
+
+router.get(
     '/search',
     toolController.searchTools
+)
+
+
+router.get(
+    '/managed',
+    requireAuth,
+    toolController.getManagedTools
 )
 
 router.get(
@@ -59,6 +73,12 @@ router.get(
     toolController.getRelatedTools
 )
 
+router.post(
+    '/:id/claim',
+    validationRules.objectId('id'),
+    validate,
+    toolController.submitClaimRequest
+)
 // Admin routes
 router.post(
     '/',
@@ -72,7 +92,6 @@ router.post(
 router.put(
     '/:id',
     requireAuth,
-    requireAdmin,
     validationRules.objectId('id'),
     validate,
     toolController.updateTool
