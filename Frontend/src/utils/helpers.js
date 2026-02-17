@@ -94,13 +94,48 @@ export function isPremiumUser(user) {
 /**
  * Get pricing display
  */
+/**
+ * Get pricing display
+ */
 export function getPricingDisplay(pricing) {
     if (!pricing) return 'Free'
+
+    // Handle string input
+    if (typeof pricing === 'string') {
+        const lower = pricing.toLowerCase()
+        if (lower.includes('free')) return 'Free'
+        if (lower.includes('paid')) return 'Paid'
+        if (lower.includes('contact')) return 'Custom'
+        return pricing
+    }
+
     if (pricing.type === 'free') return 'Free'
     if (pricing.type === 'freemium') return 'Freemium'
     if (pricing.type === 'paid') {
         if (pricing.price) return `$${pricing.price}`
         return 'Paid'
     }
-    return 'Contact for pricing'
+    return 'Custom' // Cleaner than "Contact for pricing"
+}
+
+/**
+ * Format tool name from raw input (e.g., GitHub repo names)
+ */
+export function formatToolName(name) {
+    if (!name) return 'Unknown Tool'
+
+    let formatted = name
+
+    // If it's a GitHub repo (Owner/Repo), take the repo part
+    if (formatted.includes('/')) {
+        formatted = formatted.split('/').pop()
+    }
+
+    // Replace separators with spaces
+    formatted = formatted.replace(/[-_.]/g, ' ')
+
+    // Capitalize first letter of each word
+    formatted = formatted.replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())))
+
+    return formatted.trim()
 }
