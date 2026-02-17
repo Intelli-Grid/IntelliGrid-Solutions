@@ -226,80 +226,67 @@ export const analyticsService = {
 export const adminService = {
     // Get dashboard stats
     getStats: async () => {
-        const response = await apiClient.get('/admin/stats')
-        return response.data
+        return await apiClient.get('/admin/stats')
     },
 
     // Get pending tools
     getPendingTools: async () => {
-        const response = await apiClient.get('/admin/tools/pending')
-        return response.data
+        return await apiClient.get('/admin/tools/pending')
     },
 
     // Approve tool
     approveTool: async (id) => {
-        const response = await apiClient.put(`/admin/tools/${id}/approve`)
-        return response.data
+        return await apiClient.put(`/admin/tools/${id}/approve`)
     },
 
     // Delete tool
     deleteTool: async (id) => {
-        const response = await apiClient.delete(`/admin/tools/${id}`)
-        return response.data
+        return await apiClient.delete(`/admin/tools/${id}`)
     },
 
     // Get pending reviews
     getPendingReviews: async () => {
-        const response = await apiClient.get('/admin/reviews/pending')
-        return response.data
+        return await apiClient.get('/admin/reviews/pending')
     },
 
     // Approve review
     approveReview: async (id) => {
-        const response = await apiClient.put(`/admin/reviews/${id}/approve`)
-        return response.data
+        return await apiClient.put(`/admin/reviews/${id}/approve`)
     },
 
     // Reject review
     rejectReview: async (id) => {
-        const response = await apiClient.put(`/admin/reviews/${id}/reject`)
-        return response.data
+        return await apiClient.put(`/admin/reviews/${id}/reject`)
     },
 
     // Get payments
     getPayments: async (params = {}) => {
-        const response = await apiClient.get('/admin/payments', { params })
-        return response.data
+        return await apiClient.get('/admin/payments', { params })
     },
 
     // Get pending claims
     getPendingClaims: async () => {
-        const response = await apiClient.get('/admin/claims/pending')
-        return response.data
+        return await apiClient.get('/admin/claims/pending')
     },
 
     // Approve claim
     approveClaim: async (id) => {
-        const response = await apiClient.put(`/admin/claims/${id}/approve`)
-        return response.data
+        return await apiClient.put(`/admin/claims/${id}/approve`)
     },
 
     // Reject claim
     rejectClaim: async (id) => {
-        const response = await apiClient.put(`/admin/claims/${id}/reject`)
-        return response.data
+        return await apiClient.put(`/admin/claims/${id}/reject`)
     },
 
     // Send claim invitation
     sendInvitation: async (id, data = {}) => {
-        const response = await apiClient.post(`/admin/tools/${id}/invite`, data)
-        return response.data
+        return await apiClient.post(`/admin/tools/${id}/invite`, data)
     },
 
     // Update tool (Admin only)
     updateTool: async (id, data) => {
-        const response = await apiClient.put(`/tools/${id}`, data)
-        return response.data
+        return await apiClient.put(`/tools/${id}`, data)
     },
 }
 
