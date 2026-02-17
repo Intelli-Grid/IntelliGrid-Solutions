@@ -15,14 +15,18 @@ apiClient.interceptors.request.use(
     async (config) => {
         // Get token from Clerk
         try {
-            if (window.Clerk?.session) {
-                const token = await window.Clerk.session.getToken()
+            // Access Clerk instance from window
+            const clerk = window.Clerk
+
+            if (clerk && clerk.session) {
+                // Get the session token
+                const token = await clerk.session.getToken()
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`
                 }
             }
         } catch (error) {
-            console.log('Could not get auth token:', error.message)
+            console.error('Failed to attach auth token:', error)
         }
         return config
     },
