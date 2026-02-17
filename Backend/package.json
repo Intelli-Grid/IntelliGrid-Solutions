@@ -16,6 +16,7 @@
         "health:check": "node scripts/healthCheck.js",
         "generate-sitemap": "node scripts/generateSitemap.js",
         "verify:launch": "node scripts/verifyLaunchReadiness.js",
+        "promote-admin": "node scripts/promoteAdmin.js",
         "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
     },
     "keywords": [
