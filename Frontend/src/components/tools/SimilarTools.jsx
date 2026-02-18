@@ -22,12 +22,21 @@ export default function SimilarTools({ tools, currentToolSlug }) {
 
                         <div className="relative z-10 flex items-start gap-4">
                             {/* Logo */}
-                            <div className="h-10 w-10 flex-shrink-0 rounded-lg bg-gray-900 border border-white/10 p-1">
-                                <img
-                                    src={tool.metadata?.logo || tool.logo || 'https://via.placeholder.com/40'}
-                                    alt={`${tool.name} logo`}
-                                    className="h-full w-full rounded-md object-contain"
-                                />
+                            <div className="h-10 w-10 flex-shrink-0 rounded-lg bg-gray-900 border border-white/10 overflow-hidden">
+                                {(tool.logo || tool.metadata?.logo) ? (
+                                    <img
+                                        src={tool.logo || tool.metadata?.logo}
+                                        alt={`${tool.name} logo`}
+                                        className="h-full w-full object-contain p-1"
+                                        onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                    />
+                                ) : null}
+                                <div
+                                    className="h-full w-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-purple-500/30 to-blue-600/30"
+                                    style={{ display: (tool.logo || tool.metadata?.logo) ? 'none' : 'flex' }}
+                                >
+                                    {tool.name?.charAt(0)?.toUpperCase()}
+                                </div>
                             </div>
 
                             {/* Details */}

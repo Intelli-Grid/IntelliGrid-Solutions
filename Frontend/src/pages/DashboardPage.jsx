@@ -71,7 +71,6 @@ export default function DashboardPage() {
         } catch (err) {
             console.error('Error fetching dashboard data:', err)
             setStats({ reviewsCount: 0, totalViews: 0, activityScore: 0 })
-            setStats({ reviewsCount: 0, totalViews: 0, activityScore: 0 })
             setFavorites([])
             setCollections([])
             setManagedTools([])
@@ -475,8 +474,8 @@ export default function DashboardPage() {
                                     }
                                 }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${subscription?.tier === 'pro'
-                                        ? 'bg-white/10 text-white hover:bg-white/20'
-                                        : 'bg-white/5 text-gray-400 cursor-not-allowed'
+                                    ? 'bg-white/10 text-white hover:bg-white/20'
+                                    : 'bg-white/5 text-gray-400 cursor-not-allowed'
                                     }`}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>

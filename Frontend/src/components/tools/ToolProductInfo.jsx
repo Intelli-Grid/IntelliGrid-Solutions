@@ -1,16 +1,12 @@
 import { ExternalLink, Heart, Share2, Check, TrendingUp, Star } from 'lucide-react';
 import { getPricingDisplay, formatNumber, formatDate } from '../../utils/helpers';
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
 
-// Update signature
 export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
-
-    // ... existing code
-
+    const [isFavorite, setIsFavorite] = useState(false);
 
     if (!tool) return null;
-
-    const [isFavorite, setIsFavorite] = useState(false); // Placeholder for real logic
 
     const handleShare = () => {
         if (navigator.share) {
@@ -20,7 +16,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             });
         } else {
             navigator.clipboard.writeText(window.location.href);
-            // potential toast here
+            toast.success('Link copied to clipboard!');
         }
     };
 

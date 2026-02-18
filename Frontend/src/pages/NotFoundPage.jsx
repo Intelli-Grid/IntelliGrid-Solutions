@@ -1,9 +1,15 @@
 import { Link } from 'react-router-dom'
 import { Home, Search } from 'lucide-react'
+import SEO from '../components/common/SEO'
 
 export default function NotFoundPage() {
     return (
         <div className="flex min-h-[70vh] flex-col items-center justify-center text-center px-4">
+            <SEO
+                title="404 - Page Not Found | IntelliGrid"
+                description="The page you are looking for could not be found. Browse our AI tools directory to discover thousands of AI solutions."
+                noindex={true}
+            />
             <h1 className="mb-2 text-8xl md:text-9xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-accent-cyan to-accent-purple animate-pulse">404</h1>
             <h2 className="mb-6 text-2xl md:text-3xl font-bold text-white">Page Not Found</h2>
             <p className="mb-8 max-w-md text-gray-400">

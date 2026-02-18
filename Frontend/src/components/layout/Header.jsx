@@ -1,20 +1,28 @@
 import { Link } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton, SignInButton, useUser } from '@clerk/clerk-react'
-import { Search, Menu, X } from 'lucide-react'
+import { Search, Menu, X, LayoutDashboard } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const { user } = useUser()
-    const isAdmin = user?.publicMetadata?.role === 'admin'
+    const role = user?.publicMetadata?.role
+    const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN' || role === 'MODERATOR'
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/50 backdrop-blur-xl">
             <nav className="container mx-auto flex h-16 items-center justify-between px-4">
                 {/* Logo */}
-                <Link to="/" className="flex items-center space-x-2">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600" />
-                    <span className="text-xl font-bold text-white">IntelliGrid</span>
+                <Link to="/" className="flex items-center space-x-2 group">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+                            <rect x="11" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                            <rect x="1" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                            <rect x="11" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+                        </svg>
+                    </div>
+                    <span className="text-xl font-bold text-white group-hover:text-blue-300 transition-colors">IntelliGrid</span>
                 </Link>
 
                 {/* Desktop Navigation */}
@@ -28,6 +36,17 @@ export default function Header() {
                     <Link to="/pricing" className="text-sm text-gray-300 transition hover:text-white">
                         Pricing
                     </Link>
+                    {isAdmin && (
+                        <a
+                            href="https://admin.intelligrid.online"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-sm text-indigo-400 transition hover:text-indigo-300"
+                        >
+                            <LayoutDashboard className="h-3.5 w-3.5" />
+                            Admin
+                        </a>
+                    )}
                 </div>
 
                 {/* Auth & Actions */}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#9333EA"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Grid icon: 4 squares -->
+  <rect x="5" y="5" width="9" height="9" rx="2" fill="white" fill-opacity="0.95"/>
+  <rect x="18" y="5" width="9" height="9" rx="2" fill="white" fill-opacity="0.6"/>
+  <rect x="5" y="18" width="9" height="9" rx="2" fill="white" fill-opacity="0.6"/>
+  <rect x="18" y="18" width="9" height="9" rx="2" fill="white" fill-opacity="0.95"/>
+</svg>

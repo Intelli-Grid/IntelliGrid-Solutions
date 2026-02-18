@@ -5,6 +5,7 @@ import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Pagination from '../components/common/Pagination'
+import SEO from '../components/common/SEO'
 import { Filter, SlidersHorizontal } from 'lucide-react'
 
 export default function ToolsPage() {
@@ -65,6 +66,12 @@ export default function ToolsPage() {
 
     return (
         <div className="container mx-auto px-4 py-16">
+            <SEO
+                title="Browse All AI Tools - IntelliGrid Directory"
+                description={`Discover ${total > 0 ? total.toLocaleString() : '3,690+'} curated AI tools. Filter by pricing, sort by popularity, and find the perfect AI solution for your workflow.`}
+                keywords="AI tools directory, browse AI tools, AI software list, best AI tools, free AI tools, AI tool comparison"
+                canonicalUrl="https://www.intelligrid.online/tools"
+            />
             {/* Header */}
             <div className="mb-8">
                 <h1 className="mb-2 text-4xl font-bold text-white">All AI Tools</h1>

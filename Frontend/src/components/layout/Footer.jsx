@@ -14,7 +14,14 @@ export default function Footer() {
                     {/* Brand */}
                     <div className="space-y-4">
                         <div className="flex items-center space-x-2">
-                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600" />
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+                                    <rect x="11" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                                    <rect x="1" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                                    <rect x="11" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+                                </svg>
+                            </div>
                             <span className="text-xl font-bold text-white">IntelliGrid</span>
                         </div>
                         <p className="text-sm text-gray-400">
@@ -22,21 +29,27 @@ export default function Footer() {
                         </p>
                         <div className="flex space-x-4">
                             <a
-                                href="#"
+                                href="https://twitter.com/intelligrid_ai"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="text-gray-400 transition hover:text-white"
-                                aria-label="Twitter"
+                                aria-label="Twitter / X"
                             >
                                 <Twitter className="h-5 w-5" />
                             </a>
                             <a
-                                href="#"
+                                href="https://linkedin.com/company/intelligrid"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="text-gray-400 transition hover:text-white"
                                 aria-label="LinkedIn"
                             >
                                 <Linkedin className="h-5 w-5" />
                             </a>
                             <a
-                                href="#"
+                                href="https://github.com/intelligrid"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="text-gray-400 transition hover:text-white"
                                 aria-label="GitHub"
                             >

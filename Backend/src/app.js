@@ -148,6 +148,7 @@ app.use('/api/v1/gdpr', gdprRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collections', collectionRoutes)
 app.use('/api/v1/newsletter', newsletterRoutes)
+app.use('/api/v1', seoRoutes) // Dynamic sitemap at /api/v1/sitemap.xml
 
 // 404 Handler
 app.use((req, res) => {

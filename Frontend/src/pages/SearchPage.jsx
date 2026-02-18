@@ -4,6 +4,7 @@ import algoliasearch from 'algoliasearch/lite'
 import { Link } from 'react-router-dom'
 import { Star, ExternalLink, Sparkles, Filter } from 'lucide-react'
 import { formatNumber, getPricingDisplay } from '../utils/helpers'
+import SEO from '../components/common/SEO'
 
 // Initialize Algolia client
 const searchClient = algoliasearch(
@@ -111,8 +112,15 @@ export default function SearchPage() {
 
     return (
         <div className="container mx-auto px-4 py-16">
+            <SEO
+                title="Search AI Tools - IntelliGrid"
+                description="Instantly search through 3,690+ AI tools. Filter by pricing, category, and features to find the perfect AI solution."
+                canonicalUrl="https://www.intelligrid.online/search"
+                noindex={true}
+            />
             <InstantSearch searchClient={searchClient} indexName="intelligrid_tools">
                 <Configure hitsPerPage={12} />
+
 
                 {/* Header */}
                 <div className="mb-8">

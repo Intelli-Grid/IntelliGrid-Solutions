@@ -1,12 +1,12 @@
 
 import { useState } from 'react';
-import { Tag, CheckCircle } from 'lucide-react';
+import { Tag, CheckCircle, Layers } from 'lucide-react';
 import ToolReviews from './ToolReviews';
 
 export default function ToolContent({ tool }) {
-    if (!tool) return null;
-
     const [activeTab, setActiveTab] = useState('overview');
+
+    if (!tool) return null;
 
     return (
         <div className="mt-12 bg-white/5 backdrop-blur-3xl rounded-3xl border border-white/5 shadow-2xl p-6 lg:p-8">
@@ -87,17 +87,23 @@ export default function ToolContent({ tool }) {
                 {activeTab === 'features' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <h3 className="text-xl font-semibold text-white mb-6">Key Capabilities</h3>
-                        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {/* Placeholder Features - Replace with real data later */}
-                            {['Real-time Processing', 'API Access', 'Mobile Friendly', 'Secure Data', 'Custom Training', 'Collaboration'].map((feature, i) => (
-                                <li key={i} className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group">
-                                    <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 group-hover:bg-green-500/20 transition-colors">
-                                        <CheckCircle className="h-5 w-5" />
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-200">{feature}</span>
-                                </li>
-                            ))}
-                        </ul>
+                        {tool.features && tool.features.length > 0 ? (
+                            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {tool.features.map((feature, i) => (
+                                    <li key={i} className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group">
+                                        <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 group-hover:bg-green-500/20 transition-colors flex-shrink-0">
+                                            <CheckCircle className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-200">{feature}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-40 text-gray-500 gap-3">
+                                <Layers className="h-10 w-10 opacity-30" />
+                                <p className="text-sm">No features listed for this tool yet.</p>
+                            </div>
+                        )}
                     </div>
                 )}
 

@@ -1,17 +1,20 @@
 import { Helmet } from 'react-helmet-async'
 
+const SITE_URL = 'https://www.intelligrid.online'
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`
+
 export default function SEO({
     title = 'IntelliGrid - Discover the Best AI Tools',
     description = 'Explore 3,690+ curated AI tools for every need. Find, compare, and discover the perfect AI solutions for your business. Updated daily with the latest AI innovations.',
     keywords = 'AI tools, artificial intelligence, AI directory, AI software, machine learning tools, AI solutions, AI platforms, AI applications',
-    ogImage = 'https://www.intelligrid.online/og-image.jpg',
+    ogImage = DEFAULT_OG_IMAGE,
     ogType = 'website',
     twitterCard = 'summary_large_image',
     canonicalUrl,
-    noindex = false
+    noindex = false,
+    structuredData = null,
 }) {
-    const siteUrl = 'https://www.intelligrid.online'
-    const fullUrl = canonicalUrl || (typeof window !== 'undefined' ? window.location.href : siteUrl)
+    const fullUrl = canonicalUrl || (typeof window !== 'undefined' ? window.location.href : SITE_URL)
 
     return (
         <Helmet>
@@ -20,9 +23,10 @@ export default function SEO({
             <meta name="title" content={title} />
             <meta name="description" content={description} />
             <meta name="keywords" content={keywords} />
+            <meta name="author" content="IntelliGrid" />
 
             {/* Robots */}
-            {noindex && <meta name="robots" content="noindex, nofollow" />}
+            <meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow'} />
 
             {/* Canonical URL */}
             <link rel="canonical" href={fullUrl} />
@@ -33,26 +37,31 @@ export default function SEO({
             <meta property="og:title" content={title} />
             <meta property="og:description" content={description} />
             <meta property="og:image" content={ogImage} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
             <meta property="og:site_name" content="IntelliGrid" />
+            <meta property="og:locale" content="en_US" />
 
-            {/* Twitter */}
+            {/* Twitter / X */}
             <meta property="twitter:card" content={twitterCard} />
+            <meta property="twitter:site" content="@intelligrid_ai" />
+            <meta property="twitter:creator" content="@intelligrid_ai" />
             <meta property="twitter:url" content={fullUrl} />
             <meta property="twitter:title" content={title} />
             <meta property="twitter:description" content={description} />
             <meta property="twitter:image" content={ogImage} />
 
-            {/* Additional Meta Tags */}
-            <meta name="author" content="IntelliGrid" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            {/* Additional */}
+            <meta name="theme-color" content="#0A0E27" />
             <meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
             <meta name="language" content="English" />
 
-            {/* Favicon */}
-            <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-
-            {/* Theme Color */}
-            <meta name="theme-color" content="#0A0E27" />
+            {/* Custom Structured Data */}
+            {structuredData && (
+                <script type="application/ld+json">
+                    {JSON.stringify(structuredData)}
+                </script>
+            )}
         </Helmet>
     )
 }

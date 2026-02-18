@@ -1,11 +1,21 @@
 User-agent: *
 Allow: /
 
-# Block internal search/sort parameters to prevent duplicate content
-Disallow: /*?*
+# Block private/auth pages
 Disallow: /admin
+Disallow: /admin/
 Disallow: /dashboard
-Disallow: /payment
+Disallow: /dashboard/
+Disallow: /payment/
 
-# Point to the dynamic sitemap
-Sitemap: https://intelligrid.online/sitemap.xml
+# Block internal API routes
+Disallow: /api/
+
+# Allow search with query params (important for Algolia search indexing)
+Allow: /search
+Allow: /tools
+Allow: /category/
+
+# Sitemap
+Sitemap: https://www.intelligrid.online/sitemap.xml
+Sitemap: https://intelligrid-backend.up.railway.app/api/v1/sitemap.xml

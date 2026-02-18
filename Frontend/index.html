@@ -1,36 +1,102 @@
 <!doctype html>
 <html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="Discover 3,722+ AI tools on IntelliGrid - Your comprehensive AI tools directory with advanced search, reviews, and expert recommendations." />
-    <meta name="keywords" content="AI tools, artificial intelligence, AI directory, machine learning, AI software" />
-    <meta name="author" content="IntelliGrid" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://intelligrid.online/" />
-    <meta property="og:title" content="IntelliGrid - AI Tools Directory" />
-    <meta property="og:description" content="Discover 3,722+ AI tools with advanced search and expert recommendations" />
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://intelligrid.online/" />
-    <meta property="twitter:title" content="IntelliGrid - AI Tools Directory" />
-    <meta property="twitter:description" content="Discover 3,722+ AI tools with advanced search and expert recommendations" />
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <title>IntelliGrid - AI Tools Directory</title>
-  </head>
-  <body class="dark:bg-deep-space dark:text-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Favicon (SVG + PNG fallback) -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <!-- Primary SEO Meta Tags -->
+  <title>IntelliGrid - Discover 3,690+ Best AI Tools | Updated Daily</title>
+  <meta name="title" content="IntelliGrid - Discover 3,690+ Best AI Tools | Updated Daily" />
+  <meta name="description"
+    content="Explore the largest curated directory of 3,690+ AI tools for every need. Find, compare, and discover the perfect AI solutions for your business. Updated daily with the latest AI innovations." />
+  <meta name="keywords"
+    content="AI tools, artificial intelligence, AI directory, AI software, machine learning tools, AI solutions, AI platforms, best AI tools, AI applications, AI tool directory" />
+  <meta name="author" content="IntelliGrid" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#0A0E27" />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.intelligrid.online/" />
+  <meta property="og:title" content="IntelliGrid - Discover 3,690+ Best AI Tools" />
+  <meta property="og:description"
+    content="Explore the largest curated directory of 3,690+ AI tools. Find, compare, and discover the perfect AI solutions for your business." />
+  <meta property="og:image" content="https://www.intelligrid.online/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="IntelliGrid" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter / X -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:site" content="@intelligrid_ai" />
+  <meta property="twitter:creator" content="@intelligrid_ai" />
+  <meta property="twitter:url" content="https://www.intelligrid.online/" />
+  <meta property="twitter:title" content="IntelliGrid - Discover 3,690+ Best AI Tools" />
+  <meta property="twitter:description"
+    content="Explore the largest curated directory of 3,690+ AI tools. Find, compare, and discover the perfect AI solutions." />
+  <meta property="twitter:image" content="https://www.intelligrid.online/og-image.jpg" />
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://www.intelligrid.online/" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+
+  <!-- Structured Data: Organization -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "IntelliGrid",
+      "url": "https://www.intelligrid.online",
+      "logo": "https://www.intelligrid.online/og-image.jpg",
+      "description": "The world's largest curated AI tools directory",
+      "sameAs": [
+        "https://twitter.com/intelligrid_ai",
+        "https://linkedin.com/company/intelligrid"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "support@intelligrid.store",
+        "contactType": "customer support"
+      }
+    }
+    </script>
+
+  <!-- Structured Data: WebSite with SearchAction -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "IntelliGrid",
+      "url": "https://www.intelligrid.online",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://www.intelligrid.online/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+</head>
+
+<body class="dark:bg-deep-space dark:text-white">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
