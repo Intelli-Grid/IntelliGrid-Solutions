@@ -7,7 +7,11 @@ import {
 import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./components/Layout";
 import Overview from "./pages/Overview";
-import * as P from "./pages/Placeholders"; // Use namespace import for brevity
+import ToolQueue from "./pages/ToolQueue";
+import ReviewModeration from "./pages/ReviewModeration";
+import UserManagement from "./pages/UserManagement";
+import Revenue from "./pages/Revenue";
+import SystemHealth from "./pages/SystemHealth";
 
 // Role Check Component Wrapper
 const RequireRole = ({ children, minRole = 'MODERATOR' }) => {
@@ -47,7 +51,7 @@ const App = () => {
                 element={
                     <RequireRole>
                         <AdminLayout>
-                            <P.ToolQueue />
+                            <ToolQueue />
                         </AdminLayout>
                     </RequireRole>
                 }
@@ -57,7 +61,7 @@ const App = () => {
                 element={
                     <RequireRole>
                         <AdminLayout>
-                            <P.ReviewModeration />
+                            <ReviewModeration />
                         </AdminLayout>
                     </RequireRole>
                 }
@@ -67,7 +71,7 @@ const App = () => {
                 element={
                     <RequireRole>
                         <AdminLayout>
-                            <P.UserManagement />
+                            <UserManagement />
                         </AdminLayout>
                     </RequireRole>
                 }
@@ -77,7 +81,7 @@ const App = () => {
                 element={
                     <RequireRole>
                         <AdminLayout>
-                            <P.Revenue />
+                            <Revenue />
                         </AdminLayout>
                     </RequireRole>
                 }
@@ -87,7 +91,7 @@ const App = () => {
                 element={
                     <RequireRole>
                         <AdminLayout>
-                            <P.SystemHealth />
+                            <SystemHealth />
                         </AdminLayout>
                     </RequireRole>
                 }

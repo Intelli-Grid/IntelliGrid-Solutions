@@ -4,10 +4,14 @@ import apiClient from './api.js'
 export const adminService = {
     getStats: () => apiClient.get('/admin/stats'),
     getPendingTools: () => apiClient.get('/admin/tools/pending'),
-    approveTool: (id) => apiClient.post(`/admin/tools/${id}/approve`),
-    rejectTool: (id, reason) => apiClient.post(`/admin/tools/${id}/reject`, { reason }),
-    getFlaggedReviews: () => apiClient.get('/admin/reviews/flagged'),
-    // ... add more as needed
+    approveTool: (id) => apiClient.put(`/admin/tools/${id}/approve`),
+    rejectTool: (id, reason) => apiClient.delete(`/admin/tools/${id}`), // Currently permanent deletion
+    getPendingReviews: () => apiClient.get('/admin/reviews/pending'),
+    approveReview: (id) => apiClient.put(`/admin/reviews/${id}/approve`),
+    rejectReview: (id) => apiClient.put(`/admin/reviews/${id}/reject`),
+    getUsers: (params) => apiClient.get('/admin/users', { params }), // params: { search, page, limit }
+    getPayments: (params) => apiClient.get('/admin/payments', { params }), // params: { page, limit }
+    getSystemHealth: () => apiClient.get('/admin/system'),
 }
 
 export const toolService = {

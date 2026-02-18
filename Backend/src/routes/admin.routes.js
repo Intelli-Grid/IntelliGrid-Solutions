@@ -340,6 +340,85 @@ router.get('/payments', async (req, res) => {
             success: false,
             message: 'Failed to fetch payments'
         })
+
+    }
+})
+
+
+
+/**
+ * @route   GET /api/v1/admin/payments
+ * @desc    Get all payments
+ * @access  Admin only
+ */
+router.get('/payments', async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query
+        const payments = await Order.find()
+            .populate('user', 'firstName lastName email')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .lean()
+
+        const total = await Order.countDocuments()
+
+        res.json({
+            success: true,
+            payments,
+            pagination: {
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / limit)
+            }
+        })
+    } catch (error) {
+        console.error('Payments fetch error:', error)
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch payments'
+        })
+    }
+})
+
+/**
+ * @route   GET /api/v1/admin/users
+ * @desc    Get all users with search and pagination
+ * @access  Admin only
+ */
+router.get('/users', async (req, res) => {
+    try {
+        const { search, page = 1, limit = 20 } = req.query
+        const query = {}
+
+        if (search) {
+            query.$or = [
+                { email: { $regex: search, $options: 'i' } },
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } }
+            ]
+        }
+
+        const users = await User.find(query)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .lean()
+
+        const total = await User.countDocuments(query)
+
+        res.json({
+            success: true,
+            users,
+            pagination: {
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / limit)
+            }
+        })
+    } catch (error) {
+        console.error('Users fetch error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch users' })
     }
 })
 
@@ -410,4 +489,70 @@ router.put('/claims/:id/reject', async (req, res) => {
     }
 })
 
+
+/**
+ * @route   GET /api/v1/admin/system
+ * @desc    Get system health and performance metrics
+ * @access  Admin only
+ */
+router.get('/system', async (req, res) => {
+    try {
+        const startTime = Date.now()
+
+        // Database status
+        const mongoose = (await import('mongoose')).default
+        const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+
+        // Memory usage
+        const mem = process.memoryUsage()
+        const memUsedMB = Math.round(mem.heapUsed / 1024 / 1024)
+        const memTotalMB = Math.round(mem.heapTotal / 1024 / 1024)
+
+        // Uptime
+        const uptimeSeconds = Math.floor(process.uptime())
+        const uptimeDays = Math.floor(uptimeSeconds / 86400)
+        const uptimeHours = Math.floor((uptimeSeconds % 86400) / 3600)
+        const uptimeMins = Math.floor((uptimeSeconds % 3600) / 60)
+
+        // Quick DB ping for latency
+        let dbLatencyMs = null
+        try {
+            const pingStart = Date.now()
+            await mongoose.connection.db.admin().ping()
+            dbLatencyMs = Date.now() - pingStart
+        } catch (_) { /* ignore */ }
+
+        // Counts for context
+        const [toolCount, userCount, reviewCount] = await Promise.all([
+            Tool.countDocuments(),
+            User.countDocuments(),
+            Review.countDocuments()
+        ])
+
+        res.json({
+            success: true,
+            system: {
+                status: dbStatus === 'connected' ? 'operational' : 'degraded',
+                environment: process.env.NODE_ENV || 'development',
+                nodeVersion: process.version,
+                uptime: { days: uptimeDays, hours: uptimeHours, minutes: uptimeMins, totalSeconds: uptimeSeconds },
+                memory: { usedMB: memUsedMB, totalMB: memTotalMB, percentUsed: Math.round((memUsedMB / memTotalMB) * 100) },
+                services: {
+                    database: { status: dbStatus, latencyMs: dbLatencyMs },
+                    api: { status: 'operational', latencyMs: Date.now() - startTime }
+                },
+                database: {
+                    tools: toolCount,
+                    users: userCount,
+                    reviews: reviewCount
+                }
+            }
+        })
+    } catch (error) {
+        console.error('System health error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch system health' })
+    }
+})
+
 export default router
+
