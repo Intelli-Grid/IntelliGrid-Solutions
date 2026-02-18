@@ -3,10 +3,11 @@ import { useParams, Link } from 'react-router-dom'
 import { collectionService } from '../services'
 import { useUser } from '@clerk/clerk-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
+import ErrorMessage from '../components/common/ErrorMessage'
 import ToolCard from '../components/tools/ToolCard'
-import { Share2, Lock, Globe, User, ArrowLeft, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import SEO from '../components/common/SEO'
+import { Share2, Lock, Globe, User, ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { Helmet } from 'react-helmet-async'
 
 export default function CollectionDetailsPage() {
     const { idOrSlug } = useParams()
@@ -59,10 +60,11 @@ export default function CollectionDetailsPage() {
 
     return (
         <div className="min-h-screen bg-gray-950 text-white">
-            <Helmet>
-                <title>{collection.name} | IntelliGrid Collections</title>
-                <meta name="description" content={collection.description || `Check out this collection of ${collection.tools.length} AI tools on IntelliGrid.`} />
-            </Helmet>
+            <SEO
+                title={`${collection.name} | IntelliGrid Collections`}
+                description={collection.description || `Check out this collection of ${collection.tools.length} AI tools on IntelliGrid.`}
+                noindex={!collection.isPublic}
+            />
 
             <div className="bg-gray-900 border-b border-white/10">
                 <div className="container mx-auto px-4 py-8 md:py-12">

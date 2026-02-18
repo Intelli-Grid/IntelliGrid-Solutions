@@ -56,12 +56,12 @@ export default function SEO({
             <meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
             <meta name="language" content="English" />
 
-            {/* Custom Structured Data */}
-            {structuredData && (
-                <script type="application/ld+json">
-                    {JSON.stringify(structuredData)}
+            {/* Custom Structured Data (single object or array) */}
+            {structuredData && (Array.isArray(structuredData) ? structuredData : [structuredData]).map((schema, i) => (
+                <script key={i} type="application/ld+json">
+                    {JSON.stringify(schema)}
                 </script>
-            )}
+            ))}
         </Helmet>
     )
 }

@@ -3,8 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { categoryService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ToolCard from '../components/tools/ToolCard'
-import { Helmet } from 'react-helmet-async'
+import SEO from '../components/common/SEO'
 import { generateCategorySchema, generateBreadcrumbSchema } from '../utils/seoHelpers'
+
 
 export default function CategoryPage() {
     const { slug } = useParams()
@@ -54,19 +55,17 @@ export default function CategoryPage() {
         { name: category.name, url: `https://intelligrid.online/category/${category.slug}` }
     ]
 
+    const categorySchema = JSON.parse(generateCategorySchema(category, tools))
+    const breadcrumbSchema = JSON.parse(generateBreadcrumbSchema(breadcrumbItems))
+
     return (
         <div className="container mx-auto px-4 py-16">
-            <Helmet>
-                <title>{`Best ${category.name} AI Tools (${currentDate}) - IntelliGrid`}</title>
-                <meta name="description" content={`Discover the ${tools.length}+ best ${category.name} AI Tools including ${topToolNames}. Compare features, pricing, and reviews. Updated for ${currentDate}.`} />
-                <link rel="canonical" href={`https://intelligrid.online/category/${category.slug}`} />
-                <script type="application/ld+json">
-                    {generateCategorySchema(category, tools)}
-                </script>
-                <script type="application/ld+json">
-                    {generateBreadcrumbSchema(breadcrumbItems)}
-                </script>
-            </Helmet>
+            <SEO
+                title={`Best ${category.name} AI Tools (${currentDate}) - IntelliGrid`}
+                description={`Discover the ${tools.length}+ best ${category.name} AI Tools including ${topToolNames}. Compare features, pricing, and reviews. Updated for ${currentDate}.`}
+                canonicalUrl={`https://www.intelligrid.online/category/${category.slug}`}
+                structuredData={[categorySchema, breadcrumbSchema]}
+            />
 
             {/* Hero Section */}
             <div className="mb-16 text-center">

@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { toolService, userService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
-import { Helmet } from 'react-helmet-async'
+import SEO from '../components/common/SEO'
 import { Check, X, ArrowLeft, Star } from 'lucide-react'
 import { formatNumber } from '../utils/helpers'
 
@@ -92,11 +92,12 @@ export default function ComparisonPage() {
 
     return (
         <div className="min-h-screen bg-gray-950 text-white py-16 px-4">
-            <Helmet>
-                <title>{`${tool1.name} vs ${tool2.name} - Comparison | IntelliGrid`}</title>
-                <meta name="description" content={`Compare ${tool1.name} and ${tool2.name}. Side-by-side comparison of features, pricing, ratings, and reviews to help you decide.`} />
-                <link rel="canonical" href={`https://intelligrid.online/compare/${slugs}`} />
-            </Helmet>
+            <SEO
+                title={`${tool1.name} vs ${tool2.name} - Comparison | IntelliGrid`}
+                description={`Compare ${tool1.name} and ${tool2.name}. Side-by-side comparison of features, pricing, ratings, and reviews to help you decide.`}
+                canonicalUrl={`https://www.intelligrid.online/compare/${slugs}`}
+                ogType="article"
+            />
 
             <div className="container mx-auto max-w-6xl">
                 {/* Header */}
