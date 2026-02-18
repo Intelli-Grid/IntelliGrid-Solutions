@@ -2,6 +2,7 @@ import express from 'express'
 import clerkClient from '../config/clerk.js'
 import Tool from '../models/Tool.js'
 import Review from '../models/Review.js'
+import User from '../models/User.js'
 import Order from '../models/Order.js'
 import ClaimRequest from '../models/ClaimRequest.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
@@ -19,11 +20,24 @@ router.use(requireAuth, requireAdmin)
  */
 router.get('/stats', async (req, res) => {
     try {
-        const [toolsCount, usersCount, reviewsCount, paymentsCount] = await Promise.all([
+        const [
+            toolsCount,
+            pendingToolsCount,
+            usersCount,
+            reviewsCount,
+            flaggedReviewsCount,
+            paymentsCount,
+            failedPaymentsCount,
+            totalActiveSubs
+        ] = await Promise.all([
             Tool.countDocuments(),
+            Tool.countDocuments({ status: 'pending' }),
             clerkClient.users.getUserList({ limit: 1 }).then(result => result.totalCount),
             Review.countDocuments(),
+            Review.countDocuments({ status: 'pending' }),
             Order.countDocuments(),
+            Order.countDocuments({ status: 'failed' }),
+            User.countDocuments({ 'subscription.status': 'active', 'subscription.tier': { $ne: 'Free' } }) // Assuming User model imported
         ])
 
         const totalRevenueResult = await Order.aggregate([
@@ -35,10 +49,14 @@ router.get('/stats', async (req, res) => {
             success: true,
             stats: {
                 totalTools: toolsCount,
+                pendingTools: pendingToolsCount,
                 totalUsers: usersCount,
                 totalReviews: reviewsCount,
+                pendingReviews: flaggedReviewsCount, // Use pending count here
                 totalPayments: paymentsCount,
-                totalRevenue: totalRevenueResult[0]?.total || 0
+                failedPayments: failedPaymentsCount,
+                totalRevenue: totalRevenueResult[0]?.total || 0,
+                activeProUsers: totalActiveSubs
             }
         })
     } catch (error) {
