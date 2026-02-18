@@ -43,8 +43,14 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['user', 'premium', 'admin'],
-            default: 'user',
+            // 4-tier RBAC system:
+            // USER            → Regular registered user
+            // MODERATOR       → Can manage tools/reviews in admin panel
+            // TRUSTED_OPERATOR → Can access AI agent dashboard
+            // SUPERADMIN      → Full access to everything (owner only)
+            // Legacy values kept for backward compatibility during migration
+            enum: ['user', 'premium', 'admin', 'USER', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN'],
+            default: 'USER',
         },
         profile: {
             bio: String,

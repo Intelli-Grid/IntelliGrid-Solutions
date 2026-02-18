@@ -23,6 +23,7 @@ import ErrorMessage from '../components/common/ErrorMessage'
 import { adminService, toolService } from '../services'
 import { useToast } from '../context/ToastContext'
 import EditToolModal from '../components/tools/EditToolModal'
+import WorkspaceSwitcher from '../components/admin/WorkspaceSwitcher'
 
 export default function AdminPage() {
     const { user } = useUser()
@@ -42,14 +43,19 @@ export default function AdminPage() {
 
     const fetchStats = async () => {
         try {
+            // The axios interceptor already unwraps response.data
+            // so `data` here IS the response body: { success, stats }
             const data = await adminService.getStats()
-            if (data.success) {
+            if (data && data.success) {
                 setStats({
-                    totalTools: data.stats.totalTools,
-                    totalUsers: data.stats.totalUsers,
-                    totalReviews: data.stats.totalReviews,
-                    totalRevenue: data.stats.totalRevenue,
+                    totalTools: data.stats?.totalTools ?? 0,
+                    totalUsers: data.stats?.totalUsers ?? 0,
+                    totalReviews: data.stats?.totalReviews ?? 0,
+                    totalRevenue: data.stats?.totalRevenue ?? 0,
                 })
+            } else if (data) {
+                // API responded but without success flag — use whatever data we got
+                setStats(prev => ({ ...prev, ...data.stats }))
             }
         } catch (error) {
             console.error('Failed to fetch stats:', error)
@@ -63,8 +69,10 @@ export default function AdminPage() {
         }
     }
 
-    // Check if user is admin
-    const isAdmin = user?.publicMetadata?.role === 'admin'
+    // Role check — support all admin-tier roles (legacy + new RBAC)
+    const ADMIN_ROLES = ['admin', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
+    const userRole = user?.publicMetadata?.role
+    const isAdmin = ADMIN_ROLES.includes(userRole)
 
     if (!isAdmin) {
         return (
@@ -72,6 +80,7 @@ export default function AdminPage() {
                 <div className="mx-auto max-w-md rounded-lg border border-red-500/20 bg-red-500/10 p-8 text-center">
                     <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
                     <p className="text-gray-400">You don't have permission to access the admin panel.</p>
+                    <p className="mt-2 text-xs text-gray-600">Role: {userRole || 'none'}</p>
                 </div>
             </div>
         )
@@ -92,9 +101,12 @@ export default function AdminPage() {
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
             <div className="container mx-auto px-4 py-8">
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="mb-2 text-4xl font-bold text-white">Admin Panel</h1>
-                    <p className="text-gray-400">Manage your IntelliGrid platform</p>
+                <div className="mb-8 flex items-start justify-between">
+                    <div>
+                        <h1 className="mb-2 text-4xl font-bold text-white">Admin Panel</h1>
+                        <p className="text-gray-400">Manage your IntelliGrid platform</p>
+                    </div>
+                    <WorkspaceSwitcher currentWorkspace="admin" />
                 </div>
 
                 {/* Stats Grid */}

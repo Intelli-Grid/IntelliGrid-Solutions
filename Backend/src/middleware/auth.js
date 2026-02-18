@@ -76,14 +76,18 @@ export const requirePremium = asyncHandler(async (req, res, next) => {
 })
 
 /**
- * Require admin role
+ * Require admin role (supports both legacy 'admin' and new RBAC roles)
  */
 export const requireAdmin = asyncHandler(async (req, res, next) => {
     if (!req.user) {
         throw ApiError.unauthorized('Authentication required')
     }
 
-    if (req.user.role !== 'admin') {
+    const role = req.user.role
+    // Accept legacy 'admin' OR new RBAC roles MODERATOR/TRUSTED_OPERATOR/SUPERADMIN
+    const adminRoles = ['admin', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
+
+    if (!adminRoles.includes(role)) {
         throw ApiError.forbidden('Admin access required')
     }
 

@@ -1,15 +1,17 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react'
 import LoadingSpinner from './components/common/LoadingSpinner'
 
 // Layout
 import Layout from './components/layout/Layout'
 
+// Auth
+import ProtectedRoute from './components/auth/ProtectedRoute'
+
 // Components
 import CookieConsent from './components/CookieConsent'
 
-// Lazy Load Pages
+// Lazy Load Pages — Public
 const HomePage = lazy(() => import('./pages/HomePage'))
 const ToolsPage = lazy(() => import('./pages/ToolsPage'))
 const ToolDetailsPage = lazy(() => import('./pages/ToolDetailsPage'))
@@ -26,8 +28,10 @@ const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'))
 const FAQPage = lazy(() => import('./pages/FAQPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
-// Protected Pages
+// Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+
+// Lazy Load Pages — Protected (Admin: MODERATOR+)
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const RevenueDashboard = lazy(() => import('./pages/admin/RevenueDashboard'))
 const SystemHealthPage = lazy(() => import('./pages/admin/SystemHealthPage'))
@@ -52,7 +56,7 @@ function App() {
             <Layout>
                 <Suspense fallback={<div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>}>
                     <Routes>
-                        {/* Public Routes */}
+                        {/* ── Public Routes ─────────────────────────────── */}
                         <Route path="/" element={<HomePage />} />
                         <Route path="/tools" element={<ToolsPage />} />
                         <Route path="/tools/:slug" element={<ToolDetailsPage />} />
@@ -62,74 +66,53 @@ function App() {
                         <Route path="/compare/:slugs" element={<ComparisonPage />} />
                         <Route path="/pricing" element={<PricingPage />} />
 
-                        {/* Legal Routes */}
+                        {/* ── Legal Routes ──────────────────────────────── */}
                         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
                         <Route path="/refund-policy" element={<RefundPolicyPage />} />
                         <Route path="/faq" element={<FAQPage />} />
 
-                        {/* Payment Routes */}
+                        {/* ── Payment Routes ────────────────────────────── */}
                         <Route path="/payment/success" element={<PaymentSuccessPage />} />
                         <Route path="/payment/cancel" element={<PaymentCancelPage />} />
 
-                        {/* Protected Routes */}
+                        {/* ── Protected: Any logged-in user ─────────────── */}
                         <Route
                             path="/dashboard"
                             element={
-                                <>
-                                    <SignedIn>
-                                        <DashboardPage />
-                                    </SignedIn>
-                                    <SignedOut>
-                                        <RedirectToSignIn />
-                                    </SignedOut>
-                                </>
+                                <ProtectedRoute>
+                                    <DashboardPage />
+                                </ProtectedRoute>
                             }
                         />
 
+                        {/* ── Protected: MODERATOR or above ─────────────── */}
                         <Route
                             path="/admin"
                             element={
-                                <>
-                                    <SignedIn>
-                                        <AdminPage />
-                                    </SignedIn>
-                                    <SignedOut>
-                                        <RedirectToSignIn />
-                                    </SignedOut>
-                                </>
+                                <ProtectedRoute requiredRole="MODERATOR">
+                                    <AdminPage />
+                                </ProtectedRoute>
                             }
                         />
-
                         <Route
                             path="/admin/revenue"
                             element={
-                                <>
-                                    <SignedIn>
-                                        <RevenueDashboard />
-                                    </SignedIn>
-                                    <SignedOut>
-                                        <RedirectToSignIn />
-                                    </SignedOut>
-                                </>
+                                <ProtectedRoute requiredRole="MODERATOR">
+                                    <RevenueDashboard />
+                                </ProtectedRoute>
                             }
                         />
-
                         <Route
                             path="/admin/health"
                             element={
-                                <>
-                                    <SignedIn>
-                                        <SystemHealthPage />
-                                    </SignedIn>
-                                    <SignedOut>
-                                        <RedirectToSignIn />
-                                    </SignedOut>
-                                </>
+                                <ProtectedRoute requiredRole="MODERATOR">
+                                    <SystemHealthPage />
+                                </ProtectedRoute>
                             }
                         />
 
-                        {/* Catch-all Route */}
+                        {/* ── Catch-all ─────────────────────────────────── */}
                         <Route path="*" element={<NotFoundPage />} />
                     </Routes>
                 </Suspense>
