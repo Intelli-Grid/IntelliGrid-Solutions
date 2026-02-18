@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { toolService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
-import { Helmet } from 'react-helmet-async'
+import SEO from '../components/common/SEO'
 import { generateToolSchema, generateBreadcrumbSchema } from '../utils/seoHelpers'
 
 
@@ -91,21 +91,23 @@ export default function ToolDetailsPage() {
 
     breadcrumbItems.push({ name: tool.name, url: `https://intelligrid.online/tools/${tool.slug}` })
 
+    const toolSchemaStr = generateToolSchema(tool)
+    const breadcrumbSchemaStr = generateBreadcrumbSchema(breadcrumbItems)
+    const schemas = [
+        toolSchemaStr ? JSON.parse(toolSchemaStr) : null,
+        breadcrumbSchemaStr ? JSON.parse(breadcrumbSchemaStr) : null
+    ].filter(Boolean)
+
     return (
         <div className="bg-gray-950 min-h-screen pb-24 text-white font-sans antialiased">
-            <Helmet>
-                <title>{`${tool.name} - IntelliGrid AI Tools`}</title>
-                <meta name="description" content={tool.shortDescription} />
-                <link rel="canonical" href={`https://intelligrid.online/tools/${tool.slug}`} />
-
-                {/* Schema Markup */}
-                <script type="application/ld+json">
-                    {generateToolSchema(tool)}
-                </script>
-                <script type="application/ld+json">
-                    {generateBreadcrumbSchema(breadcrumbItems)}
-                </script>
-            </Helmet>
+            <SEO
+                title={`${tool.name} - AI Tool Review & Pricing | IntelliGrid`}
+                description={tool.shortDescription}
+                canonicalUrl={`https://www.intelligrid.online/tools/${tool.slug}`}
+                ogImage={tool.logo || 'https://www.intelligrid.online/og-image.png'}
+                ogType="website"
+                structuredData={schemas}
+            />
 
             <div className="container mx-auto px-4 pt-8 lg:pt-12 max-w-7xl">
                 {/* 1. Breadcrumb */}
