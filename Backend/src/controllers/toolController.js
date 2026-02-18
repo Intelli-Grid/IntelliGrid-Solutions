@@ -2,6 +2,7 @@ import toolService from '../services/toolService.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { getRoleLevel } from '../middleware/rbac.js'
 
 /**
  * Tool Controller - Handle tool-related requests
@@ -120,8 +121,8 @@ class ToolController {
     updateTool = asyncHandler(async (req, res) => {
         const tool = await toolService.getToolById(req.params.id)
 
-        // Check if user is authorized (admin or owner)
-        const isAdmin = req.user.role === 'admin'
+        // Check if user is authorized (any admin-level role OR tool owner)
+        const isAdmin = getRoleLevel(req.user.role) >= getRoleLevel('MODERATOR')
         const isOwner = tool.owner && tool.owner.toString() === req.user._id.toString()
 
         if (!isAdmin && !isOwner) {
@@ -179,7 +180,7 @@ class ToolController {
         const { slugs } = req.query
 
         if (!slugs) {
-            throw new Error('Slugs are required')
+            throw new ApiError(400, 'Slugs query parameter is required')
         }
 
         const slugArray = slugs.split(',').map(s => s.trim())
@@ -198,7 +199,7 @@ class ToolController {
         const { email, role, verificationInfo } = req.body
 
         if (!email || !role) {
-            throw new Error('Email and Role are required')
+            throw new ApiError(400, 'Email and role are required to submit a claim')
         }
 
         const claim = await toolService.claimTool(
