@@ -91,6 +91,16 @@ const toolSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
         },
+        // Top-level image fields (used by ToolCard, SimilarTools, SEO)
+        logo: {
+            type: String,
+            trim: true,
+        },
+        screenshots: [{
+            type: String,
+            trim: true,
+        }],
+        // Metadata sub-document (kept for backward compatibility)
         metadata: {
             logo: String,
             screenshots: [String],

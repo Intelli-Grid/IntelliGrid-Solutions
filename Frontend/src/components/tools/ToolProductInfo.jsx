@@ -1,5 +1,5 @@
 import { ExternalLink, Heart, Share2, Check, TrendingUp, Star } from 'lucide-react';
-import { getPricingDisplay, formatNumber, formatDate } from '../../utils/helpers';
+import { getPricingDisplay, formatNumber, formatDate, getInitials } from '../../utils/helpers';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 
@@ -20,24 +20,63 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
         }
     };
 
+    // Extract clean domain from official URL for display
+    const officialDomain = (() => {
+        try {
+            return new URL(tool.officialUrl || '').hostname.replace('www.', '')
+        } catch { return '' }
+    })()
+
+    const logoSrc = tool.logo || tool.metadata?.logo || ''
+
     return (
         <div className="space-y-6">
-            {/* Header: Badges & Title */}
+            {/* Header: Logo + Badges + Title */}
             <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                    {tool.isVerified && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400 border border-blue-500/20">
-                            <Check className="h-3 w-3" /> Verified
+                {/* Tool Identity Row */}
+                <div className="flex items-center gap-4">
+                    {/* Logo / Icon */}
+                    <div className="relative flex-shrink-0">
+                        {logoSrc ? (
+                            <img
+                                src={logoSrc}
+                                alt={`${tool.name} logo`}
+                                className="h-14 w-14 rounded-2xl object-cover border border-white/10 bg-white/5 shadow-lg"
+                                onError={(e) => {
+                                    e.target.onerror = null
+                                    e.target.style.display = 'none'
+                                    e.target.nextSibling.style.display = 'flex'
+                                }}
+                            />
+                        ) : null}
+                        <div
+                            className={`h-14 w-14 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-600/30 border border-white/10 items-center justify-center text-xl font-bold text-white shadow-lg ${logoSrc ? 'hidden' : 'flex'}`}
+                        >
+                            {getInitials(tool.name)}
+                        </div>
+                        {tool.isVerified && (
+                            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-blue-500 border-2 border-gray-950 flex items-center justify-center">
+                                <Check className="h-2.5 w-2.5 text-white" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {tool.isTrending && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-400 border border-orange-500/20">
+                                <TrendingUp className="h-3 w-3" /> Trending
+                            </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-gray-400 border border-white/10">
+                            {typeof tool.category === 'object' ? tool.category.name : tool.category}
                         </span>
-                    )}
-                    {tool.isTrending && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-400 border border-orange-500/20">
-                            <TrendingUp className="h-3 w-3" /> Trending
-                        </span>
-                    )}
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-gray-400 border border-white/10">
-                        {typeof tool.category === 'object' ? tool.category.name : tool.category}
-                    </span>
+                        {officialDomain && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-gray-500 border border-white/5">
+                                🌐 {officialDomain}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <h1 className="text-4xl font-bold text-white tracking-tight">{tool.name}</h1>

@@ -30,17 +30,17 @@ async function syncToolsToAlgolia() {
         console.log('⚙️  Configuring Algolia index...')
         await configureToolsIndex()
 
-        // Get all active tools
+        // Get all active tools (status === 'active' only — skip junk/pending)
         console.log('📊 Fetching tools from database...')
-        const tools = await Tool.find({}).lean()
-        console.log(`✅ Found ${tools.length} tools\n`)
+        const tools = await Tool.find({ status: 'active' }).lean()
+        console.log(`✅ Found ${tools.length} active tools\n`)
 
         if (tools.length === 0) {
             console.log('⚠️  No tools to sync')
             process.exit(0)
         }
 
-        // Prepare tools for Algolia
+        // Prepare tools for Algolia (include logo for search result display)
         console.log('🔄 Preparing tools for Algolia...')
         const algoliaObjects = tools.map(tool => ({
             objectID: tool._id.toString(),
@@ -48,6 +48,9 @@ async function syncToolsToAlgolia() {
             slug: tool.slug,
             shortDescription: tool.shortDescription,
             fullDescription: tool.fullDescription,
+            officialUrl: tool.officialUrl || '',
+            // Image fields — logo shown in search results
+            logo: tool.logo || tool.metadata?.logo || '',
             category: tool.category?.toString() || null,
             tags: tool.tags || [],
             pricing: tool.pricing,
