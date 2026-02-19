@@ -35,13 +35,13 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             <div className="space-y-4">
                 {/* Tool Identity Row */}
                 <div className="flex items-center gap-4">
-                    {/* Logo / Icon */}
+                    {/* Logo / Icon — 72px */}
                     <div className="relative flex-shrink-0">
                         {logoSrc ? (
                             <img
                                 src={logoSrc}
                                 alt={`${tool.name} logo`}
-                                className="h-14 w-14 rounded-2xl object-cover border border-white/10 bg-white/5 shadow-lg"
+                                className="h-[72px] w-[72px] rounded-2xl object-cover border border-white/10 bg-white/5 shadow-xl ring-1 ring-white/5"
                                 onError={(e) => {
                                     e.target.onerror = null
                                     e.target.style.display = 'none'
@@ -50,13 +50,13 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                             />
                         ) : null}
                         <div
-                            className={`h-14 w-14 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-600/30 border border-white/10 items-center justify-center text-xl font-bold text-white shadow-lg ${logoSrc ? 'hidden' : 'flex'}`}
+                            className={`h-[72px] w-[72px] rounded-2xl bg-gradient-to-br from-purple-600/30 to-blue-700/30 border border-white/10 items-center justify-center text-2xl font-black text-white shadow-xl ring-1 ring-white/5 ${logoSrc ? 'hidden' : 'flex'}`}
                         >
                             {getInitials(tool.name)}
                         </div>
                         {tool.isVerified && (
-                            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-blue-500 border-2 border-gray-950 flex items-center justify-center">
-                                <Check className="h-2.5 w-2.5 text-white" />
+                            <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-full bg-blue-500 border-2 border-gray-950 flex items-center justify-center shadow-lg">
+                                <Check className="h-3 w-3 text-white" />
                             </div>
                         )}
                     </div>
@@ -104,7 +104,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             </div>
 
             {/* Short Description */}
-            <p className="text-lg text-gray-300 leading-relaxed">
+            <p className="text-base text-gray-400 leading-relaxed">
                 {tool.shortDescription}
             </p>
 
@@ -114,9 +114,9 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                     href={tool.officialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-8 py-4 text-lg font-semibold text-white transition-all hover:bg-purple-500 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/25 active:scale-[0.98]"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 px-8 py-4 text-base font-bold text-white transition-all hover:from-purple-500 hover:to-violet-500 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.01] active:scale-[0.99]"
                 >
-                    Visit Website <ExternalLink className="h-5 w-5" />
+                    Visit Website <ExternalLink className="h-4.5 w-4.5" />
                 </a>
 
                 <div className="flex gap-3">

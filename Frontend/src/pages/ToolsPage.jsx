@@ -1,50 +1,115 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { toolService } from '../services'
+import { Link } from 'react-router-dom'
+import { toolService, categoryService } from '../services'
 import ToolCard from '../components/tools/ToolCard'
 import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Pagination from '../components/common/Pagination'
 import SEO from '../components/common/SEO'
-import { Search, SlidersHorizontal, X, Sparkles, TrendingUp, Star, DollarSign, Zap } from 'lucide-react'
+import {
+    Search, X, Sparkles, TrendingUp, Star,
+    LayoutGrid, List, ArrowUpRight, Flame, Clock, SortAsc
+} from 'lucide-react'
 
 const PRICING_OPTIONS = [
-    { label: 'All Pricing', value: '' },
+    { label: 'All', value: '' },
     { label: 'Free', value: 'Free' },
     { label: 'Freemium', value: 'Freemium' },
     { label: 'Paid', value: 'Paid' },
     { label: 'Trial', value: 'Trial' },
 ]
 
-const SORT_OPTIONS = [
-    { label: 'Newest First', value: '-createdAt' },
-    { label: 'Most Popular', value: '-views' },
-    { label: 'Highest Rated', value: '-ratings.average' },
-    { label: 'A → Z', value: 'name' },
+const SORT_TABS = [
+    { label: 'Newest', value: '-createdAt', icon: Clock },
+    { label: 'Popular', value: '-views', icon: Flame },
+    { label: 'Top Rated', value: '-ratings.average', icon: Star },
+    { label: 'A → Z', value: 'name', icon: SortAsc },
 ]
+
+const CATEGORY_ICONS = {
+    'writing': '✍️', 'image': '🎨', 'code': '💻', 'video': '🎬',
+    'audio': '🎵', 'chatbot': '🤖', 'productivity': '⚡', 'marketing': '📈',
+    'design': '🖌️', 'research': '🔍', 'business': '💼', 'education': '📚',
+    'default': '🛠️',
+}
+
+function getCategoryIcon(name = '') {
+    const lower = name.toLowerCase()
+    for (const [key, emoji] of Object.entries(CATEGORY_ICONS)) {
+        if (lower.includes(key)) return emoji
+    }
+    return CATEGORY_ICONS.default
+}
+
+// Compact list-view row for each tool
+function ToolListRow({ tool }) {
+    const logoSrc = tool.logo || tool.metadata?.logo || ''
+    const pricingDisplay = tool.pricing || 'Unknown'
+    return (
+        <Link
+            to={`/tools/${tool.slug}`}
+            className="group flex items-center gap-4 px-4 py-3.5 rounded-xl bg-[#0d0d0d] border border-white/8 hover:border-purple-500/30 hover:bg-white/3 transition-all duration-200"
+        >
+            {/* Logo */}
+            <div className="flex-shrink-0 h-11 w-11 rounded-xl overflow-hidden border border-white/10 bg-white/5">
+                {logoSrc ? (
+                    <img src={logoSrc} alt={tool.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-lg font-bold text-white/30">
+                        {tool.name?.charAt(0) || '?'}
+                    </div>
+                )}
+            </div>
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold text-white group-hover:text-purple-300 transition-colors truncate">{tool.name}</span>
+                    {tool.isTrending && <span className="text-[9px] text-amber-400 border border-amber-400/30 px-1.5 py-0.5 rounded-full bg-amber-400/10 flex-shrink-0">Trending</span>}
+                </div>
+                <p className="text-[12px] text-gray-500 truncate mt-0.5">{tool.shortDescription || tool.description}</p>
+            </div>
+            {/* Pricing + Visit */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-[11px] text-gray-400 hidden sm:block">{pricingDisplay}</span>
+                <span className="h-7 px-2.5 flex items-center gap-1 rounded-lg bg-white/5 border border-white/8 text-gray-300 text-[11px] font-medium group-hover:bg-purple-600/20 group-hover:border-purple-500/30 group-hover:text-purple-300 transition-colors">
+                    Visit <ArrowUpRight size={10} />
+                </span>
+            </div>
+        </Link>
+    )
+}
 
 export default function ToolsPage() {
     const [tools, setTools] = useState([])
+    const [categories, setCategories] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [total, setTotal] = useState(0)
     const [searchQuery, setSearchQuery] = useState('')
-    const [activeSearch, setActiveSearch] = useState('') // committed search term
-    const [isSearching, setIsSearching] = useState(false)
-    const [filters, setFilters] = useState({ pricing: '', sort: '-createdAt' })
+    const [activeSearch, setActiveSearch] = useState('')
+    const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
+    const [filters, setFilters] = useState({ pricing: '', sort: '-createdAt', category: '' })
     const searchRef = useRef(null)
     const debounceRef = useRef(null)
-
     const limit = 30
 
-    // ── Fetch browsing results (no search query) ───────────────────
+    // ── Load categories once ────────────────────────────────────────
+    useEffect(() => {
+        categoryService.getCategories()
+            .then(res => setCategories(res.data || res || []))
+            .catch(() => { })
+    }, [])
+
+    // ── Fetch tools (browse) ────────────────────────────────────────
     const fetchTools = useCallback(async () => {
         try {
             setLoading(true)
             setError(null)
             const params = { page, limit, sort: filters.sort }
             if (filters.pricing) params.pricing = filters.pricing
+            if (filters.category) params.category = filters.category
             const response = await toolService.getTools(params)
             setTools(response.tools || [])
             setTotalPages(response.pagination?.pages || 1)
@@ -56,233 +121,276 @@ export default function ToolsPage() {
         }
     }, [page, filters])
 
-    // ── Fetch Algolia search results ───────────────────────────────
-    const fetchSearchResults = useCallback(async (query) => {
-        if (!query.trim()) {
-            setActiveSearch('')
-            fetchTools()
-            return
-        }
+    // ── Fetch search (Algolia) ──────────────────────────────────────
+    const fetchSearch = useCallback(async (query) => {
         try {
-            setIsSearching(true)
             setLoading(true)
             setError(null)
-            const response = await toolService.searchTools(query, { limit: limit * 3 })
+            const response = await toolService.searchTools(query, { limit: 60 })
             const hits = response.hits || response.tools || response || []
-            setTools(hits.slice(0, limit))
+            setTools(hits.slice(0, 60))
             setTotalPages(1)
             setTotal(hits.length)
-        } catch (err) {
+        } catch {
             setError('Search failed. Please try again.')
         } finally {
             setLoading(false)
-            setIsSearching(false)
         }
-    }, [fetchTools])
+    }, [])
 
-    // ── Effects ───────────────────────────────────────────────────
     useEffect(() => {
-        if (!activeSearch) {
-            fetchTools()
-        }
-    }, [page, filters, activeSearch])
+        if (!activeSearch) fetchTools()
+    }, [page, filters, activeSearch, fetchTools])
 
     // Debounced search as user types
     const handleSearchInput = (value) => {
         setSearchQuery(value)
         clearTimeout(debounceRef.current)
-        if (!value.trim()) {
-            setActiveSearch('')
-            setPage(1)
-            return
-        }
+        if (!value.trim()) { setActiveSearch(''); setPage(1); return }
         debounceRef.current = setTimeout(() => {
             setActiveSearch(value)
             setPage(1)
-            fetchSearchResults(value)
-        }, 400)
+            fetchSearch(value)
+        }, 380)
     }
 
-    // Submit on Enter
     const handleSearchSubmit = (e) => {
         e.preventDefault()
         clearTimeout(debounceRef.current)
+        if (!searchQuery.trim()) return
         setActiveSearch(searchQuery)
         setPage(1)
-        fetchSearchResults(searchQuery)
+        fetchSearch(searchQuery)
     }
 
     const clearSearch = () => {
-        setSearchQuery('')
-        setActiveSearch('')
-        setPage(1)
+        setSearchQuery(''); setActiveSearch(''); setPage(1)
         searchRef.current?.focus()
     }
 
-    const handleFilterChange = (key, value) => {
+    const setFilter = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }))
         setPage(1)
+        if (activeSearch) clearSearch()
     }
 
-    const handlePageChange = (newPage) => {
-        setPage(newPage)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-
-    const hasActiveFilters = filters.pricing !== '' || filters.sort !== '-createdAt'
+    const handlePageChange = (p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }
 
     return (
         <div className="min-h-screen bg-gray-950">
             <SEO
                 title="Browse All AI Tools - IntelliGrid Directory"
-                description={`Discover ${total > 0 ? total.toLocaleString() : '4,000+'} curated AI tools. Search, filter by pricing, and find the perfect AI solution for your workflow.`}
-                keywords="AI tools directory, browse AI tools, AI software list, best AI tools, free AI tools"
+                description={`Discover ${total > 0 ? total.toLocaleString() : '4,000+'} curated AI tools. Search by name, filter by pricing, and find the perfect AI solution.`}
+                keywords="AI tools directory, browse AI tools, best AI tools, free AI tools"
                 canonicalUrl="https://www.intelligrid.online/tools"
             />
 
-            {/* ── Hero / Search Header ─────────────────────────── */}
-            <div className="relative border-b border-white/5 bg-gradient-to-b from-gray-900 to-gray-950 pt-12 pb-10 px-4">
-                {/* Ambient glow */}
+            {/* ══════════════ HERO ══════════════ */}
+            <div className="relative border-b border-white/5 bg-gradient-to-b from-[#0c0c14] to-gray-950 pt-14 pb-10 px-4">
                 <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-purple-600/10 blur-[80px]" />
+                    <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] rounded-full bg-purple-600/8 blur-[100px]" />
                 </div>
 
-                <div className="relative container mx-auto max-w-4xl text-center">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 border border-purple-500/20 px-3 py-1 text-xs font-medium text-purple-300 mb-4">
-                        <Sparkles className="h-3 w-3" />
-                        {total > 0 ? `${total.toLocaleString()} AI Tools` : 'Curated AI Directory'}
+                <div className="relative container mx-auto max-w-3xl text-center">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs font-medium text-gray-400 mb-5">
+                        <Sparkles className="h-3 w-3 text-purple-400" />
+                        {total > 0 ? `${total.toLocaleString()} AI Tools Indexed` : 'Curated AI Directory'}
                     </div>
 
-                    <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 tracking-tight">
                         All AI Tools
                     </h1>
-                    <p className="text-gray-400 text-lg mb-8">
-                        Search and discover the best AI tools for your workflow
+                    <p className="text-gray-500 text-base mb-8">
+                        Search, filter, and discover tools that supercharge your workflow
                     </p>
 
                     {/* Search Bar */}
                     <form onSubmit={handleSearchSubmit} className="relative max-w-2xl mx-auto">
-                        <div className="relative flex items-center">
-                            <Search className="absolute left-4 h-5 w-5 text-gray-400 pointer-events-none" />
-                            <input
-                                ref={searchRef}
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => handleSearchInput(e.target.value)}
-                                placeholder="Search by name, category, or use case..."
-                                className="w-full pl-12 pr-24 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-gray-500 text-base focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 focus:bg-white/8 transition-all duration-200"
-                            />
-                            {searchQuery && (
-                                <button
-                                    type="button"
-                                    onClick={clearSearch}
-                                    className="absolute right-20 text-gray-400 hover:text-white transition-colors p-1"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            )}
-                            <button
-                                type="submit"
-                                className="absolute right-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl transition-colors"
-                            >
-                                Search
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-gray-500 pointer-events-none" size={18} />
+                        <input
+                            ref={searchRef}
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => handleSearchInput(e.target.value)}
+                            placeholder="Search tools by name, category, or use-case..."
+                            className="w-full pl-11 pr-28 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/15 focus:bg-white/7 transition-all"
+                        />
+                        {searchQuery && (
+                            <button type="button" onClick={clearSearch} className="absolute right-[88px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-white p-1">
+                                <X size={14} />
                             </button>
-                        </div>
+                        )}
+                        <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-lg transition-colors">
+                            Search
+                        </button>
                     </form>
                 </div>
             </div>
 
-            {/* ── Filters Bar ──────────────────────────────────── */}
-            <div className="sticky top-0 z-30 bg-gray-950/90 backdrop-blur-md border-b border-white/5 px-4">
-                <div className="container mx-auto max-w-7xl flex items-center justify-between h-14 gap-4">
+            {/* ══════════════ CATEGORY STRIP ══════════════ */}
+            {categories.length > 0 && (
+                <div className="border-b border-white/5 bg-gray-950/80 backdrop-blur-sm overflow-x-auto">
+                    <div className="flex items-center gap-2 px-4 py-3 min-w-max mx-auto max-w-7xl">
+                        <button
+                            onClick={() => setFilter('category', '')}
+                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!filters.category
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
+                                }`}
+                        >
+                            🌐 All
+                        </button>
+                        {categories.slice(0, 16).map(cat => (
+                            <button
+                                key={cat._id || cat.slug}
+                                onClick={() => setFilter('category', cat.slug)}
+                                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filters.category === cat.slug
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
+                                    }`}
+                            >
+                                <span>{getCategoryIcon(cat.name)}</span>
+                                <span>{cat.name}</span>
+                                {cat.toolCount > 0 && (
+                                    <span className="text-[10px] opacity-60">({cat.toolCount})</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════════ FILTER BAR ══════════════ */}
+            <div className="sticky top-0 z-20 bg-gray-950/95 backdrop-blur-md border-b border-white/5">
+                <div className="container mx-auto max-w-7xl px-4 flex flex-wrap items-center justify-between gap-3 py-2.5">
 
                     {/* Left: Pricing pills */}
-                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0">
-                        <SlidersHorizontal className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         {PRICING_OPTIONS.map(opt => (
                             <button
                                 key={opt.value}
-                                onClick={() => handleFilterChange('pricing', opt.value)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${filters.pricing === opt.value
-                                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
-                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
+                                onClick={() => setFilter('pricing', opt.value)}
+                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.pricing === opt.value
+                                        ? 'bg-white/15 text-white border border-white/20'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                     }`}
                             >
                                 {opt.label}
                             </button>
                         ))}
+
+                        <div className="w-px h-4 bg-white/10 mx-1" />
+
+                        {/* Sort tabs */}
+                        {SORT_TABS.map(tab => {
+                            const Icon = tab.icon
+                            return (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setFilter('sort', tab.value)}
+                                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.sort === tab.value
+                                            ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                        }`}
+                                >
+                                    <Icon size={11} />
+                                    {tab.label}
+                                </button>
+                            )
+                        })}
                     </div>
 
-                    {/* Right: Sort + Result count */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                        <select
-                            value={filters.sort}
-                            onChange={(e) => handleFilterChange('sort', e.target.value)}
-                            className="rounded-lg border border-white/10 bg-gray-900 px-3 py-1.5 text-xs text-gray-300 focus:border-purple-500/50 focus:outline-none cursor-pointer"
-                        >
-                            {SORT_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-
-                        <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:block">
+                    {/* Right: Count + Grid/List toggle */}
+                    <div className="flex items-center gap-3 ml-auto">
+                        <span className="text-[11px] text-gray-600 hidden sm:block">
                             {activeSearch
                                 ? `${tools.length} results for "${activeSearch}"`
                                 : `${total.toLocaleString()} tools`
                             }
                         </span>
 
-                        {hasActiveFilters && !activeSearch && (
+                        {/* View mode toggle */}
+                        <div className="flex gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/8">
                             <button
-                                onClick={() => { setFilters({ pricing: '', sort: '-createdAt' }); setPage(1) }}
+                                onClick={() => setViewMode('grid')}
+                                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                title="Grid view"
+                            >
+                                <LayoutGrid size={13} />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                title="List view"
+                            >
+                                <List size={13} />
+                            </button>
+                        </div>
+
+                        {/* Clear all */}
+                        {(filters.pricing || filters.category || filters.sort !== '-createdAt') && !activeSearch && (
+                            <button
+                                onClick={() => { setFilters({ pricing: '', sort: '-createdAt', category: '' }); setPage(1) }}
                                 className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
                             >
-                                <X className="h-3 w-3" /> Clear
+                                <X size={11} /> Clear
                             </button>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* ── Content ──────────────────────────────────────── */}
+            {/* ══════════════ MAIN CONTENT ══════════════ */}
             <div className="container mx-auto max-w-7xl px-4 py-8">
 
                 {/* Active search banner */}
-                {activeSearch && !loading && (
-                    <div className="mb-6 flex items-center gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/15">
-                        <Search className="h-4 w-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-300">
-                            Found <span className="font-semibold text-white">{tools.length}</span> tools matching{' '}
-                            <span className="text-purple-300">"{activeSearch}"</span>
-                        </span>
-                        <button onClick={clearSearch} className="ml-auto text-xs text-gray-500 hover:text-white flex items-center gap-1">
-                            <X className="h-3 w-3" /> Clear search
+                {activeSearch && !loading && tools.length > 0 && (
+                    <div className="mb-5 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-purple-500/5 border border-purple-500/15 text-sm text-gray-400">
+                        <Search size={14} className="text-purple-400 flex-shrink-0" />
+                        <span><span className="text-white font-medium">{tools.length}</span> tools for <span className="text-purple-300">"{activeSearch}"</span></span>
+                        <button onClick={clearSearch} className="ml-auto text-xs text-gray-600 hover:text-white flex items-center gap-1">
+                            <X size={11} /> Clear
                         </button>
                     </div>
                 )}
 
-                {/* Loading skeleton */}
+                {/* Loading */}
                 {loading && (
-                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {[...Array(12)].map((_, i) => (
-                            <ToolCardSkeleton key={i} />
-                        ))}
-                    </div>
+                    viewMode === 'grid' ? (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {[...Array(12)].map((_, i) => <ToolCardSkeleton key={i} />)}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {[...Array(10)].map((_, i) => (
+                                <div key={i} className="h-16 rounded-xl bg-white/3 border border-white/5 animate-pulse" />
+                            ))}
+                        </div>
+                    )
                 )}
 
                 {/* Error */}
-                {error && !loading && <ErrorMessage message={error} onRetry={activeSearch ? () => fetchSearchResults(activeSearch) : fetchTools} />}
+                {error && !loading && (
+                    <ErrorMessage message={error} onRetry={activeSearch ? () => fetchSearch(activeSearch) : fetchTools} />
+                )}
 
-                {/* Tools Grid */}
+                {/* Tools */}
                 {!loading && !error && tools.length > 0 && (
                     <>
-                        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {tools.map((tool) => (
-                                <ToolCard key={tool._id || tool.objectID} tool={tool} />
-                            ))}
-                        </div>
+                        {viewMode === 'grid' ? (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {tools.map(tool => (
+                                    <ToolCard key={tool._id || tool.objectID} tool={tool} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {tools.map(tool => (
+                                    <ToolListRow key={tool._id || tool.objectID} tool={tool} />
+                                ))}
+                            </div>
+                        )}
 
-                        {/* Pagination — only for browse mode, not search */}
                         {!activeSearch && totalPages > 1 && (
                             <div className="mt-12">
                                 <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />
@@ -291,26 +399,23 @@ export default function ToolsPage() {
                     </>
                 )}
 
-                {/* Empty State */}
+                {/* Empty */}
                 {!loading && !error && tools.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-24 text-center">
-                        <div className="h-16 w-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
-                            <Search className="h-7 w-7 text-gray-600" />
+                        <div className="h-16 w-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-4">
+                            <Search className="h-6 w-6 text-gray-600" />
                         </div>
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                            {activeSearch ? 'No tools found' : 'No tools match your filters'}
+                        <h3 className="text-base font-semibold text-white mb-2">
+                            {activeSearch ? `No results for "${activeSearch}"` : 'No tools match your filters'}
                         </h3>
-                        <p className="text-gray-500 text-sm mb-6 max-w-sm">
-                            {activeSearch
-                                ? `We couldn't find any AI tools matching "${activeSearch}". Try a different search term.`
-                                : 'Try adjusting your filters to see more results.'
-                            }
+                        <p className="text-gray-600 text-sm mb-6 max-w-xs">
+                            {activeSearch ? 'Try a different term or browse all tools.' : 'Adjust or clear your filters.'}
                         </p>
                         <button
-                            onClick={() => { clearSearch(); setFilters({ pricing: '', sort: '-createdAt' }) }}
-                            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+                            onClick={() => { clearSearch(); setFilters({ pricing: '', sort: '-createdAt', category: '' }) }}
+                            className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
                         >
-                            Reset & Browse All
+                            Browse All Tools
                         </button>
                     </div>
                 )}

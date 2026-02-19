@@ -1,31 +1,29 @@
 export default function ToolCardSkeleton() {
     return (
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 h-full flex flex-col justify-between animate-pulse">
-            <div>
-                {/* Title Skeleton */}
-                <div className="flex justify-between items-start mb-4">
-                    <div className="h-6 w-3/4 bg-white/10 rounded"></div>
-                    <div className="h-6 w-8 bg-white/10 rounded-full"></div>
-                </div>
+        <div className="flex flex-col bg-[#0d0d0d] border border-white/8 rounded-2xl overflow-hidden animate-pulse h-full">
+            {/* Banner skeleton */}
+            <div className="w-full bg-white/5 flex-shrink-0" style={{ height: '140px' }} />
 
-                {/* Description Skeleton */}
-                <div className="space-y-2 mb-4">
-                    <div className="h-4 w-full bg-white/10 rounded"></div>
-                    <div className="h-4 w-5/6 bg-white/10 rounded"></div>
+            {/* Body */}
+            <div className="flex flex-col flex-1 px-4 pb-4 pt-3 gap-2">
+                {/* Title */}
+                <div className="h-4 w-2/3 bg-white/10 rounded-md" />
+                {/* Description */}
+                <div className="space-y-1.5">
+                    <div className="h-3 w-full bg-white/8 rounded-md" />
+                    <div className="h-3 w-4/5 bg-white/8 rounded-md" />
                 </div>
-
-                {/* Tags Skeleton */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                    <div className="h-6 w-16 bg-white/10 rounded-full"></div>
-                    <div className="h-6 w-20 bg-white/10 rounded-full"></div>
-                    <div className="h-6 w-12 bg-white/10 rounded-full"></div>
+                {/* Tags */}
+                <div className="flex gap-1.5 mt-1">
+                    <div className="h-4 w-12 bg-white/8 rounded-md" />
+                    <div className="h-4 w-16 bg-white/8 rounded-md" />
+                    <div className="h-4 w-10 bg-white/8 rounded-md" />
                 </div>
-            </div>
-
-            {/* Footer Skeleton */}
-            <div className="flex justify-between items-center pt-4 border-t border-white/10">
-                <div className="h-4 w-20 bg-white/10 rounded"></div>
-                <div className="h-9 w-24 bg-white/10 rounded-xl"></div>
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
+                    <div className="h-5 w-16 bg-white/10 rounded-md" />
+                    <div className="h-7 w-20 bg-white/10 rounded-lg" />
+                </div>
             </div>
         </div>
     )
