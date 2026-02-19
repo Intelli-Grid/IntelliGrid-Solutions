@@ -21,7 +21,7 @@ export default function ToolsPage() {
     })
     const [showFilters, setShowFilters] = useState(false)
 
-    const limit = 12
+    const limit = 30
 
     useEffect(() => {
         fetchTools()
