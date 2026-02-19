@@ -19,16 +19,13 @@ export default function CategoryPage() {
             try {
                 setLoading(true)
 
+                // categoryService returns already-unwrapped payload: { category, tools, pagination }
+                // (Axios interceptor strips response.data, service does return response.data)
                 const response = await categoryService.getToolsByCategory(slug)
 
-                // API returns: { statusCode, data: { category, tools, pagination } }
-                // categoryService.getToolsByCategory does `return response.data`
-                // so response here = { statusCode, data: { category, tools, ... } }
-                const payload = response?.data || response
-
-                if (payload && payload.category) {
-                    setCategory(payload.category)
-                    setTools(payload.tools || [])
+                if (response && response.category) {
+                    setCategory(response.category)
+                    setTools(response.tools || [])
                 } else {
                     setError('Category not found')
                 }
