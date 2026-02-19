@@ -118,7 +118,7 @@ export default function ToolDetailsPage() {
                     <span>/</span>
                     {typeof tool.category === 'object' && (
                         <>
-                            <Link to={`/tools?category=${tool.category.slug}`} className="hover:text-white transition-colors">{tool.category.name}</Link>
+                            <Link to={`/category/${tool.category.slug}`} className="hover:text-white transition-colors">{tool.category.name}</Link>
                             <span>/</span>
                         </>
                     )}
