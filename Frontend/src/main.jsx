@@ -41,10 +41,7 @@ initGA()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
-      <ClerkProvider
-        publishableKey={CLERK_PUBLISHABLE_KEY}
-        clerkJSVersion="4.32.5"
-      >
+      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
         <Sentry.ErrorBoundary fallback={({ error }) => <ErrorFallback error={error} />}>
           <ToastProvider>
             <BrowserRouter>
