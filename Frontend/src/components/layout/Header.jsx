@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { SignedIn, SignedOut, UserButton, SignInButton, useUser } from '@clerk/clerk-react'
-import { Search, Menu, X, LayoutDashboard } from 'lucide-react'
+import { Menu, X, LayoutDashboard } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Header() {
@@ -50,13 +50,7 @@ export default function Header() {
                 </div>
 
                 {/* Auth & Actions */}
-                <div className="flex items-center space-x-4">
-                    <Link
-                        to="/search"
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-gray-300 transition hover:bg-white/10 hover:text-white"
-                    >
-                        <Search className="h-4 w-4" />
-                    </Link>
+                <div className="flex items-center gap-3">
 
                     <SignedOut>
                         <SignInButton mode="modal">
