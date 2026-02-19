@@ -6,15 +6,17 @@ import ToolCard from '../components/tools/ToolCard'
 import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import SEO from '../components/common/SEO'
 
-// Top categories to feature — fallback list shown until API loads
+// Top categories to feature — slugs must match actual DB slugs from /api/v1/categories
+// Verified against live API: writing-and-content, image-generation, video-generation,
+// developer-tools, chatbots, marketing, research, productivity
 const CATEGORY_SHOWCASE = [
-    { emoji: '✍️', label: 'Writing', slug: 'text-generators' },
-    { emoji: '🎨', label: 'Image AI', slug: 'image-generators' },
-    { emoji: '💻', label: 'Coding', slug: 'coding-assistants' },
-    { emoji: '🎬', label: 'Video', slug: 'video-generators' },
+    { emoji: '✍️', label: 'Writing', slug: 'writing-and-content' },
+    { emoji: '🎨', label: 'Image AI', slug: 'image-generation' },
+    { emoji: '💻', label: 'Coding', slug: 'developer-tools' },
+    { emoji: '🎬', label: 'Video', slug: 'video-generation' },
     { emoji: '🤖', label: 'Chatbots', slug: 'chatbots' },
-    { emoji: '📈', label: 'Marketing', slug: 'marketing' },
-    { emoji: '🔍', label: 'Research', slug: 'research-assistant' },
+    { emoji: '📈', label: 'Marketing', slug: 'marketing-and-seo' },
+    { emoji: '🔍', label: 'Research', slug: 'research' },
     { emoji: '⚡', label: 'Productivity', slug: 'productivity' },
 ]
 

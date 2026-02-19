@@ -90,22 +90,22 @@ export default function Footer() {
                         <h3 className="mb-4 text-sm font-semibold text-white">Popular</h3>
                         <ul className="space-y-2">
                             <li>
-                                <Link to="/category/text-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                <Link to="/category/writing-and-content" className="text-sm text-gray-400 transition hover:text-white">
                                     Writing AI
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/category/image-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                <Link to="/category/image-generation" className="text-sm text-gray-400 transition hover:text-white">
                                     Image Generators
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/category/video-generators" className="text-sm text-gray-400 transition hover:text-white">
+                                <Link to="/category/video-generation" className="text-sm text-gray-400 transition hover:text-white">
                                     Video AI
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/category/coding-assistants" className="text-sm text-gray-400 transition hover:text-white">
+                                <Link to="/category/developer-tools" className="text-sm text-gray-400 transition hover:text-white">
                                     Coding Tools
                                 </Link>
                             </li>

@@ -19,12 +19,16 @@ export default function CategoryPage() {
             try {
                 setLoading(true)
 
-                // Fetch category and tools in a single request for better performance
                 const response = await categoryService.getToolsByCategory(slug)
 
-                if (response && response.category) {
-                    setCategory(response.category)
-                    setTools(response.tools || [])
+                // API returns: { statusCode, data: { category, tools, pagination } }
+                // categoryService.getToolsByCategory does `return response.data`
+                // so response here = { statusCode, data: { category, tools, ... } }
+                const payload = response?.data || response
+
+                if (payload && payload.category) {
+                    setCategory(payload.category)
+                    setTools(payload.tools || [])
                 } else {
                     setError('Category not found')
                 }
