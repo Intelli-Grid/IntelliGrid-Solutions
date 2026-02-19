@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
-import { SignedIn, SignedOut, UserButton, SignInButton, useUser } from '@clerk/clerk-react'
-import { Menu, X, LayoutDashboard } from 'lucide-react'
+import { SignedIn, SignedOut, UserButton, SignInButton, useUser, useAuth } from '@clerk/clerk-react'
+import { Search, Menu, X, LayoutDashboard } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const { user } = useUser()
+    const { isLoaded, isSignedIn } = useAuth()
     const role = user?.publicMetadata?.role
     const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN' || role === 'MODERATOR'
 
@@ -13,7 +14,7 @@ export default function Header() {
         <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/50 backdrop-blur-xl">
             <nav className="container mx-auto flex h-16 items-center justify-between px-4">
                 {/* Logo */}
-                <Link to="/" className="flex items-center space-x-2 group">
+                <Link to="/" className="flex items-center space-x-2 group flex-shrink-0">
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
@@ -50,30 +51,42 @@ export default function Header() {
                 </div>
 
                 {/* Auth & Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Search icon — always visible, quick shortcut */}
+                    <Link
+                        to="/search"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                        aria-label="Search"
+                    >
+                        <Search className="h-4 w-4" />
+                    </Link>
 
-                    <SignedOut>
+                    {/* Auth buttons — show skeleton width while Clerk loads to avoid layout shift */}
+                    {!isLoaded ? (
+                        <div className="h-9 w-20 rounded-lg bg-white/5 animate-pulse" />
+                    ) : isSignedIn ? (
+                        <div className="flex items-center gap-2">
+                            <Link
+                                to="/dashboard"
+                                className="hidden text-sm text-gray-300 transition hover:text-white md:block"
+                            >
+                                Dashboard
+                            </Link>
+                            <UserButton afterSignOutUrl="/" />
+                        </div>
+                    ) : (
                         <SignInButton mode="modal">
-                            <button className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
+                            <button className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 whitespace-nowrap">
                                 Sign In
                             </button>
                         </SignInButton>
-                    </SignedOut>
-
-                    <SignedIn>
-                        <Link
-                            to="/dashboard"
-                            className="hidden text-sm text-gray-300 transition hover:text-white md:block"
-                        >
-                            Dashboard
-                        </Link>
-                        <UserButton afterSignOutUrl="/" />
-                    </SignedIn>
+                    )}
 
                     {/* Mobile Menu Button */}
                     <button
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                         className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-gray-300 transition hover:bg-white/10 hover:text-white md:hidden"
+                        aria-label="Toggle menu"
                     >
                         {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
                     </button>
@@ -105,7 +118,7 @@ export default function Header() {
                         >
                             Pricing
                         </Link>
-                        <SignedIn>
+                        {isSignedIn ? (
                             <Link
                                 to="/dashboard"
                                 className="block rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
@@ -113,7 +126,18 @@ export default function Header() {
                             >
                                 Dashboard
                             </Link>
-                        </SignedIn>
+                        ) : (
+                            <div className="px-4 py-2">
+                                <SignInButton mode="modal">
+                                    <button
+                                        className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Sign In
+                                    </button>
+                                </SignInButton>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

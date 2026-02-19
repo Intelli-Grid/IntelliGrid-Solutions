@@ -122,9 +122,9 @@ export default function Footer() {
                                 </Link>
                             </li>
                             <li>
-                                <a href="mailto:support@intelligrid.store" className="text-sm text-gray-400 transition hover:text-white">
+                                <Link to="/faq" className="text-sm text-gray-400 transition hover:text-white">
                                     Contact Support
-                                </a>
+                                </Link>
                             </li>
                             <li>
                                 <Link to="/refund-policy" className="text-sm text-gray-400 transition hover:text-white">
