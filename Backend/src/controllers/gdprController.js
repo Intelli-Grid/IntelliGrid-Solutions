@@ -1,5 +1,5 @@
 import User from '../models/User.js'
-import { clerkClient } from '@clerk/clerk-sdk-node'
+import clerkClient from '../config/clerk.js'
 
 // Export user data (GDPR compliance)
 export const exportUserData = async (req, res) => {
