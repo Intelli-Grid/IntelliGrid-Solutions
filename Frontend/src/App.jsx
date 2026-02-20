@@ -27,6 +27,7 @@ const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'))
 const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'))
 const FAQPage = lazy(() => import('./pages/FAQPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const UnsubscribePage = lazy(() => import('./pages/UnsubscribePage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -36,16 +37,15 @@ const AdminPage = lazy(() => import('./pages/AdminPage'))
 const RevenueDashboard = lazy(() => import('./pages/admin/RevenueDashboard'))
 const SystemHealthPage = lazy(() => import('./pages/admin/SystemHealthPage'))
 
-// Analytics
-import { initGA, logPageView } from './utils/analytics'
+// Analytics — logPageView tracks route changes; initGA is called ONLY from CookieConsent
+import { logPageView } from './utils/analytics'
 
 
 function App() {
     const location = useLocation()
 
-    useEffect(() => {
-        initGA()
-    }, [])
+    // GA4 is NOT initialized here — it's initialized in CookieConsent.jsx
+    // after the user explicitly accepts cookies (GDPR compliance)
 
     useEffect(() => {
         logPageView(location.pathname + location.search)
@@ -71,6 +71,7 @@ function App() {
                         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
                         <Route path="/refund-policy" element={<RefundPolicyPage />} />
                         <Route path="/faq" element={<FAQPage />} />
+                        <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
                         {/* ── Payment Routes ────────────────────────────── */}
                         <Route path="/payment/success" element={<PaymentSuccessPage />} />

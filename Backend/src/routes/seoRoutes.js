@@ -12,6 +12,44 @@ let sitemapCache = {
     timestamp: 0
 }
 
+// ──────────────────────────────────────────────────────────
+// GET /robots.txt
+// ✅ Bug #7 Fix: robots.txt was completely missing from the backend.
+// Disallows /admin from search engines; allows all public routes.
+// ──────────────────────────────────────────────────────────
+router.get('/robots.txt', (req, res) => {
+    const baseUrl = process.env.FRONTEND_URL || 'https://www.intelligrid.online'
+
+    const robots = `User-agent: *
+Allow: /
+
+# Block admin panel from indexing
+Disallow: /admin
+Disallow: /admin/
+
+# Block dashboard (user-private pages)
+Disallow: /dashboard
+Disallow: /dashboard/
+
+# Block payment flow pages
+Disallow: /payment/success
+Disallow: /payment/cancel
+
+# Block API endpoints
+Disallow: /api/
+
+# Sitemap
+Sitemap: ${baseUrl}/sitemap.xml
+`
+
+    res.setHeader('Content-Type', 'text/plain')
+    res.setHeader('Cache-Control', 'public, max-age=86400') // Cache 24 hours
+    res.send(robots)
+})
+
+// ──────────────────────────────────────────────────────────
+// GET /sitemap.xml
+// ──────────────────────────────────────────────────────────
 router.get('/sitemap.xml', async (req, res) => {
     try {
         const now = Date.now()
@@ -22,7 +60,7 @@ router.get('/sitemap.xml', async (req, res) => {
             return res.send(sitemapCache.data)
         }
 
-        const baseUrl = process.env.FRONTEND_URL || 'https://intelligrid.online'
+        const baseUrl = process.env.FRONTEND_URL || 'https://www.intelligrid.online'
 
         // 1. Fetch Data
         const [tools, categories, collections] = await Promise.all([
@@ -39,6 +77,7 @@ router.get('/sitemap.xml', async (req, res) => {
         const staticPages = [
             '',
             '/tools',
+            '/search',
             '/pricing',
             '/privacy-policy',
             '/terms-of-service',
@@ -79,6 +118,7 @@ router.get('/sitemap.xml', async (req, res) => {
 
         // Public Collections
         collections.forEach(col => {
+            if (!col.slug) return // skip collections without a slug
             xml += `
     <url>
         <loc>${baseUrl}/collections/${col.slug}</loc>

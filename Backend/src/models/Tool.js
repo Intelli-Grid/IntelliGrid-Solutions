@@ -1,5 +1,7 @@
 import mongoose from 'mongoose'
 import slugify from 'slugify'
+import Favorite from './Favorite.js'
+import Review from './Review.js'
 
 const toolSchema = new mongoose.Schema(
     {
@@ -142,6 +144,39 @@ toolSchema.index({ status: 1, isFeatured: 1 }) // Optimize featured active tools
 toolSchema.index({ status: 1, isTrending: 1 }) // Optimize trending active tools
 toolSchema.index({ status: 1, views: -1 }) // Optimize most viewed active tools
 toolSchema.index({ status: 1, createdAt: -1 }) // Optimize latest active tools
+
+/**
+ * ✅ Cascade Delete Hook
+ * When a Tool document is deleted (findOneAndDelete / deleteOne),
+ * automatically remove all associated Favorites and Reviews to prevent
+ * orphaned documents in MongoDB.
+ */
+toolSchema.post('findOneAndDelete', async function (doc) {
+    if (!doc) return
+    try {
+        const toolId = doc._id
+        const [favResult, revResult] = await Promise.all([
+            Favorite.deleteMany({ tool: toolId }),
+            Review.deleteMany({ tool: toolId }),
+        ])
+        console.log(`🗑️  Cascade delete for tool ${doc.slug}: removed ${favResult.deletedCount} favorites, ${revResult.deletedCount} reviews`)
+    } catch (error) {
+        console.error('❌ Cascade delete error for tool:', doc._id, error.message)
+    }
+})
+
+toolSchema.post('deleteOne', { document: true, query: false }, async function () {
+    try {
+        const toolId = this._id
+        const [favResult, revResult] = await Promise.all([
+            Favorite.deleteMany({ tool: toolId }),
+            Review.deleteMany({ tool: toolId }),
+        ])
+        console.log(`🗑️  Cascade delete (deleteOne) tool ${toolId}: ${favResult.deletedCount} favorites, ${revResult.deletedCount} reviews`)
+    } catch (error) {
+        console.error('❌ Cascade deleteOne error:', error.message)
+    }
+})
 
 const Tool = mongoose.model('Tool', toolSchema)
 

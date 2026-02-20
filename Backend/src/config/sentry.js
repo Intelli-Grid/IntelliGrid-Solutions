@@ -7,11 +7,13 @@ export const initSentry = (app) => {
         integrations: [
             nodeProfilingIntegration(),
         ],
-        // Performance Monitoring
-        tracesSampleRate: 1.0,
-        profilesSampleRate: 1.0,
         environment: process.env.NODE_ENV || 'development',
-    });
+        release: `intelligrid-backend@${process.env.npm_package_version || '2.2.0'}`,
+        // Sample 10% of transactions in production — 100% is costly and unneeded
+        tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+        // Sample 10% of profiles in production
+        profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    })
 }
 
 export const sentryErrorHandler = (app) => {

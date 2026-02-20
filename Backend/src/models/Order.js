@@ -66,6 +66,8 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ user: 1, status: 1 })
 // orderId is already indexed by unique: true
 orderSchema.index({ createdAt: -1 })
+// ✅ Fix: Index transactionId for fast webhook lookup
+orderSchema.index({ 'paymentDetails.transactionId': 1 }, { sparse: true })
 
 const Order = mongoose.model('Order', orderSchema)
 

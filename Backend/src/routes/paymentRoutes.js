@@ -4,6 +4,13 @@ import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Payment status (requires authentication)
+router.get(
+    '/status',
+    requireAuth,
+    paymentController.getPaymentStatus
+)
+
 // PayPal routes (require authentication)
 router.post(
     '/paypal/create-order',
@@ -30,7 +37,7 @@ router.post(
     paymentController.verifyCashfreePayment
 )
 
-// Webhook routes (no authentication)
+// Webhook routes (no authentication — verified by signature)
 router.post('/webhooks/paypal', paymentController.paypalWebhook)
 
 router.post('/webhooks/cashfree', paymentController.cashfreeWebhook)

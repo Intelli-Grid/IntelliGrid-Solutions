@@ -195,8 +195,9 @@ class PaymentService {
             const paymentSessionId = response.data.payment_session_id
             const orderId = response.data.order_id
 
-            // Cashfree hosted checkout URL - use payment session ID
-            const checkoutUrl = `https://sandbox.cashfree.com/pg/pay/${paymentSessionId}`
+            // Cashfree hosted checkout URL - dynamically uses PROD or TEST base URL
+            const cashfreeBase = getCashfreeBaseUrl()
+            const checkoutUrl = `${cashfreeBase}/pay/${paymentSessionId}`
 
             return {
                 orderId: orderId,

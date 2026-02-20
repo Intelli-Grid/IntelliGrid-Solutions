@@ -28,11 +28,11 @@
     "author": "IntelliGrid",
     "license": "PROPRIETARY",
     "dependencies": {
-        "@clerk/clerk-sdk-node": "^4.13.14",
+        "@clerk/express": "^1.7.72",
         "@getbrevo/brevo": "^3.0.1",
-        "@sendinblue/client": "^3.3.1",
-        "@sentry/node": "^10.38.0",
-        "@sentry/profiling-node": "^10.38.0",
+        "@paypal/paypal-server-sdk": "^2.2.0",
+        "@sentry/node": "^9.17.0",
+        "@sentry/profiling-node": "^9.17.0",
         "algoliasearch": "^4.22.0",
         "axios": "^1.13.4",
         "bcryptjs": "^2.4.3",
@@ -50,11 +50,11 @@
         "mongoose": "^8.0.3",
         "morgan": "^1.10.0",
         "nanoid": "^3.3.7",
-        "paypal-rest-sdk": "^1.8.1",
         "puppeteer": "^24.37.2",
         "redis": "^4.6.12",
         "sib-api-v3-sdk": "^8.5.0",
-        "slugify": "^1.6.6"
+        "slugify": "^1.6.6",
+        "svix": "^1.85.0"
     },
     "devDependencies": {
         "cross-env": "^10.1.0",

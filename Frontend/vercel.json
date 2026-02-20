@@ -5,6 +5,10 @@
             "destination": "https://intelligrid-production.up.railway.app/sitemap.xml"
         },
         {
+            "source": "/robots.txt",
+            "destination": "https://intelligrid-production.up.railway.app/robots.txt"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

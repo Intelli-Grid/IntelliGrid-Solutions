@@ -33,10 +33,9 @@ if (!CLERK_PUBLISHABLE_KEY) {
   console.warn('Missing Clerk Publishable Key')
 }
 
-// Initialize Google Analytics
-initGA()
-
-
+// NOTE: GA4 is intentionally NOT initialized here.
+// initGA() is called only after the user explicitly accepts cookies
+// in CookieConsent.jsx — required for GDPR compliance.
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

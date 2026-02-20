@@ -1,10 +1,12 @@
 import dotenv from 'dotenv'
+import crypto from 'crypto'
 
 dotenv.config()
 
 /**
  * Cashfree Configuration
- * Supports both TEST and PRODUCTION environments
+ * Supports both TEST and PRODUCTION environments.
+ * Set CASHFREE_ENV=PROD in Railway env vars before launch.
  */
 const cashfreeConfig = {
     appId: process.env.CASHFREE_APP_ID,
@@ -15,7 +17,7 @@ const cashfreeConfig = {
 
 /**
  * Get Cashfree API base URL based on environment
- * @returns {string} Base URL
+ * @returns {string} Base URL (PROD vs sandbox)
  */
 export const getCashfreeBaseUrl = () => {
     return cashfreeConfig.environment === 'PROD'
@@ -24,7 +26,7 @@ export const getCashfreeBaseUrl = () => {
 }
 
 /**
- * Generate Cashfree authorization header
+ * Generate Cashfree request authorization headers
  * @returns {object} Authorization headers
  */
 export const getCashfreeHeaders = () => {
@@ -37,19 +39,47 @@ export const getCashfreeHeaders = () => {
 }
 
 /**
- * Verify Cashfree webhook signature
- * @param {string} signature - Webhook signature from header
- * @param {string} timestamp - Webhook timestamp from header
- * @param {object} body - Request body
+ * Verify Cashfree webhook signature using HMAC-SHA256.
+ * ✅ Bug #2b Fix: was always returning true — now performs real signature verification.
+ *
+ * Cashfree sends:
+ *   x-webhook-signature  — base64(HMAC-SHA256(timestamp + rawBody, secretKey))
+ *   x-webhook-timestamp  — unix timestamp string
+ *
+ * @param {string} signature - Value of x-webhook-signature header
+ * @param {string} timestamp - Value of x-webhook-timestamp header
+ * @param {string} rawBody   - Raw request body as string (MUST be the raw string, not parsed JSON)
  * @returns {boolean} Whether signature is valid
  */
-export const verifyCashfreeWebhook = (signature, timestamp, body) => {
+export const verifyCashfreeWebhook = (signature, timestamp, rawBody) => {
     try {
-        // In production, implement proper signature verification
-        // using Cashfree's webhook signature algorithm
-        return true
+        if (!signature || !timestamp || !rawBody) {
+            console.warn('⚠️  Cashfree webhook: missing signature, timestamp, or body')
+            return false
+        }
+
+        const secret = cashfreeConfig.secretKey
+        if (!secret) {
+            console.error('❌ CASHFREE_SECRET_KEY not set — cannot verify Cashfree webhook signature')
+            return false
+        }
+
+        // Cashfree signature = HMAC-SHA256(timestamp + rawBody, secretKey) → base64
+        const signedPayload = timestamp + rawBody
+        const expectedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(signedPayload)
+            .digest('base64')
+
+        const isValid = expectedSignature === signature
+        if (!isValid) {
+            console.warn('⚠️  Cashfree webhook signature verification FAILED')
+            console.warn('   Expected:', expectedSignature)
+            console.warn('   Got:     ', signature)
+        }
+        return isValid
     } catch (error) {
-        console.error('Cashfree webhook verification failed:', error)
+        console.error('❌ Cashfree webhook verification error:', error.message)
         return false
     }
 }

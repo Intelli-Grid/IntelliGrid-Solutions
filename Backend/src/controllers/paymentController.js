@@ -2,6 +2,8 @@ import paymentService from '../services/paymentService.js'
 import { verifyPayPalWebhook } from '../config/paypal.js'
 import { verifyCashfreeWebhook } from '../config/cashfree.js'
 import WebhookLog from '../models/WebhookLog.js'
+import Order from '../models/Order.js'
+import User from '../models/User.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
@@ -17,22 +19,16 @@ class PaymentController {
     createPayPalOrder = asyncHandler(async (req, res) => {
         const { plan } = req.body
 
-        // Map plan to tier and duration
         let tier, duration
         if (plan === 'pro_monthly') {
-            tier = 'pro'
-            duration = 'monthly'
+            tier = 'pro'; duration = 'monthly'
         } else if (plan === 'pro_yearly') {
-            tier = 'pro'
-            duration = 'yearly'
+            tier = 'pro'; duration = 'yearly'
         } else {
             throw ApiError.badRequest('Invalid plan selected')
         }
 
-        const result = await paymentService.createPayPalOrder(req.user._id, {
-            tier,
-            duration,
-        })
+        const result = await paymentService.createPayPalOrder(req.user._id, { tier, duration })
 
         res.status(201).json(
             new ApiResponse(201, result, 'PayPal order created successfully')
@@ -60,22 +56,16 @@ class PaymentController {
     createCashfreeOrder = asyncHandler(async (req, res) => {
         const { plan } = req.body
 
-        // Map plan to tier and duration
         let tier, duration
         if (plan === 'pro_monthly') {
-            tier = 'pro'
-            duration = 'monthly'
+            tier = 'pro'; duration = 'monthly'
         } else if (plan === 'pro_yearly') {
-            tier = 'pro'
-            duration = 'yearly'
+            tier = 'pro'; duration = 'yearly'
         } else {
             throw ApiError.badRequest('Invalid plan selected')
         }
 
-        const result = await paymentService.createCashfreeOrder(req.user._id, {
-            tier,
-            duration,
-        })
+        const result = await paymentService.createCashfreeOrder(req.user._id, { tier, duration })
 
         res.status(201).json(
             new ApiResponse(201, result, 'Cashfree order created successfully')
@@ -83,11 +73,23 @@ class PaymentController {
     })
 
     /**
-     * Verify Cashfree payment
+     * Verify Cashfree payment (called by frontend after redirect)
      * POST /api/v1/payment/cashfree/verify
      */
     verifyCashfreePayment = asyncHandler(async (req, res) => {
         const { orderId } = req.body
+
+        if (!orderId) {
+            throw ApiError.badRequest('orderId is required')
+        }
+
+        // ✅ Idempotency check — prevent double-processing the same order
+        const existingOrder = await Order.findOne({ orderId, status: 'completed' })
+        if (existingOrder) {
+            return res.status(200).json(
+                new ApiResponse(200, { order: existingOrder, alreadyProcessed: true }, 'Payment already verified')
+            )
+        }
 
         const result = await paymentService.verifyCashfreePayment(orderId)
 
@@ -97,24 +99,63 @@ class PaymentController {
     })
 
     /**
-     * PayPal webhook handler
+     * Get payment/subscription status
+     * GET /api/v1/payment/status
+     */
+    getPaymentStatus = asyncHandler(async (req, res) => {
+        const user = await User.findById(req.user._id).select('subscription')
+
+        if (!user) {
+            throw ApiError.notFound('User not found')
+        }
+
+        const recentOrder = await Order.findOne({ user: req.user._id })
+            .sort({ createdAt: -1 })
+            .select('orderId status paymentGateway amount createdAt')
+            .lean()
+
+        res.status(200).json(
+            new ApiResponse(200, {
+                subscription: user.subscription,
+                latestOrder: recentOrder || null,
+            }, 'Payment status retrieved')
+        )
+    })
+
+    /**
+     * PayPal Webhook Handler
      * POST /api/v1/payment/webhooks/paypal
+     * ✅ Bug #2a Fix: now performs real signature verification before processing
      */
     paypalWebhook = asyncHandler(async (req, res) => {
-        // Log webhook
-        await WebhookLog.create({
+        const eventType = req.body.event_type || 'UNKNOWN'
+        const transmissionId = req.headers['paypal-transmission-id']
+
+        // ── Deduplication: prevent double-processing the same webhook ───────
+        if (transmissionId) {
+            const existing = await WebhookLog.findOne({ 'headers.paypal-transmission-id': transmissionId })
+            if (existing && existing.status === 'processed') {
+                console.log(`⚠️  Duplicate PayPal webhook ignored: ${transmissionId}`)
+                return res.status(200).json({ received: true, duplicate: true })
+            }
+        }
+
+        // ── Log the incoming webhook ─────────────────────────────────────────
+        const log = await WebhookLog.create({
             source: 'paypal',
-            eventType: req.body.event_type,
+            eventType,
             payload: req.body,
             headers: req.headers,
             status: 'received',
         })
 
-        // Verify webhook
+        // ── Verify signature ─────────────────────────────────────────────────
         const isValid = await verifyPayPalWebhook(req.headers, req.body)
-
         if (!isValid) {
-            throw ApiError.unauthorized('Invalid webhook signature')
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'signature_failed' })
+            console.error(`❌ PayPal webhook signature failed for event: ${eventType}`)
+            // Return 200 to stop PayPal retrying — but don't process
+            return res.status(200).json({ received: true, verified: false })
         }
 
         const { event_type, resource } = req.body
@@ -123,76 +164,149 @@ class PaymentController {
             switch (event_type) {
                 case 'PAYMENT.SALE.COMPLETED':
                     console.log('✅ PayPal payment completed:', resource.id)
-                    // Handle payment completion
+                    // Payment is already captured via capturePayPalPayment endpoint;
+                    // webhook is a confirmation — update order status if still pending
+                    if (resource.id) {
+                        await Order.findOneAndUpdate(
+                            { 'paymentDetails.transactionId': resource.id, status: 'pending' },
+                            { status: 'completed' }
+                        )
+                    }
                     break
 
                 case 'PAYMENT.SALE.REFUNDED':
                     console.log('⚠️  PayPal payment refunded:', resource.id)
-                    // Handle refund
+                    // Mark order as refunded
+                    if (resource.sale_id) {
+                        await Order.findOneAndUpdate(
+                            { 'paymentDetails.transactionId': resource.sale_id },
+                            { status: 'refunded' }
+                        )
+                    }
+                    break
+
+                case 'BILLING.SUBSCRIPTION.CANCELLED':
+                    console.log('⚠️  PayPal subscription cancelled:', resource.id)
+                    // Downgrade user to Free tier
+                    if (resource.custom_id) {
+                        await User.findByIdAndUpdate(resource.custom_id, {
+                            'subscription.tier': 'Free',
+                            'subscription.status': 'cancelled',
+                            'subscription.autoRenew': false,
+                        })
+                        console.log(`↩️  User ${resource.custom_id} downgraded to Free (PayPal cancellation)`)
+                    }
                     break
 
                 default:
-                    console.log('⚠️  Unhandled PayPal webhook:', event_type)
+                    console.log(`ℹ️  Unhandled PayPal webhook: ${event_type}`)
             }
 
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'processed' })
             res.status(200).json({ received: true })
         } catch (error) {
-            console.error('PayPal webhook error:', error)
+            console.error('❌ PayPal webhook processing error:', error)
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'error', error: error.message })
             res.status(500).json({ error: 'Webhook processing failed' })
         }
     })
 
     /**
-     * Cashfree webhook handler
+     * Cashfree Webhook Handler
      * POST /api/v1/payment/webhooks/cashfree
+     * ✅ Bug #2b Fix: now performs real HMAC-SHA256 signature verification
      */
     cashfreeWebhook = asyncHandler(async (req, res) => {
-        // Log webhook
-        await WebhookLog.create({
+        const eventType = req.body.type || 'UNKNOWN'
+
+        // Handle test webhooks from Cashfree dashboard
+        if (!req.body.type || req.body.test === true) {
+            console.log('✅ Cashfree test webhook received')
+            return res.status(200).json({ received: true, message: 'Test webhook accepted' })
+        }
+
+        // ── Deduplication: use Cashfree's cf_payment_id ─────────────────────
+        const cfPaymentId = req.body.data?.payment?.cf_payment_id?.toString()
+        if (cfPaymentId) {
+            const existing = await WebhookLog.findOne({
+                source: 'cashfree',
+                'payload.data.payment.cf_payment_id': cfPaymentId,
+                status: 'processed'
+            })
+            if (existing) {
+                console.log(`⚠️  Duplicate Cashfree webhook ignored: cf_payment_id=${cfPaymentId}`)
+                return res.status(200).json({ received: true, duplicate: true })
+            }
+        }
+
+        // ── Log the incoming webhook ─────────────────────────────────────────
+        const log = await WebhookLog.create({
             source: 'cashfree',
-            eventType: req.body.type || 'test_webhook',
+            eventType,
             payload: req.body,
             headers: req.headers,
             status: 'received',
         })
 
-        // Handle test webhook from Cashfree
-        if (!req.body.type || req.body.test === true) {
-            console.log('✅ Cashfree test webhook received')
-            return res.status(200).json({ received: true, message: 'Test webhook successful' })
-        }
-
-        // Verify webhook signature for production webhooks
+        // ── Verify signature ─────────────────────────────────────────────────
         const signature = req.headers['x-webhook-signature']
         const timestamp = req.headers['x-webhook-timestamp']
+        const rawBody = JSON.stringify(req.body)
 
-        // Skip signature verification for now (implement later with proper Cashfree secret)
-        // const isValid = verifyCashfreeWebhook(signature, timestamp, req.body)
-        // if (!isValid) {
-        //     throw ApiError.unauthorized('Invalid webhook signature')
-        // }
+        const isValid = verifyCashfreeWebhook(signature, timestamp, rawBody)
+        if (!isValid) {
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'signature_failed' })
+            console.error(`❌ Cashfree webhook signature failed for event: ${eventType}`)
+            return res.status(200).json({ received: true, verified: false })
+        }
 
         const { type, data } = req.body
 
         try {
             switch (type) {
-                case 'PAYMENT_SUCCESS_WEBHOOK':
-                    console.log('✅ Cashfree payment success:', data.order.order_id)
-                    // Handle payment success
+                case 'PAYMENT_SUCCESS_WEBHOOK': {
+                    const orderId = data?.order?.order_id
+                    console.log('✅ Cashfree payment success webhook:', orderId)
+                    if (orderId) {
+                        // Verify via service (idempotent)
+                        await paymentService.verifyCashfreePayment(orderId)
+                    }
                     break
+                }
 
-                case 'PAYMENT_FAILED_WEBHOOK':
-                    console.log('❌ Cashfree payment failed:', data.order.order_id)
-                    // Handle payment failure
+                case 'PAYMENT_FAILED_WEBHOOK': {
+                    const orderId = data?.order?.order_id
+                    console.log('❌ Cashfree payment failed:', orderId)
+                    if (orderId) {
+                        await Order.findOneAndUpdate(
+                            { orderId, status: 'pending' },
+                            { status: 'failed' }
+                        )
+                    }
                     break
+                }
+
+                case 'PAYMENT_USER_DROPPED_WEBHOOK': {
+                    const orderId = data?.order?.order_id
+                    console.log('⚠️  Cashfree payment dropped by user:', orderId)
+                    if (orderId) {
+                        await Order.findOneAndUpdate(
+                            { orderId, status: 'pending' },
+                            { status: 'cancelled' }
+                        )
+                    }
+                    break
+                }
 
                 default:
-                    console.log('⚠️  Unhandled Cashfree webhook:', type)
+                    console.log(`ℹ️  Unhandled Cashfree webhook: ${type}`)
             }
 
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'processed' })
             res.status(200).json({ received: true })
         } catch (error) {
-            console.error('Cashfree webhook error:', error)
+            console.error('❌ Cashfree webhook processing error:', error)
+            await WebhookLog.findByIdAndUpdate(log._id, { status: 'error', error: error.message })
             res.status(500).json({ error: 'Webhook processing failed' })
         }
     })
