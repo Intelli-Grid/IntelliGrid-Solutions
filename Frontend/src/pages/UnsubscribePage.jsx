@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Loader, Mail } from 'lucide-react'
 import SEO from '../components/common/SEO'
-import api from '../services'
+import { newsletterService } from '../services'
 
 /**
  * UnsubscribePage
@@ -27,7 +27,7 @@ export default function UnsubscribePage() {
         setStatus('loading')
 
         try {
-            await api.post('/newsletter/unsubscribe', { email, type })
+            await newsletterService.unsubscribe(email, type)
             setStatus('success')
             setMessage(`You've been successfully unsubscribed from IntelliGrid ${type} emails.`)
         } catch (err) {

@@ -353,9 +353,9 @@ export const newsletterService = {
         return response.data
     },
 
-    // Unsubscribe (optional, though usually handled via email link, good to have API)
-    unsubscribe: async (email) => {
-        const response = await apiClient.post('/newsletter/unsubscribe', { email })
+    // Unsubscribe (used by /unsubscribe page — handles both marketing and transactional)
+    unsubscribe: async (email, type = 'marketing') => {
+        const response = await apiClient.post('/newsletter/unsubscribe', { email, type })
         return response.data
     },
 }
