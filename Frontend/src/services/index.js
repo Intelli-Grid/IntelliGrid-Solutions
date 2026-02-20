@@ -288,6 +288,16 @@ export const adminService = {
     updateTool: async (id, data) => {
         return await apiClient.put(`/tools/${id}`, data)
     },
+
+    // Get all users with search + pagination
+    getUsers: async (params = {}) => {
+        return await apiClient.get('/admin/users', { params })
+    },
+
+    // Get revenue analytics data
+    getRevenueAnalytics: async (days = 30) => {
+        return await apiClient.get(`/analytics/revenue?days=${days}`)
+    },
 }
 
 /**

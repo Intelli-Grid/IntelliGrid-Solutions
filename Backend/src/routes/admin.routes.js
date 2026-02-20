@@ -309,17 +309,18 @@ router.put('/reviews/:id/reject', async (req, res) => {
 
 /**
  * @route   GET /api/v1/admin/payments
- * @desc    Get all payments with filters
+ * @desc    Get all payments with optional status filter, populated user info
  * @access  Admin only
  */
 router.get('/payments', async (req, res) => {
     try {
-        const { status, limit = 50, page = 1 } = req.query
+        const { status, page = 1, limit = 20 } = req.query
         const query = status ? { status } : {}
 
         const payments = await Order.find(query)
+            .populate('user', 'firstName lastName email')
             .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
+            .skip((page - 1) * parseInt(limit))
             .limit(parseInt(limit))
             .lean()
 
@@ -331,45 +332,7 @@ router.get('/payments', async (req, res) => {
             pagination: {
                 total,
                 page: parseInt(page),
-                pages: Math.ceil(total / limit)
-            }
-        })
-    } catch (error) {
-        console.error('Payments fetch error:', error)
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch payments'
-        })
-
-    }
-})
-
-
-
-/**
- * @route   GET /api/v1/admin/payments
- * @desc    Get all payments
- * @access  Admin only
- */
-router.get('/payments', async (req, res) => {
-    try {
-        const { page = 1, limit = 20 } = req.query
-        const payments = await Order.find()
-            .populate('user', 'firstName lastName email')
-            .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(parseInt(limit))
-            .lean()
-
-        const total = await Order.countDocuments()
-
-        res.json({
-            success: true,
-            payments,
-            pagination: {
-                total,
-                page: parseInt(page),
-                pages: Math.ceil(total / limit)
+                pages: Math.ceil(total / parseInt(limit))
             }
         })
     } catch (error) {

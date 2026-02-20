@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { Link } from 'react-router-dom'
 import {
     LayoutDashboard,
     Package,
     Users,
+    User as UserIcon,
     Star,
     DollarSign,
     BarChart3,
@@ -14,12 +16,17 @@ import {
     Search,
     Check,
     X,
-    Filter,
     ShieldCheck,
     Mail,
+    TrendingUp,
+    Activity,
+    ExternalLink,
+    ChevronLeft,
+    ChevronRight,
+    Crown,
+    RefreshCw,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
-import ErrorMessage from '../components/common/ErrorMessage'
 import { adminService, toolService } from '../services'
 import { useToast } from '../context/ToastContext'
 import EditToolModal from '../components/tools/EditToolModal'
@@ -166,7 +173,7 @@ export default function AdminPage() {
 
                 {/* Tab Content */}
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                    {activeTab === 'overview' && <OverviewTab />}
+                    {activeTab === 'overview' && <OverviewTab setActiveTab={setActiveTab} stats={stats} />}
                     {activeTab === 'tools' && <ToolsTab />}
                     {activeTab === 'claims' && <ClaimsTab />}
                     {activeTab === 'users' && <UsersTab />}
@@ -181,23 +188,93 @@ export default function AdminPage() {
 }
 
 // Tab Components
-function OverviewTab() {
+function OverviewTab({ setActiveTab, stats }) {
+    const [recentUsers, setRecentUsers] = useState([])
+    const [systemHealth, setSystemHealth] = useState(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        Promise.all([
+            adminService.getUsers({ limit: 5, page: 1 }).catch(() => null),
+            fetch(`${import.meta.env.VITE_API_BASE_URL}/health`)
+                .then(r => r.json()).catch(() => null)
+        ]).then(([usersData, health]) => {
+            if (usersData?.success) setRecentUsers(usersData.users || [])
+            if (health) setSystemHealth(health)
+        }).finally(() => setLoading(false))
+    }, [])
+
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
-            <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                    <h3 className="mb-4 font-semibold text-white">Recent Activity</h3>
-                    <p className="text-sm text-gray-400">No recent activity</p>
+
+            {/* System Status Banner */}
+            <div className={`flex items-center gap-3 rounded-lg border p-4 ${systemHealth?.services?.database === 'connected'
+                ? 'border-green-500/20 bg-green-500/5'
+                : 'border-yellow-500/20 bg-yellow-500/5'
+                }`}>
+                <Activity className={`h-5 w-5 ${systemHealth?.services?.database === 'connected' ? 'text-green-400' : 'text-yellow-400'
+                    }`} />
+                <div>
+                    <p className="text-sm font-medium text-white">
+                        {systemHealth ? 'All Systems Operational' : 'Checking system status...'}
+                    </p>
+                    {systemHealth && (
+                        <p className="text-xs text-gray-400">
+                            DB: {systemHealth.services?.database} · Redis: {systemHealth.services?.redis} · PayPal: {systemHealth.paypal_mode} · Cashfree: {systemHealth.cashfree_env}
+                        </p>
+                    )}
                 </div>
+                <Link to="/admin/system" target="_blank" className="ml-auto flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
+                    System Details <ExternalLink className="h-3 w-3" />
+                </Link>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+                {/* Recent Users */}
+                <div className="rounded-lg border border-white/10 bg-white/5 p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-semibold text-white">Recent Signups</h3>
+                        <button onClick={() => setActiveTab('users')} className="text-xs text-purple-400 hover:text-purple-300">View all →</button>
+                    </div>
+                    {loading ? <LoadingSpinner /> : recentUsers.length === 0 ? (
+                        <p className="text-sm text-gray-400">No users yet</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {recentUsers.map(u => (
+                                <div key={u._id} className="flex items-center gap-3">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/20 text-sm font-medium text-purple-300">
+                                        {u.firstName?.[0] || u.email?.[0]?.toUpperCase() || '?'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-white truncate">{u.firstName} {u.lastName}</p>
+                                        <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                                    </div>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.subscription?.tier !== 'Free'
+                                        ? 'bg-purple-500/20 text-purple-300'
+                                        : 'bg-white/5 text-gray-500'
+                                        }`}>{u.subscription?.tier || 'Free'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Quick Actions */}
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                     <h3 className="mb-4 font-semibold text-white">Quick Actions</h3>
                     <div className="space-y-2">
-                        <button className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm text-white transition hover:bg-purple-700">
-                            Add New Tool
+                        <button onClick={() => setActiveTab('tools')} className="flex w-full items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm text-white transition hover:bg-purple-700">
+                            <Plus className="h-4 w-4" /> Manage Tools ({stats.pendingTools || 0} pending)
                         </button>
-                        <button className="w-full rounded-lg border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
-                            Moderate Reviews
+                        <button onClick={() => setActiveTab('reviews')} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
+                            <Star className="h-4 w-4" /> Moderate Reviews ({stats.pendingReviews || 0} pending)
+                        </button>
+                        <button onClick={() => setActiveTab('claims')} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
+                            <ShieldCheck className="h-4 w-4" /> Review Claims
+                        </button>
+                        <button onClick={() => setActiveTab('analytics')} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
+                            <BarChart3 className="h-4 w-4" /> View Revenue Analytics
                         </button>
                     </div>
                 </div>
@@ -541,10 +618,145 @@ function ClaimsTab() {
 }
 
 function UsersTab() {
+    const [users, setUsers] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
+    const [pagination, setPagination] = useState({ total: 0, pages: 1 })
+    const [searchTimeout, setSearchTimeout] = useState(null)
+    const { toast } = useToast()
+
+    const fetchUsers = async (searchVal = search, pageVal = page) => {
+        setLoading(true)
+        try {
+            const data = await adminService.getUsers({ search: searchVal, page: pageVal, limit: 20 })
+            if (data.success) {
+                setUsers(data.users)
+                setPagination(data.pagination)
+            }
+        } catch (error) {
+            toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchUsers() }, [page])
+
+    const handleSearch = (val) => {
+        setSearch(val)
+        setPage(1)
+        clearTimeout(searchTimeout)
+        setSearchTimeout(setTimeout(() => fetchUsers(val, 1), 400))
+    }
+
+    const TIER_COLORS = {
+        Free: 'bg-white/5 text-gray-400',
+        Basic: 'bg-blue-500/20 text-blue-300',
+        Premium: 'bg-purple-500/20 text-purple-300',
+        Enterprise: 'bg-amber-500/20 text-amber-300',
+    }
+
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">User Management</h2>
-            <p className="text-gray-400">Manage users, subscriptions, and permissions</p>
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">User Management</h2>
+                <span className="text-sm text-gray-400">{pagination.total} total users</span>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                    type="text"
+                    value={search}
+                    onChange={e => handleSearch(e.target.value)}
+                    placeholder="Search by name or email..."
+                    className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-10 pr-4 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                />
+            </div>
+
+            {/* Table */}
+            {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+            ) : users.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 py-12 text-center text-gray-400">
+                    <Users className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>No users found</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto rounded-lg border border-white/10">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-white/5 text-xs uppercase text-gray-400">
+                            <tr>
+                                <th className="px-4 py-3">User</th>
+                                <th className="px-4 py-3">Tier</th>
+                                <th className="px-4 py-3">Sub Status</th>
+                                <th className="px-4 py-3">Role</th>
+                                <th className="px-4 py-3">Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {users.map(u => (
+                                <tr key={u._id} className="hover:bg-white/5">
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-500/20 text-sm font-medium text-purple-300">
+                                                {u.firstName?.[0] || u.email?.[0]?.toUpperCase() || '?'}
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-white">{u.firstName} {u.lastName}</p>
+                                                <p className="text-xs text-gray-400">{u.email}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TIER_COLORS[u.subscription?.tier] || TIER_COLORS.Free
+                                            }`}>
+                                            {u.subscription?.tier || 'Free'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`text-xs ${u.subscription?.status === 'active' ? 'text-green-400' : 'text-gray-500'
+                                            }`}>
+                                            {u.subscription?.status || 'inactive'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="text-xs text-gray-400">{u.role || 'user'}</span>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-400">
+                                        {new Date(u.createdAt).toLocaleDateString()}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+                <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-400">Page {page} of {pagination.pages}</p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="rounded-lg border border-white/10 p-2 text-white hover:bg-white/5 disabled:opacity-30"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                            disabled={page === pagination.pages}
+                            className="rounded-lg border border-white/10 p-2 text-white hover:bg-white/5 disabled:opacity-30"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -679,7 +891,7 @@ function ReviewsTab() {
                             </div>
                             <div className="flex items-center gap-2 text-xs text-gray-500 border-t border-white/5 pt-2 mt-2">
                                 <span className="flex items-center gap-1">
-                                    <User size={12} />
+                                    <UserIcon size={12} />
                                     {review.user ? `${review.user.firstName} ${review.user.lastName}` : 'Unknown User'}
                                 </span>
                                 <span>•</span>
@@ -746,9 +958,18 @@ function PaymentsTab() {
                         ) : (
                             payments.map((payment) => (
                                 <tr key={payment._id} className="hover:bg-white/5">
-                                    <td className="px-6 py-4 font-mono text-xs">{payment.paymentId ? payment.paymentId.substring(0, 12) + '...' : payment._id}</td>
-                                    <td className="px-6 py-4">{payment.userId}</td>
-                                    <td className="px-6 py-4 text-white font-medium">${payment.amount}</td>
+                                    <td className="px-6 py-4 font-mono text-xs">{(payment.paymentId || payment._id?.toString() || '').substring(0, 14)}...</td>
+                                    <td className="px-6 py-4">
+                                        {payment.user ? (
+                                            <div>
+                                                <p className="text-white text-sm">{payment.user.firstName} {payment.user.lastName}</p>
+                                                <p className="text-xs text-gray-400">{payment.user.email}</p>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-500 text-xs font-mono">{payment.userId || '—'}</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 text-white font-medium">${(payment.amount?.total ?? payment.amount ?? 0).toFixed(2)}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded-full text-xs ${payment.status === 'completed' ? 'bg-green-500/20 text-green-400' :
                                             payment.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -769,10 +990,99 @@ function PaymentsTab() {
 }
 
 function AnalyticsTab() {
+    const [revenue, setRevenue] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const { toast } = useToast()
+
+    useEffect(() => {
+        adminService.getRevenueAnalytics()
+            .then(data => { if (data?.success) setRevenue(data.data) })
+            .catch(() => toast({ title: 'Error', description: 'Failed to load analytics', variant: 'destructive' }))
+            .finally(() => setLoading(false))
+    }, [])
+
+    const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0)
+
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Analytics & Reports</h2>
-            <p className="text-gray-400">View detailed analytics and generate reports</p>
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Analytics &amp; Revenue</h2>
+                <Link to="/admin/revenue" target="_blank" className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300">
+                    Full Revenue Dashboard <ExternalLink className="h-4 w-4" />
+                </Link>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+            ) : revenue ? (
+                <>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {[
+                            { label: 'MRR', value: fmt(revenue.mrr), icon: TrendingUp, color: 'text-purple-400' },
+                            { label: 'ARR', value: fmt(revenue.arr), icon: BarChart3, color: 'text-blue-400' },
+                            { label: 'Total Revenue', value: fmt(revenue.totalRevenue), icon: DollarSign, color: 'text-green-400' },
+                            { label: 'Paid Users', value: revenue.activeSubscriptions || 0, icon: Crown, color: 'text-amber-400' },
+                        ].map(({ label, value, icon: Icon, color }) => (
+                            <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                                <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">{label}</span>
+                                    <Icon className={`h-4 w-4 ${color}`} />
+                                </div>
+                                <p className="text-2xl font-bold text-white">{value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-6">
+                        <h3 className="mb-4 font-semibold text-white">Subscription Breakdown</h3>
+                        <div className="space-y-3">
+                            {[
+                                { label: 'Free Users', key: 'free', color: 'bg-gray-500' },
+                                { label: 'Basic', key: 'basic', color: 'bg-blue-500' },
+                                { label: 'Premium', key: 'premium', color: 'bg-purple-500' },
+                                { label: 'Enterprise', key: 'enterprise', color: 'bg-amber-500' },
+                            ].map(({ label, key, color }) => {
+                                const value = revenue.subscriptionBreakdown?.[key] || 0
+                                const total = Object.values(revenue.subscriptionBreakdown || {}).reduce((a, b) => a + b, 0) || 1
+                                const pct = Math.round((value / total) * 100)
+                                return (
+                                    <div key={label}>
+                                        <div className="mb-1 flex justify-between text-sm">
+                                            <span className="text-gray-300">{label}</span>
+                                            <span className="text-white font-medium">{value} <span className="text-gray-500">({pct}%)</span></span>
+                                        </div>
+                                        <div className="h-1.5 w-full rounded-full bg-white/10">
+                                            <div className={`h-1.5 rounded-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {revenue.paymentStats && (
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4 text-center">
+                                <p className="text-xs text-gray-400 mb-1">Successful Payments</p>
+                                <p className="text-2xl font-bold text-green-400">{revenue.paymentStats.successful}</p>
+                            </div>
+                            <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-center">
+                                <p className="text-xs text-gray-400 mb-1">Failed Payments</p>
+                                <p className="text-2xl font-bold text-red-400">{revenue.paymentStats.failed}</p>
+                            </div>
+                            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-center">
+                                <p className="text-xs text-gray-400 mb-1">Success Rate</p>
+                                <p className="text-2xl font-bold text-blue-400">{revenue.paymentStats.successRate}%</p>
+                            </div>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className="rounded-lg border border-white/10 bg-white/5 py-12 text-center text-gray-400">
+                    <BarChart3 className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>No analytics data available yet</p>
+                </div>
+            )}
         </div>
     )
 }
@@ -781,18 +1091,69 @@ function SettingsTab() {
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
-            <div className="space-y-4">
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                    <h3 className="mb-2 font-semibold text-white">General Settings</h3>
-                    <p className="text-sm text-gray-400">Configure platform-wide settings</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+                {/* System Tools */}
+                <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                    <h3 className="mb-3 font-semibold text-white flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-green-400" /> System Health
+                    </h3>
+                    <p className="mb-4 text-sm text-gray-400">Monitor server uptime, memory, DB latency, and Node.js version.</p>
+                    <Link to="/admin/system" target="_blank"
+                        className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 transition"
+                    >
+                        Open System Monitor <ExternalLink className="h-4 w-4" />
+                    </Link>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                    <h3 className="mb-2 font-semibold text-white">Payment Settings</h3>
-                    <p className="text-sm text-gray-400">Manage PayPal and Cashfree configurations</p>
+
+                {/* Revenue */}
+                <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                    <h3 className="mb-3 font-semibold text-white flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-green-400" /> Revenue Dashboard
+                    </h3>
+                    <p className="mb-4 text-sm text-gray-400">Full MRR/ARR charts, subscription breakdown, and transaction history.</p>
+                    <Link to="/admin/revenue" target="_blank"
+                        className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 transition"
+                    >
+                        Open Revenue Dashboard <ExternalLink className="h-4 w-4" />
+                    </Link>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                    <h3 className="mb-2 font-semibold text-white">Email Settings</h3>
-                    <p className="text-sm text-gray-400">Configure email notifications</p>
+
+                {/* Payment Gateways */}
+                <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                    <h3 className="mb-3 font-semibold text-white flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-purple-400" /> Payment Gateways
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-gray-400">PayPal</span>
+                            <span className="text-green-400 font-medium">Live Mode ✓</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-400">Cashfree</span>
+                            <span className="text-green-400 font-medium">PROD Mode ✓</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* API Status */}
+                <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                    <h3 className="mb-3 font-semibold text-white flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-blue-400" /> API &amp; Services
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                        {[
+                            { name: 'Backend API', url: 'https://api.intelligrid.online' },
+                            { name: 'Frontend', url: 'https://www.intelligrid.online' },
+                        ].map(({ name, url }) => (
+                            <div key={name} className="flex justify-between items-center">
+                                <span className="text-gray-400">{name}</span>
+                                <a href={url} target="_blank" rel="noreferrer"
+                                    className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
+                                    {url.replace('https://', '')} <ExternalLink className="h-3 w-3" />
+                                </a>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
