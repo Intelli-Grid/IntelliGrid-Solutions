@@ -44,7 +44,7 @@ function getCategoryIcon(name = '') {
 // Compact list-view row for each tool
 function ToolListRow({ tool }) {
     const logoSrc = tool.logo || tool.metadata?.logo || ''
-    const pricingDisplay = tool.pricing || 'Unknown'
+    const pricingDisplay = tool.pricing || 'Contact'
     return (
         <Link
             to={`/tools/${tool.slug}`}
@@ -234,8 +234,8 @@ export default function ToolsPage() {
                         <button
                             onClick={() => setFilter('category', '')}
                             className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!filters.category
-                                    ? 'bg-purple-600 text-white'
-                                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
                                 }`}
                         >
                             🌐 All
@@ -245,8 +245,8 @@ export default function ToolsPage() {
                                 key={cat._id || cat.slug}
                                 onClick={() => setFilter('category', cat.slug)}
                                 className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filters.category === cat.slug
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
                                     }`}
                             >
                                 <span>{getCategoryIcon(cat.name)}</span>
@@ -271,8 +271,8 @@ export default function ToolsPage() {
                                 key={opt.value}
                                 onClick={() => setFilter('pricing', opt.value)}
                                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.pricing === opt.value
-                                        ? 'bg-white/15 text-white border border-white/20'
-                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                    ? 'bg-white/15 text-white border border-white/20'
+                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                     }`}
                             >
                                 {opt.label}
@@ -289,8 +289,8 @@ export default function ToolsPage() {
                                     key={tab.value}
                                     onClick={() => setFilter('sort', tab.value)}
                                     className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.sort === tab.value
-                                            ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                         }`}
                                 >
                                     <Icon size={11} />

@@ -92,30 +92,31 @@ export function isPremiumUser(user) {
 }
 
 /**
- * Get pricing display
- */
-/**
- * Get pricing display
+ * Get pricing display label from raw pricing value
+ * null  → 'Contact' (90% of tools — pricing not publicly listed)
+ * string → normalized label
  */
 export function getPricingDisplay(pricing) {
-    if (!pricing) return 'Free'
+    if (pricing === null || pricing === undefined || pricing === '') return 'Contact'
 
-    // Handle string input
     if (typeof pricing === 'string') {
         const lower = pricing.toLowerCase()
-        if (lower.includes('free')) return 'Free'
-        if (lower.includes('paid')) return 'Paid'
-        if (lower.includes('contact')) return 'Custom'
+        if (lower === 'free') return 'Free'
+        if (lower === 'freemium') return 'Freemium'
+        if (lower === 'paid') return 'Paid'
+        if (lower === 'trial') return 'Trial'
+        if (lower.includes('contact') || lower.includes('custom')) return 'Contact'
         return pricing
     }
 
-    if (pricing.type === 'free') return 'Free'
-    if (pricing.type === 'freemium') return 'Freemium'
-    if (pricing.type === 'paid') {
+    // Legacy object shape (kept for safety)
+    if (pricing?.type === 'free') return 'Free'
+    if (pricing?.type === 'freemium') return 'Freemium'
+    if (pricing?.type === 'paid') {
         if (pricing.price) return `$${pricing.price}`
         return 'Paid'
     }
-    return 'Custom' // Cleaner than "Contact for pricing"
+    return 'Contact'
 }
 
 /**

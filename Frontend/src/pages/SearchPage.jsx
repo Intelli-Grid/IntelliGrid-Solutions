@@ -19,6 +19,8 @@ const PRICING_COLORS = {
     Free: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
     Freemium: 'text-sky-400 bg-sky-400/10 border-sky-400/20',
     Paid: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+    Trial: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
+    Contact: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
 }
 
 // Individual search result hit card
@@ -175,7 +177,7 @@ export default function SearchPage() {
                             <div className="rounded-xl border border-white/8 bg-[#0d0d0d] p-4">
                                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Pricing</h3>
                                 <RefinementList
-                                    attribute="pricing.type"
+                                    attribute="pricing"
                                     classNames={{
                                         root: 'space-y-1.5',
                                         list: 'space-y-1.5',
