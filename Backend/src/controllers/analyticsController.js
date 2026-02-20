@@ -22,18 +22,24 @@ export const getRevenueAnalytics = async (req, res) => {
 
         users.forEach(user => {
             const sub = user.subscription || {}
-            const tier = sub.tier || 'free'
-            const duration = sub.duration
+            const tier = sub.tier || 'Free'
             const status = sub.status
 
-            if (tier === 'pro' && status === 'active') {
+            // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
+            const PAID_TIERS = ['Basic', 'Premium', 'Enterprise']
+
+            if (PAID_TIERS.includes(tier) && status === 'active') {
                 activeSubscriptions++
-                if (duration === 'monthly') {
+                // Approximate MRR per tier (adjust to match actual pricing)
+                const MRR_BY_TIER = { Basic: 4.99, Premium: 9.99, Enterprise: 24.99 }
+                const tierMRR = MRR_BY_TIER[tier] || 9.99
+
+                if (tier === 'Premium' || tier === 'Basic') {
                     subscriptionBreakdown.proMonthly++
-                    totalMRR += 9.99
-                } else if (duration === 'yearly') {
+                    totalMRR += tierMRR
+                } else if (tier === 'Enterprise') {
                     subscriptionBreakdown.proYearly++
-                    totalMRR += 89.99 / 12
+                    totalMRR += tierMRR
                 }
             } else {
                 subscriptionBreakdown.free++

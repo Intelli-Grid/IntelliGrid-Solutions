@@ -88,7 +88,9 @@ export default function ComparisonPage() {
     const ratingWinner = getRatingWinner()
     const popularityWinner = getPopularityWinner()
 
-    const isPro = subscription?.tier === 'pro' && subscription?.status === 'active'
+    // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
+    const PAID_TIERS = ['Premium', 'Enterprise', 'Basic']
+    const isPro = PAID_TIERS.includes(subscription?.tier) && subscription?.status === 'active'
 
     return (
         <div className="min-h-screen bg-gray-950 text-white py-16 px-4">

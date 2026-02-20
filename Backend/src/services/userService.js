@@ -173,12 +173,14 @@ class UserService {
         }
 
         // Limit for free users: 10 favorites
-        const isPro = user.subscription?.tier === 'pro' && user.subscription?.status === 'active'
+        // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
+        const PAID_TIERS = ['Premium', 'Enterprise', 'Basic']
+        const isPaidSubscriber = PAID_TIERS.includes(user.subscription?.tier) && user.subscription?.status === 'active'
 
-        if (!isPro) {
+        if (!isPaidSubscriber) {
             const count = await Favorite.countDocuments({ user: userId })
             if (count >= 10) {
-                throw ApiError.forbidden('Free plan limit reached. Upgrade to Pro to save more favorites.')
+                throw ApiError.forbidden('Free plan limit reached. Upgrade to a paid plan to save unlimited favorites.')
             }
         }
 

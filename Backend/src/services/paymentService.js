@@ -276,6 +276,21 @@ class PaymentService {
     async activateSubscription(userId, subscriptionData) {
         const { tier, duration } = subscriptionData
 
+        // Map payment plan names → User model enum values
+        // User.subscription.tier only accepts: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
+        const TIER_MAP = {
+            'pro': 'Premium',
+            'Pro': 'Premium',
+            'premium': 'Premium',
+            'basic': 'Basic',
+            'Basic': 'Basic',
+            'enterprise': 'Enterprise',
+            'Enterprise': 'Enterprise',
+            'free': 'Free',
+            'Free': 'Free',
+        }
+        const normalizedTier = TIER_MAP[tier] || 'Premium'
+
         const startDate = new Date()
         const endDate = new Date()
 
@@ -286,12 +301,14 @@ class PaymentService {
         }
 
         await User.findByIdAndUpdate(userId, {
-            'subscription.tier': tier,
+            'subscription.tier': normalizedTier,
             'subscription.status': 'active',
             'subscription.startDate': startDate,
             'subscription.endDate': endDate,
             'subscription.autoRenew': true,
         })
+
+        console.log(`✅ Subscription activated for user ${userId}: ${tier} → ${normalizedTier} (${duration})`)
     }
 
     /**

@@ -284,7 +284,8 @@ export default function DashboardPage() {
                                                 : 'Upgrade to unlock more features'}
                                         </div>
                                     </div>
-                                    {subscription?.tier === 'pro' && subscription?.status === 'active' ? (
+                                    {/* isPaidSubscriber: match User model enum 'Free'|'Basic'|'Premium'|'Enterprise' */}
+                                    {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' ? (
                                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-500">
                                             <TrendingUp size={24} />
                                         </div>
@@ -297,12 +298,12 @@ export default function DashboardPage() {
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-400">Favorites Limit</span>
-                                        <span className="text-white">{subscription?.tier === 'pro' ? 'Unlimited' : '10'}</span>
+                                        <span className="text-white">{['Premium', 'Enterprise'].includes(subscription?.tier) ? 'Unlimited' : '10'}</span>
                                     </div>
                                     <div className="w-full bg-gray-700 rounded-full h-1.5">
                                         <div
-                                            className={`h-1.5 rounded-full ${favorites.length >= 10 && subscription?.tier !== 'pro' ? 'bg-red-500' : 'bg-purple-500'}`}
-                                            style={{ width: `${Math.min((favorites.length / (subscription?.tier === 'pro' ? favorites.length * 1.5 || 100 : 10)) * 100, 100)}%` }}
+                                            className={`h-1.5 rounded-full ${favorites.length >= 10 && !['Premium', 'Enterprise'].includes(subscription?.tier) ? 'bg-red-500' : 'bg-purple-500'}`}
+                                            style={{ width: `${Math.min((favorites.length / (['Premium', 'Enterprise'].includes(subscription?.tier) ? Math.max(favorites.length * 1.5, 100) : 10)) * 100, 100)}%` }}
                                         ></div>
                                     </div>
                                 </div>
@@ -440,8 +441,8 @@ export default function DashboardPage() {
                         <div className="flex justify-end mb-4">
                             <button
                                 onClick={() => {
-                                    if (subscription?.tier !== 'pro') {
-                                        toast.error('Exporting favorites is a Pro feature')
+                                    if (!['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier)) {
+                                        toast.error('Exporting favorites is a paid plan feature')
                                         return
                                     }
 
@@ -473,13 +474,13 @@ export default function DashboardPage() {
                                         document.body.removeChild(link)
                                     }
                                 }}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${subscription?.tier === 'pro'
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier)
                                     ? 'bg-white/10 text-white hover:bg-white/20'
                                     : 'bg-white/5 text-gray-400 cursor-not-allowed'
                                     }`}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
-                                {subscription?.tier === 'pro' ? 'Export CSV' : 'Export CSV (Pro)'}
+                                {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) ? 'Export CSV' : 'Export CSV (Paid Plan)'}
                             </button>
                         </div>
 
