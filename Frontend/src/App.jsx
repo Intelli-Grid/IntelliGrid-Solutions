@@ -28,6 +28,9 @@ const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'))
 const FAQPage = lazy(() => import('./pages/FAQPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const UnsubscribePage = lazy(() => import('./pages/UnsubscribePage'))
+const SubmitToolPage = lazy(() => import('./pages/SubmitToolPage'))
+const BlogPage = lazy(() => import('./pages/BlogPage'))
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -72,6 +75,9 @@ function App() {
                         <Route path="/refund-policy" element={<RefundPolicyPage />} />
                         <Route path="/faq" element={<FAQPage />} />
                         <Route path="/unsubscribe" element={<UnsubscribePage />} />
+                        <Route path="/submit" element={<SubmitToolPage />} />
+                        <Route path="/blog" element={<BlogPage />} />
+                        <Route path="/blog/:slug" element={<BlogPostPage />} />
 
                         {/* ── Payment Routes ────────────────────────────── */}
                         <Route path="/payment/success" element={<PaymentSuccessPage />} />

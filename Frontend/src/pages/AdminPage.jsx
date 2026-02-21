@@ -27,7 +27,7 @@ import {
     RefreshCw,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
-import { adminService, toolService } from '../services'
+import { adminService, toolService, submissionService, blogService, couponService } from '../services'
 import { useToast } from '../context/ToastContext'
 import EditToolModal from '../components/tools/EditToolModal'
 import WorkspaceSwitcher from '../components/admin/WorkspaceSwitcher'
@@ -97,6 +97,9 @@ export default function AdminPage() {
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'tools', label: 'Tools', icon: Package },
         { id: 'claims', label: 'Claims', icon: ShieldCheck },
+        { id: 'submissions', label: 'Submissions', icon: Plus },
+        { id: 'blog', label: 'Blog', icon: TrendingUp },
+        { id: 'coupons', label: 'Coupons', icon: DollarSign },
         { id: 'users', label: 'Users', icon: Users },
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'payments', label: 'Payments', icon: DollarSign },
@@ -176,6 +179,9 @@ export default function AdminPage() {
                     {activeTab === 'overview' && <OverviewTab setActiveTab={setActiveTab} stats={stats} />}
                     {activeTab === 'tools' && <ToolsTab />}
                     {activeTab === 'claims' && <ClaimsTab />}
+                    {activeTab === 'submissions' && <SubmissionsTab />}
+                    {activeTab === 'blog' && <BlogAdminTab />}
+                    {activeTab === 'coupons' && <CouponsAdminTab />}
                     {activeTab === 'users' && <UsersTab />}
                     {activeTab === 'reviews' && <ReviewsTab />}
                     {activeTab === 'payments' && <PaymentsTab />}
@@ -1156,6 +1162,630 @@ function SettingsTab() {
                     </div>
                 </div>
             </div>
+        </div>
+    )
+}
+
+// ─── Submissions Tab ──────────────────────────────────────────────────────────
+function SubmissionsTab() {
+    const { toast } = useToast()
+    const [submissions, setSubmissions] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [statusFilter, setStatusFilter] = useState('pending')
+    const [reviewing, setReviewing] = useState(null)   // { id, action }
+    const [reviewNotes, setReviewNotes] = useState('')
+    const [submitting, setSubmitting] = useState(false)
+    const [pagination, setPagination] = useState({})
+    const [page, setPage] = useState(1)
+
+    const fetchSubmissions = async (s = statusFilter, p = page) => {
+        setLoading(true)
+        try {
+            const data = await submissionService.getAll({ status: s, page: p, limit: 15 })
+            if (data.success) {
+                setSubmissions(data.submissions || [])
+                setPagination(data.pagination || {})
+            }
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to load submissions', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchSubmissions() }, [])
+
+    const handleFilterChange = (s) => {
+        setStatusFilter(s)
+        setPage(1)
+        fetchSubmissions(s, 1)
+    }
+
+    const openReview = (id, action) => {
+        setReviewing({ id, action })
+        setReviewNotes('')
+    }
+
+    const submitReview = async () => {
+        if (!reviewing) return
+        setSubmitting(true)
+        try {
+            await submissionService.review(reviewing.id, reviewing.action, reviewNotes)
+            toast({
+                title: reviewing.action === 'approve' ? '✅ Approved!' : '❌ Rejected',
+                description: reviewing.action === 'approve'
+                    ? 'Tool has been created and submitter notified.'
+                    : 'Submission rejected and submitter notified.',
+            })
+            setReviewing(null)
+            fetchSubmissions()
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to submit review', variant: 'destructive' })
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const STATUS_COLORS = {
+        pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+        approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Community Submissions</h2>
+                <span className="text-sm text-gray-500">{pagination.total || 0} total</span>
+            </div>
+
+            {/* Filter tabs */}
+            <div className="flex gap-2">
+                {['pending', 'approved', 'rejected', 'all'].map(s => (
+                    <button
+                        key={s}
+                        onClick={() => handleFilterChange(s)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'}`}
+                    >
+                        {s}
+                    </button>
+                ))}
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+            ) : submissions.length === 0 ? (
+                <div className="py-12 text-center text-gray-500">No {statusFilter} submissions found</div>
+            ) : (
+                <div className="space-y-3">
+                    {submissions.map(sub => (
+                        <div key={sub._id} className="rounded-xl border border-white/8 bg-white/3 p-5">
+                            <div className="flex items-start gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <h3 className="font-semibold text-white">{sub.toolName}</h3>
+                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${STATUS_COLORS[sub.status]}`}>
+                                            {sub.status}
+                                        </span>
+                                        {sub.pricing && (
+                                            <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">{sub.pricing}</span>
+                                        )}
+                                        {sub.category && (
+                                            <span className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/15 px-2 py-0.5 rounded-full">{sub.category}</span>
+                                        )}
+                                    </div>
+                                    <a href={sub.officialUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline flex items-center gap-1 mb-2">
+                                        {sub.officialUrl} <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                    <p className="text-sm text-gray-400 line-clamp-2">{sub.shortDescription}</p>
+                                    {sub.submittedBy?.name && (
+                                        <p className="mt-2 text-xs text-gray-600">
+                                            Submitted by <span className="text-gray-500">{sub.submittedBy.name}</span>
+                                            {sub.submittedBy.email && <> · {sub.submittedBy.email}</>}
+                                            {' · '}{new Date(sub.createdAt).toLocaleDateString()}
+                                        </p>
+                                    )}
+                                    {sub.reviewNotes && (
+                                        <p className="mt-2 text-xs text-amber-500/60 italic">Notes: {sub.reviewNotes}</p>
+                                    )}
+                                </div>
+                                {sub.status === 'pending' && (
+                                    <div className="flex gap-2 flex-shrink-0">
+                                        <button
+                                            onClick={() => openReview(sub._id, 'approve')}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                                        >
+                                            <Check className="h-3.5 w-3.5" /> Approve
+                                        </button>
+                                        <button
+                                            onClick={() => openReview(sub._id, 'reject')}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold transition-colors"
+                                        >
+                                            <X className="h-3.5 w-3.5" /> Reject
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+                <div className="flex gap-2 justify-center">
+                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(p => (
+                        <button key={p} onClick={() => { setPage(p); fetchSubmissions(statusFilter, p) }}
+                            className={`h-8 w-8 rounded-lg text-xs transition-all ${page === p ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'}`}>
+                            {p}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* Review Modal */}
+            {reviewing && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0d0d] p-6">
+                        <h3 className="text-lg font-bold text-white mb-4">
+                            {reviewing.action === 'approve' ? '✅ Approve Submission' : '❌ Reject Submission'}
+                        </h3>
+                        <p className="text-sm text-gray-400 mb-4">
+                            {reviewing.action === 'approve'
+                                ? 'This will create the tool in the database and notify the submitter.'
+                                : 'Provide a reason (optional) — it will be sent to the submitter.'}
+                        </p>
+                        <textarea
+                            value={reviewNotes}
+                            onChange={e => setReviewNotes(e.target.value)}
+                            placeholder={reviewing.action === 'approve' ? 'Optional notes...' : 'Reason for rejection...'}
+                            rows={3}
+                            className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none mb-4"
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                onClick={submitReview}
+                                disabled={submitting}
+                                className={`flex-1 py-2.5 rounded-xl font-semibold text-sm text-white transition-colors ${reviewing.action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'} disabled:opacity-50`}
+                            >
+                                {submitting ? 'Submitting...' : reviewing.action === 'approve' ? 'Approve & Publish' : 'Reject'}
+                            </button>
+                            <button onClick={() => setReviewing(null)} className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white text-sm transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── Blog Admin Tab ───────────────────────────────────────────────────────────
+function BlogAdminTab() {
+    const { toast } = useToast()
+    const [posts, setPosts] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [showForm, setShowForm] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [editId, setEditId] = useState(null)  // null = create mode, string = edit mode
+    const BLANK_FORM = { title: '', slug: '', category: '', content: '', excerpt: '', tags: '', featuredImage: '', status: 'draft' }
+    const [form, setForm] = useState(BLANK_FORM)
+
+    const CATEGORIES = ['AI News', 'Tutorials', 'Reviews', 'Comparison', 'Industry', 'Tips & Tricks']
+
+    const fetchPosts = async () => {
+        setLoading(true)
+        try {
+            const data = await blogService.getAllPosts()
+            setPosts(data.posts || [])
+        } catch {
+            toast({ title: 'Error', description: 'Failed to load posts', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchPosts() }, [])
+
+    const handleField = (e) => {
+        const { name, value } = e.target
+        if (name === 'title' && !editId) {
+            // Auto-generate slug only in create mode
+            setForm(f => ({
+                ...f, title: value,
+                slug: f.slug || value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+            }))
+        } else {
+            setForm(f => ({ ...f, [name]: value }))
+        }
+    }
+
+    const handleEdit = (post) => {
+        setEditId(post._id)
+        setForm({
+            title: post.title || '',
+            slug: post.slug || '',
+            category: post.category || '',
+            content: post.content || '',
+            excerpt: post.excerpt || '',
+            tags: Array.isArray(post.tags) ? post.tags.join(', ') : (post.tags || ''),
+            featuredImage: post.featuredImage || '',
+            status: post.status || 'draft',
+        })
+        setShowForm(true)
+        // Scroll to form
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    const handleSave = async (e) => {
+        e.preventDefault()
+        if (!form.title || !form.content) {
+            toast({ title: 'Required', description: 'Title and content are required', variant: 'destructive' })
+            return
+        }
+        setSaving(true)
+        try {
+            const payload = { ...form, tags: form.tags.split(',').map(t => t.trim()).filter(Boolean) }
+            if (editId) {
+                await blogService.update(editId, payload)
+                toast({ title: '✅ Post updated!', description: `"${form.title}" saved.` })
+            } else {
+                await blogService.create(payload)
+                toast({ title: '✅ Post created!', description: `"${form.title}" saved as ${form.status}.` })
+            }
+            setShowForm(false)
+            setEditId(null)
+            setForm(BLANK_FORM)
+            fetchPosts()
+        } catch (err) {
+            toast({ title: 'Error', description: err.response?.data?.message || 'Failed to save post', variant: 'destructive' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleDelete = async (id, title) => {
+        if (!window.confirm(`Delete "${title}"?`)) return
+        try {
+            await blogService.remove(id)
+            setPosts(p => p.filter(x => x._id !== id))
+            toast({ title: 'Deleted' })
+        } catch {
+            toast({ title: 'Error', description: 'Delete failed', variant: 'destructive' })
+        }
+    }
+
+    const handleTogglePublish = async (post) => {
+        try {
+            const newStatus = post.status === 'published' ? 'draft' : 'published'
+            await blogService.update(post._id, { status: newStatus })
+            setPosts(p => p.map(x => x._id === post._id ? { ...x, status: newStatus } : x))
+        } catch {
+            toast({ title: 'Error', description: 'Update failed', variant: 'destructive' })
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Blog Management</h2>
+                <button onClick={() => { setShowForm(!showForm); setEditId(null); setForm(BLANK_FORM) }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors">
+                    <Plus className="h-4 w-4" /> New Post
+                </button>
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSave} className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-6 space-y-4">
+                    <h3 className="font-semibold text-white">{editId ? '✏️ Edit Post' : 'Create New Post'}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Title *</label>
+                            <input name="title" value={form.title} onChange={handleField} required placeholder="Post title"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Slug</label>
+                            <input name="slug" value={form.slug} onChange={handleField} placeholder="url-slug"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none font-mono" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Category</label>
+                            <select name="category" value={form.category} onChange={handleField}
+                                className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none">
+                                <option value="">Select...</option>
+                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Status</label>
+                            <select name="status" value={form.status} onChange={handleField}
+                                className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none">
+                                <option value="draft">Draft</option>
+                                <option value="published">Published</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-400 mb-1">Excerpt</label>
+                            <input name="excerpt" value={form.excerpt} onChange={handleField} placeholder="Short summary for listing..."
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-400 mb-1">Featured Image URL</label>
+                            <input name="featuredImage" value={form.featuredImage} onChange={handleField} placeholder="https://..."
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-400 mb-1">Tags (comma-separated)</label>
+                            <input name="tags" value={form.tags} onChange={handleField} placeholder="ai, tools, productivity"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-400 mb-1">Content (HTML) *</label>
+                            <textarea name="content" value={form.content} onChange={handleField} rows={14} required
+                                placeholder="<p>Your post content. HTML is supported.</p>"
+                                className="w-full resize-y rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none font-mono" />
+                        </div>
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                        <button type="button" onClick={() => { setShowForm(false); setEditId(null); setForm(BLANK_FORM) }}
+                            className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white text-sm transition-colors">Cancel</button>
+                        <button type="submit" disabled={saving}
+                            className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold disabled:opacity-50 transition-colors">
+                            {saving ? 'Saving...' : editId ? 'Save Changes' : (form.status === 'published' ? 'Publish Post' : 'Save Draft')}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? <div className="flex justify-center py-12"><LoadingSpinner /></div> : (
+                <div className="space-y-2">
+                    {posts.length === 0 ? (
+                        <p className="py-8 text-center text-gray-600">No posts yet. Create your first!</p>
+                    ) : posts.map(post => (
+                        <div key={post._id} className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/3 px-5 py-4">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="font-medium text-white">{post.title}</p>
+                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${post.status === 'published' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'}`}>{post.status}</span>
+                                    {post.category && <span className="text-[10px] text-purple-400">{post.category}</span>}
+                                </div>
+                                <p className="text-xs text-gray-600 mt-0.5">/blog/{post.slug} · {post.views || 0} views</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <button onClick={() => handleTogglePublish(post)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${post.status === 'published' ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-emerald-600/80 hover:bg-emerald-600 text-white'}`}>
+                                    {post.status === 'published' ? 'Unpublish' : 'Publish'}
+                                </button>
+                                <button onClick={() => handleEdit(post)} className="p-1.5 text-gray-500 hover:text-blue-400 transition-colors" title="Edit post">
+                                    <Edit className="h-4 w-4" />
+                                </button>
+                                <a href={`/blog/${post.slug}`} target="_blank" rel="noreferrer" className="p-1.5 text-gray-500 hover:text-white transition-colors">
+                                    <ExternalLink className="h-4 w-4" />
+                                </a>
+                                <button onClick={() => handleDelete(post._id, post.title)} className="p-1.5 text-gray-600 hover:text-red-400 transition-colors">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── Coupons Admin Tab ────────────────────────────────────────────────────────
+function CouponsAdminTab() {
+    const { toast } = useToast()
+    const [coupons, setCoupons] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [showForm, setShowForm] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [form, setForm] = useState({
+        code: '', discountType: 'percentage', discountValue: '',
+        maxDiscount: '', maxUses: '', expiresAt: '',
+        applicablePlans: [], description: '', isActive: true,
+    })
+
+    const PLANS = ['BASIC', 'PRO', 'ENTERPRISE']
+
+    const fetchCoupons = async () => {
+        setLoading(true)
+        try {
+            const data = await couponService.getAll()
+            setCoupons(data.coupons || [])
+        } catch {
+            toast({ title: 'Error', description: 'Failed to load coupons', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchCoupons() }, [])
+
+    const handleField = (e) => {
+        const { name, value } = e.target
+        setForm(f => ({ ...f, [name]: value }))
+    }
+
+    const togglePlan = (plan) => {
+        setForm(f => ({
+            ...f,
+            applicablePlans: f.applicablePlans.includes(plan)
+                ? f.applicablePlans.filter(p => p !== plan)
+                : [...f.applicablePlans, plan],
+        }))
+    }
+
+    const handleSave = async (e) => {
+        e.preventDefault()
+        if (!form.code || !form.discountValue) {
+            toast({ title: 'Required', description: 'Code and discount are required', variant: 'destructive' })
+            return
+        }
+        setSaving(true)
+        try {
+            const payload = {
+                ...form,
+                code: form.code.toUpperCase().trim(),
+                discountValue: Number(form.discountValue),
+                maxDiscount: form.maxDiscount ? Number(form.maxDiscount) : undefined,
+                maxUses: form.maxUses ? Number(form.maxUses) : undefined,
+                expiresAt: form.expiresAt || undefined,
+                applicablePlans: form.applicablePlans.length ? form.applicablePlans : undefined,
+            }
+            const data = await couponService.create(payload)
+            toast({ title: '✅ Coupon created!', description: `${payload.code} is ready to use.` })
+            setCoupons(c => [data.coupon, ...c])
+            setShowForm(false)
+            setForm({ code: '', discountType: 'percentage', discountValue: '', maxDiscount: '', maxUses: '', expiresAt: '', applicablePlans: [], description: '', isActive: true })
+        } catch (err) {
+            toast({ title: 'Error', description: err.response?.data?.message || 'Failed', variant: 'destructive' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleToggle = async (coupon) => {
+        try {
+            await couponService.update(coupon._id, { isActive: !coupon.isActive })
+            setCoupons(c => c.map(x => x._id === coupon._id ? { ...x, isActive: !x.isActive } : x))
+        } catch {
+            toast({ title: 'Error', description: 'Update failed', variant: 'destructive' })
+        }
+    }
+
+    const handleDelete = async (id, code) => {
+        if (!window.confirm(`Delete coupon "${code}"?`)) return
+        try {
+            await couponService.remove(id)
+            setCoupons(c => c.filter(x => x._id !== id))
+            toast({ title: 'Deleted', description: `Coupon ${code} removed.` })
+        } catch {
+            toast({ title: 'Error', description: 'Delete failed', variant: 'destructive' })
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Coupon Codes</h2>
+                <button onClick={() => setShowForm(!showForm)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors">
+                    <Plus className="h-4 w-4" /> New Coupon
+                </button>
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSave} className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-6 space-y-4">
+                    <h3 className="font-semibold text-white">Create Coupon</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Code *</label>
+                            <input name="code" value={form.code} onChange={handleField} required placeholder="LAUNCH50"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none font-mono uppercase tracking-widest" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Discount Type</label>
+                            <select name="discountType" value={form.discountType} onChange={handleField}
+                                className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none">
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="fixed">Fixed ($)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">
+                                {form.discountType === 'percentage' ? 'Discount %' : 'Discount $'} *
+                            </label>
+                            <input name="discountValue" type="number" min="0"
+                                max={form.discountType === 'percentage' ? 100 : undefined}
+                                value={form.discountValue} onChange={handleField} required
+                                placeholder={form.discountType === 'percentage' ? '20' : '10'}
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        {form.discountType === 'percentage' && (
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Max Discount Cap ($)</label>
+                                <input name="maxDiscount" type="number" min="0" value={form.maxDiscount} onChange={handleField} placeholder="20"
+                                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Max Uses (blank = unlimited)</label>
+                            <input name="maxUses" type="number" min="1" value={form.maxUses} onChange={handleField} placeholder="500"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Expiry (blank = never)</label>
+                            <input name="expiresAt" type="date" value={form.expiresAt} onChange={handleField}
+                                className="w-full rounded-lg border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-xs text-gray-400 mb-2">Applicable Plans (blank = all)</label>
+                            <div className="flex gap-2">
+                                {PLANS.map(p => (
+                                    <button key={p} type="button" onClick={() => togglePlan(p)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.applicablePlans.includes(p) ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-xs text-gray-400 mb-1">Description (shown to user)</label>
+                            <input name="description" value={form.description} onChange={handleField} placeholder="20% off for launch week"
+                                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none" />
+                        </div>
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                        <button type="button" onClick={() => setShowForm(false)}
+                            className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white text-sm transition-colors">Cancel</button>
+                        <button type="submit" disabled={saving}
+                            className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold disabled:opacity-50 transition-colors">
+                            {saving ? 'Creating...' : 'Create Coupon'}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? <div className="flex justify-center py-12"><LoadingSpinner /></div> : (
+                <div className="space-y-2">
+                    {coupons.length === 0 ? (
+                        <p className="py-8 text-center text-gray-600">No coupons yet.</p>
+                    ) : coupons.map(coupon => (
+                        <div key={coupon._id} className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/3 px-5 py-4">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-mono font-bold text-white tracking-wider">{coupon.code}</span>
+                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${coupon.isActive ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-gray-500 bg-white/5 border-white/10'}`}>
+                                        {coupon.isActive ? 'Active' : 'Inactive'}
+                                    </span>
+                                    <span className="text-xs text-purple-400">
+                                        {coupon.discountType === 'percentage' ? `${coupon.discountValue}% off` : `$${coupon.discountValue} off`}
+                                        {coupon.maxDiscount ? ` (max $${coupon.maxDiscount})` : ''}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                    {coupon.usedCount || 0}/{coupon.maxUses || '∞'} uses
+                                    {coupon.expiresAt ? ` · Expires ${new Date(coupon.expiresAt).toLocaleDateString()}` : ''}
+                                    {coupon.description ? ` · ${coupon.description}` : ''}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <button onClick={() => handleToggle(coupon)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${coupon.isActive ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-emerald-600/80 hover:bg-emerald-600 text-white'}`}>
+                                    {coupon.isActive ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <button onClick={() => handleDelete(coupon._id, coupon.code)} className="p-1.5 text-gray-600 hover:text-red-400 transition-colors">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

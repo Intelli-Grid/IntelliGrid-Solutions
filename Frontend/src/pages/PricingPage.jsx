@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, Sparkles, Star, Zap, TrendingUp, Shield, CreditCard, Clock, Loader2 } from 'lucide-react'
+import { Check, X, Sparkles, Star, Zap, TrendingUp, Shield, CreditCard, Clock, Loader2, Tag, CheckCircle2 } from 'lucide-react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
-import { paymentService } from '../services'
+import { paymentService, couponService } from '../services'
 import SEO from '../components/common/SEO'
 
 const plans = [
@@ -70,6 +70,50 @@ export default function PricingPage() {
     const [error, setError] = useState(null)
     const [paymentMethod, setPaymentMethod] = useState('paypal')
 
+    // Coupon state
+    const [couponCode, setCouponCode] = useState('')
+    const [couponInput, setCouponInput] = useState('')
+    const [couponData, setCouponData] = useState(null)   // { discountType, discountValue, maxDiscount }
+    const [couponError, setCouponError] = useState(null)
+    const [couponLoading, setCouponLoading] = useState(false)
+
+    const applyDiscount = (basePrice) => {
+        if (!couponData || basePrice === 0) return basePrice
+        if (couponData.discountType === 'percentage') {
+            const off = basePrice * (couponData.discountValue / 100)
+            const capped = couponData.maxDiscount ? Math.min(off, couponData.maxDiscount) : off
+            return Math.max(0, basePrice - capped)
+        }
+        return Math.max(0, basePrice - couponData.discountValue)
+    }
+
+    const handleApplyCoupon = async () => {
+        if (!couponInput.trim()) return
+        setCouponLoading(true)
+        setCouponError(null)
+        try {
+            const res = await couponService.validate(couponInput.trim())
+            if (res.success) {
+                setCouponData(res.coupon)
+                setCouponCode(couponInput.trim().toUpperCase())
+                setCouponError(null)
+            }
+        } catch (err) {
+            setCouponError(err.response?.data?.message || 'Invalid coupon code')
+            setCouponData(null)
+            setCouponCode('')
+        } finally {
+            setCouponLoading(false)
+        }
+    }
+
+    const handleRemoveCoupon = () => {
+        setCouponData(null)
+        setCouponCode('')
+        setCouponInput('')
+        setCouponError(null)
+    }
+
     const handleSubscribe = async (planId) => {
         if (!isSignedIn) {
             window.location.href = '/sign-in?redirect_url=/pricing'
@@ -85,22 +129,25 @@ export default function PricingPage() {
             setError(null)
 
             if (paymentMethod === 'paypal') {
-                const response = await paymentService.createPayPalOrder(planId)
+                const response = await paymentService.createPayPalOrder(planId, couponCode || null)
                 console.log('PayPal response:', response)
 
-                if (response.approvalUrl) {
-                    window.location.href = response.approvalUrl
+                // ApiResponse wrapper: response = { statusCode, data: { approvalUrl, ... }, message }
+                const result = response?.data || response
+                if (result?.approvalUrl) {
+                    window.location.href = result.approvalUrl
                 } else {
                     setError('Failed to create PayPal order. Please try again.')
                 }
             } else if (paymentMethod === 'cashfree') {
-                const response = await paymentService.createCashfreeOrder(planId)
+                const response = await paymentService.createCashfreeOrder(planId, couponCode || null)
                 console.log('Cashfree response:', response)
 
-                if (response.payment_session_id && response.payment_link) {
-                    window.location.href = response.payment_link
-                } else if (response.paymentUrl) {
-                    window.location.href = response.paymentUrl
+                const result = response?.data || response
+                if (result?.payment_link) {
+                    window.location.href = result.payment_link
+                } else if (result?.paymentUrl) {
+                    window.location.href = result.paymentUrl
                 } else {
                     setError('Failed to create Cashfree order. Please try again.')
                     console.error('Missing payment URL in response:', response)
@@ -141,6 +188,48 @@ export default function PricingPage() {
                     </p>
                 </div>
 
+                {/* Coupon Code */}
+                {isSignedIn && (
+                    <div className="mx-auto mb-10 max-w-md">
+                        <label className="mb-2 block text-center text-sm font-medium text-gray-300">
+                            Have a coupon code?
+                        </label>
+                        {couponData ? (
+                            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                                <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-emerald-400">{couponCode} applied!</p>
+                                    <p className="text-xs text-gray-500">{couponData.description || (couponData.discountType === 'percentage' ? `${couponData.discountValue}% off` : `$${couponData.discountValue} off`)}</p>
+                                </div>
+                                <button onClick={handleRemoveCoupon} className="text-gray-500 hover:text-white transition-colors">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Tag className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                                    <input
+                                        value={couponInput}
+                                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                                        placeholder="ENTER CODE"
+                                        className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-4 py-3 text-sm text-white placeholder-gray-600 tracking-widest font-mono focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/15 transition-all"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleApplyCoupon}
+                                    disabled={couponLoading || !couponInput.trim()}
+                                    className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                                >
+                                    {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                                </button>
+                            </div>
+                        )}
+                        {couponError && <p className="mt-2 text-center text-xs text-red-400">{couponError}</p>}
+                    </div>
+                )}
+
                 {/* Payment Method Selection */}
                 {isSignedIn && (
                     <div className="mx-auto mb-12 max-w-md">
@@ -159,7 +248,6 @@ export default function PricingPage() {
                                 <div className="text-sm font-semibold text-white">PayPal</div>
                                 <div className="text-xs text-gray-400 mt-1">Cards & PayPal</div>
                             </button>
-                            {/* Cashfree temporarily disabled - sandbox environment issues */}
                             <button
                                 onClick={() => setPaymentMethod('cashfree')}
                                 className={`flex-1 rounded-xl border p-4 transition-all duration-300 ${paymentMethod === 'cashfree'
@@ -174,6 +262,7 @@ export default function PricingPage() {
                         </div>
                     </div>
                 )}
+
 
                 {/* Error Message */}
                 {error && (
@@ -227,9 +316,14 @@ export default function PricingPage() {
 
                                 {/* Price */}
                                 <div className="mb-6">
-                                    <div className="flex items-baseline">
-                                        <span className="text-5xl font-bold text-white">${plan.price}</span>
-                                        <span className="ml-2 text-gray-400">/{plan.period}</span>
+                                    <div className="flex items-baseline gap-2">
+                                        {couponData && plan.price > 0 && (
+                                            <span className="text-2xl font-bold text-gray-600 line-through">${plan.price}</span>
+                                        )}
+                                        <span className="text-5xl font-bold text-white">
+                                            ${couponData && plan.price > 0 ? applyDiscount(plan.price).toFixed(2) : plan.price}
+                                        </span>
+                                        <span className="ml-1 text-gray-400">/{plan.period}</span>
                                     </div>
                                     {plan.monthlyPrice && (
                                         <p className="text-sm text-accent-emerald mt-1">
@@ -342,6 +436,6 @@ export default function PricingPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }

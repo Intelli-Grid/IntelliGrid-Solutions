@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { userService, collectionService, toolService } from '../services'
+import { userService, collectionService, toolService, gdprService, submissionService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import ToolCard from '../components/tools/ToolCard'
-import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil } from 'lucide-react'
+import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil, Shield, Download, AlertTriangle, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import EditToolModal from '../components/tools/EditToolModal'
@@ -250,6 +250,24 @@ export default function DashboardPage() {
                         }`}
                 >
                     Profile
+                </button>
+                <button
+                    onClick={() => setActiveTab('submissions')}
+                    className={`pb-4 text-sm font-medium transition whitespace-nowrap ${activeTab === 'submissions'
+                        ? 'border-b-2 border-purple-500 text-white'
+                        : 'text-gray-400 hover:text-white'
+                        }`}
+                >
+                    My Submissions
+                </button>
+                <button
+                    onClick={() => setActiveTab('privacy')}
+                    className={`pb-4 text-sm font-medium transition whitespace-nowrap ${activeTab === 'privacy'
+                        ? 'border-b-2 border-purple-500 text-white'
+                        : 'text-gray-400 hover:text-white'
+                        }`}
+                >
+                    🔒 Privacy
                 </button>
             </div>
 
@@ -575,6 +593,11 @@ export default function DashboardPage() {
                 )
             }
 
+            {/* GDPR / Privacy Tab */}
+            {activeTab === 'privacy' && <PrivacyTab user={user} />}
+
+            {/* My Submissions Tab */}
+            {activeTab === 'submissions' && <MySubmissionsTab />}
 
             <EditToolModal
                 isOpen={isEditModalOpen}
@@ -586,5 +609,212 @@ export default function DashboardPage() {
                 onSuccess={handleEditSuccess}
             />
         </div >
+    )
+}
+
+// ─── GDPR / Privacy Tab ───────────────────────────────────────────────────────
+function PrivacyTab({ user }) {
+    const [summary, setSummary] = useState(null)
+    const [summaryLoading, setSummaryLoading] = useState(true)
+    const [exportLoading, setExportLoading] = useState(false)
+    const [deleteStage, setDeleteStage] = useState(0)  // 0=idle 1=confirm 2=deleting
+    const [deleteError, setDeleteError] = useState(null)
+
+    useEffect(() => {
+        gdprService.getSummary()
+            .then(d => setSummary(d.summary || d))
+            .catch(() => { })
+            .finally(() => setSummaryLoading(false))
+    }, [])
+
+    const handleExport = async () => {
+        setExportLoading(true)
+        try {
+            const res = await gdprService.exportData()
+            const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `intelligrid-data-${Date.now()}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+            toast.success('Your data export has been downloaded!')
+        } catch {
+            toast.error('Export failed. Please try again.')
+        } finally {
+            setExportLoading(false)
+        }
+    }
+
+    const handleDelete = async () => {
+        if (deleteStage < 2) { setDeleteStage(deleteStage + 1); return }
+        setDeleteStage(3)
+        try {
+            await gdprService.deleteData()
+            toast.success('Your account has been scheduled for deletion. You will be logged out shortly.')
+            setTimeout(() => window.location.href = '/', 3000)
+        } catch (e) {
+            setDeleteError(e.response?.data?.message || 'Failed to process deletion request.')
+            setDeleteStage(0)
+        }
+    }
+
+    return (
+        <div className="space-y-6 max-w-2xl">
+            <div>
+                <h2 className="text-2xl font-bold text-white mb-1">Privacy & Your Data</h2>
+                <p className="text-sm text-gray-500">You have full rights over your personal data under GDPR.</p>
+            </div>
+
+            {/* Data Summary */}
+            <div className="rounded-xl border border-white/8 bg-white/3 p-6">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-purple-400" /> Data We Hold About You
+                </h3>
+                {summaryLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading summary...</div>
+                ) : summary ? (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {Object.entries(summary).map(([key, val]) => (
+                            <div key={key} className="rounded-lg bg-white/5 border border-white/8 px-4 py-3">
+                                <p className="text-xs text-gray-500 capitalize mb-0.5">{key.replace(/([A-Z])/g, ' $1')}</p>
+                                <p className="text-lg font-bold text-white">{typeof val === 'number' ? val.toLocaleString() : val}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-600">Summary unavailable</p>
+                )}
+            </div>
+
+            {/* Export */}
+            <div className="rounded-xl border border-white/8 bg-white/3 p-6">
+                <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                    <Download className="h-4 w-4 text-blue-400" /> Export Your Data
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">Download a complete copy of all data we hold about you in JSON format.</p>
+                <button
+                    onClick={handleExport}
+                    disabled={exportLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                    {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportLoading ? 'Generating export...' : 'Download My Data'}
+                </button>
+            </div>
+
+            {/* Deletion */}
+            <div className="rounded-xl border border-red-500/15 bg-red-500/5 p-6">
+                <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-400" /> Request Account Deletion
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                    This will permanently delete your account and all associated data. This action is irreversible.
+                </p>
+                {deleteError && <p className="text-xs text-red-400 mb-3">{deleteError}</p>}
+                {deleteStage === 0 && (
+                    <button onClick={handleDelete} className="px-4 py-2.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-semibold transition-colors">
+                        Request Deletion
+                    </button>
+                )}
+                {deleteStage === 1 && (
+                    <div className="space-y-3">
+                        <p className="text-sm text-amber-400 font-medium">⚠️ Are you sure? This cannot be undone.</p>
+                        <div className="flex gap-3">
+                            <button onClick={handleDelete} className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors">Yes, delete everything</button>
+                            <button onClick={() => setDeleteStage(0)} className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white text-sm transition-colors">Cancel</button>
+                        </div>
+                    </div>
+                )}
+                {deleteStage === 3 && (
+                    <div className="flex items-center gap-2 text-sm text-red-400"><Loader2 className="h-4 w-4 animate-spin" /> Processing deletion request...</div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ─── My Submissions Tab ──────────────────────────────────────────────────────
+function MySubmissionsTab() {
+    const [submissions, setSubmissions] = useState([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        submissionService.getMine()
+            .then(d => setSubmissions(d.submissions || d || []))
+            .catch(() => setSubmissions([]))
+            .finally(() => setLoading(false))
+    }, [])
+
+    const STATUS_STYLES = {
+        pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+        approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+    }
+
+    if (loading) {
+        return <div className="flex justify-center py-12"><LoadingSpinner /></div>
+    }
+
+    return (
+        <div className="space-y-6 max-w-3xl">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white mb-1">My Submissions</h2>
+                    <p className="text-sm text-gray-500">Tools you've submitted for review.</p>
+                </div>
+                <Link
+                    to="/submit"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+                >
+                    <Plus className="h-4 w-4" /> Submit Another
+                </Link>
+            </div>
+
+            {submissions.length === 0 ? (
+                <div className="rounded-xl border border-white/8 bg-white/3 p-10 text-center">
+                    <p className="text-gray-500 mb-4">You haven't submitted any tools yet.</p>
+                    <Link
+                        to="/submit"
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+                    >
+                        <Plus className="h-4 w-4" /> Submit Your First Tool
+                    </Link>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {submissions.map(sub => (
+                        <div key={sub._id} className="rounded-xl border border-white/8 bg-white/3 p-5">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <h3 className="font-semibold text-white">{sub.toolName}</h3>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${STATUS_STYLES[sub.status] || STATUS_STYLES.pending}`}>
+                                            {sub.status}
+                                        </span>
+                                        {sub.category && (
+                                            <span className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/15 px-2 py-0.5 rounded-full">{sub.category}</span>
+                                        )}
+                                        {sub.pricing && (
+                                            <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">{sub.pricing}</span>
+                                        )}
+                                    </div>
+                                    <a href={sub.officialUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline">
+                                        {sub.officialUrl}
+                                    </a>
+                                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{sub.shortDescription}</p>
+                                    {sub.reviewNotes && (
+                                        <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${sub.status === 'rejected' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                            <span className="font-semibold">Reviewer note:</span> {sub.reviewNotes}
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-600 flex-shrink-0 whitespace-nowrap">{new Date(sub.createdAt).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     )
 }

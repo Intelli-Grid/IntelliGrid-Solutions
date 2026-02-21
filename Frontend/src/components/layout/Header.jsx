@@ -34,8 +34,14 @@ export default function Header() {
                     <Link to="/search" className="text-sm text-gray-300 transition hover:text-white">
                         Search
                     </Link>
+                    <Link to="/blog" className="text-sm text-gray-300 transition hover:text-white">
+                        Blog
+                    </Link>
                     <Link to="/pricing" className="text-sm text-gray-300 transition hover:text-white">
                         Pricing
+                    </Link>
+                    <Link to="/submit" className="text-sm text-purple-400 transition hover:text-purple-300 font-medium">
+                        + Submit Tool
                     </Link>
                     {isAdmin && (
                         <a
@@ -112,11 +118,25 @@ export default function Header() {
                             Search
                         </Link>
                         <Link
+                            to="/blog"
+                            className="block rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
+                            onClick={() => setMobileMenuOpen(false)}
+                        >
+                            Blog
+                        </Link>
+                        <Link
                             to="/pricing"
                             className="block rounded-lg px-4 py-2 text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
                             onClick={() => setMobileMenuOpen(false)}
                         >
                             Pricing
+                        </Link>
+                        <Link
+                            to="/submit"
+                            className="block rounded-lg px-4 py-2 text-sm text-purple-400 font-medium transition hover:bg-purple-500/10 hover:text-purple-300"
+                            onClick={() => setMobileMenuOpen(false)}
+                        >
+                            + Submit a Tool
                         </Link>
                         {isSignedIn ? (
                             <Link

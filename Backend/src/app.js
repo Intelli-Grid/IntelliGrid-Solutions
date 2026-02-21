@@ -26,6 +26,9 @@ import adminRoutes from './routes/admin.routes.js'
 import seoRoutes from './routes/seoRoutes.js'
 import collectionRoutes from './routes/collectionRoutes.js'
 import newsletterRoutes from './routes/newsletterRoutes.js'
+import submissionRoutes from './routes/submissionRoutes.js'
+import couponRoutes from './routes/couponRoutes.js'
+import blogRoutes from './routes/blogRoutes.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App bootstrap
@@ -141,7 +144,7 @@ app.get('/api/v1', (req, res) => {
     res.status(200).json({
         status: 'success',
         message: 'IntelliGrid API v1',
-        version: '2.2.0',
+        version: '2.3.0',
         endpoints: {
             health: '/health',
             tools: '/api/v1/tools',
@@ -155,6 +158,9 @@ app.get('/api/v1', (req, res) => {
             admin: '/api/v1/admin',
             collections: '/api/v1/collections',
             newsletter: '/api/v1/newsletter',
+            submissions: '/api/v1/submissions',
+            coupons: '/api/v1/coupons',
+            blog: '/api/v1/blog',
         },
     })
 })
@@ -171,6 +177,9 @@ app.use('/api/v1/gdpr', gdprRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collections', collectionRoutes)
 app.use('/api/v1/newsletter', newsletterRoutes)
+app.use('/api/v1/submissions', submissionRoutes)
+app.use('/api/v1/coupons', couponRoutes)
+app.use('/api/v1/blog', blogRoutes)
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {

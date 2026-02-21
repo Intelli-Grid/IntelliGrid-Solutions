@@ -11,8 +11,9 @@ const ROLE_LEVELS = {
     'user': 1,
     'premium': 1,
     'admin': 4,
-    // New RBAC roles
+    // New RBAC roles (as set via Clerk publicMetadata { "role": "ADMIN" })
     'USER': 1,
+    'ADMIN': 4,         // ← Clerk dashboard sets "ADMIN" (uppercase); must be here
     'MODERATOR': 2,
     'TRUSTED_OPERATOR': 3,
     'SUPERADMIN': 4,

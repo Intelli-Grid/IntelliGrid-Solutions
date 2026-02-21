@@ -2,6 +2,7 @@ import express from 'express'
 import Tool from '../models/Tool.js'
 import Category from '../models/Category.js'
 import Collection from '../models/Collection.js'
+import BlogPost from '../models/BlogPost.js'
 
 const router = express.Router()
 
@@ -63,10 +64,11 @@ router.get('/sitemap.xml', async (req, res) => {
         const baseUrl = process.env.FRONTEND_URL || 'https://www.intelligrid.online'
 
         // 1. Fetch Data
-        const [tools, categories, collections] = await Promise.all([
+        const [tools, categories, collections, blogPosts] = await Promise.all([
             Tool.find({ status: 'active' }).select('slug updatedAt').lean(),
             Category.find({ isActive: true }).select('slug updatedAt').lean(),
-            Collection.find({ isPublic: true }).select('slug updatedAt').lean()
+            Collection.find({ isPublic: true }).select('slug updatedAt').lean(),
+            BlogPost.find({ status: 'published' }).select('slug updatedAt publishedAt').lean(),
         ])
 
         // 2. Build XML
@@ -79,10 +81,12 @@ router.get('/sitemap.xml', async (req, res) => {
             '/tools',
             '/search',
             '/pricing',
+            '/blog',
+            '/submit',
+            '/faq',
             '/privacy-policy',
             '/terms-of-service',
             '/refund-policy',
-            '/faq'
         ]
 
         staticPages.forEach(page => {
@@ -125,6 +129,17 @@ router.get('/sitemap.xml', async (req, res) => {
         <lastmod>${col.updatedAt ? new Date(col.updatedAt).toISOString() : new Date().toISOString()}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.6</priority>
+    </url>`
+        })
+
+        // Blog Posts
+        blogPosts.forEach(post => {
+            xml += `
+    <url>
+        <loc>${baseUrl}/blog/${post.slug}</loc>
+        <lastmod>${post.publishedAt ? new Date(post.publishedAt).toISOString() : new Date(post.updatedAt).toISOString()}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
     </url>`
         })
 

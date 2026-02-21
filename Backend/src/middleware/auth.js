@@ -84,8 +84,8 @@ export const requireAdmin = asyncHandler(async (req, res, next) => {
     }
 
     const role = req.user.role
-    // Accept legacy 'admin' OR new RBAC roles MODERATOR/TRUSTED_OPERATOR/SUPERADMIN
-    const adminRoles = ['admin', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
+    // Accept legacy 'admin' AND Clerk-dashboard-set 'ADMIN' AND new RBAC roles
+    const adminRoles = ['admin', 'ADMIN', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
 
     if (!adminRoles.includes(role)) {
         throw ApiError.forbidden('Admin access required')

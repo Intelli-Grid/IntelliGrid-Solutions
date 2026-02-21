@@ -4,9 +4,47 @@ import { verifyCashfreeWebhook } from '../config/cashfree.js'
 import WebhookLog from '../models/WebhookLog.js'
 import Order from '../models/Order.js'
 import User from '../models/User.js'
+import Coupon from '../models/Coupon.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
+
+/**
+ * Resolve and validate a coupon code at order-creation time.
+ * Returns coupon metadata (discountType, discountValue, maxDiscount, couponId)
+ * or null if no couponCode was provided.
+ * Throws ApiError.badRequest if the code is provided but invalid.
+ */
+async function resolveCoupon(couponCode, planId) {
+    if (!couponCode) return null
+
+    const coupon = await Coupon.findOne({ code: couponCode.toUpperCase().trim(), isActive: true })
+    if (!coupon) throw ApiError.badRequest('Invalid or inactive coupon code')
+
+    // Expiry check
+    if (coupon.expiresAt && new Date() > coupon.expiresAt) {
+        throw ApiError.badRequest('This coupon has expired')
+    }
+
+    // Usage limit check
+    if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
+        throw ApiError.badRequest('This coupon has reached its usage limit')
+    }
+
+    // Plan applicability check
+    if (coupon.applicablePlans?.length > 0 && planId) {
+        const planUpper = planId.toUpperCase()  // e.g. PRO_MONTHLY
+        const matches = coupon.applicablePlans.some(p => planUpper.includes(p))
+        if (!matches) throw ApiError.badRequest('This coupon is not valid for the selected plan')
+    }
+
+    return {
+        couponId: coupon._id,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        maxDiscount: coupon.maxDiscount || null,
+    }
+}
 
 /**
  * Payment Controller - Handle payment requests
@@ -17,7 +55,7 @@ class PaymentController {
      * POST /api/v1/payment/paypal/create-order
      */
     createPayPalOrder = asyncHandler(async (req, res) => {
-        const { plan } = req.body
+        const { plan, couponCode } = req.body
 
         let tier, duration
         if (plan === 'pro_monthly') {
@@ -28,7 +66,14 @@ class PaymentController {
             throw ApiError.badRequest('Invalid plan selected')
         }
 
-        const result = await paymentService.createPayPalOrder(req.user._id, { tier, duration })
+        // Resolve coupon discount (if provided)
+        const couponMeta = await resolveCoupon(couponCode, plan)
+
+        const result = await paymentService.createPayPalOrder(
+            req.user._id,
+            { tier, duration },
+            couponMeta
+        )
 
         res.status(201).json(
             new ApiResponse(201, result, 'PayPal order created successfully')
@@ -54,7 +99,7 @@ class PaymentController {
      * POST /api/v1/payment/cashfree/create-order
      */
     createCashfreeOrder = asyncHandler(async (req, res) => {
-        const { plan } = req.body
+        const { plan, couponCode } = req.body
 
         let tier, duration
         if (plan === 'pro_monthly') {
@@ -65,7 +110,14 @@ class PaymentController {
             throw ApiError.badRequest('Invalid plan selected')
         }
 
-        const result = await paymentService.createCashfreeOrder(req.user._id, { tier, duration })
+        // Resolve coupon discount (if provided)
+        const couponMeta = await resolveCoupon(couponCode, plan)
+
+        const result = await paymentService.createCashfreeOrder(
+            req.user._id,
+            { tier, duration },
+            couponMeta
+        )
 
         res.status(201).json(
             new ApiResponse(201, result, 'Cashfree order created successfully')

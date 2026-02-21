@@ -184,28 +184,28 @@ export const reviewService = {
  * Payment Service - API calls for payments
  */
 export const paymentService = {
-    // Create PayPal order
-    createPayPalOrder: async (plan) => {
-        const response = await apiClient.post('/payment/paypal/create-order', { plan })
-        return response.data
+    // Create PayPal order (couponCode is optional)
+    createPayPalOrder: async (plan, couponCode = null) => {
+        const body = { plan }
+        if (couponCode) body.couponCode = couponCode
+        return apiClient.post('/payment/paypal/create-order', body)
     },
 
     // Capture PayPal payment
     capturePayPalPayment: async (paymentId, payerId) => {
-        const response = await apiClient.post('/payment/paypal/capture', { paymentId, payerId })
-        return response.data
+        return apiClient.post('/payment/paypal/capture', { paymentId, payerId })
     },
 
-    // Create Cashfree order
-    createCashfreeOrder: async (plan) => {
-        const response = await apiClient.post('/payment/cashfree/create-order', { plan })
-        return response.data
+    // Create Cashfree order (couponCode is optional)
+    createCashfreeOrder: async (plan, couponCode = null) => {
+        const body = { plan }
+        if (couponCode) body.couponCode = couponCode
+        return apiClient.post('/payment/cashfree/create-order', body)
     },
 
     // Verify Cashfree payment
     verifyCashfreePayment: async (orderId) => {
-        const response = await apiClient.post('/payment/cashfree/verify', { orderId })
-        return response.data
+        return apiClient.post('/payment/cashfree/verify', { orderId })
     },
 }
 
@@ -366,6 +366,105 @@ export const newsletterService = {
     // Unsubscribe (used by /unsubscribe page — handles both marketing and transactional)
     unsubscribe: async (email, type = 'marketing') => {
         const response = await apiClient.post('/newsletter/unsubscribe', { email, type })
+        return response.data
+    },
+}
+
+/**
+ * Submission Service — tool submissions from the community
+ */
+export const submissionService = {
+    submit: async (data) => {
+        const response = await apiClient.post('/submissions', data)
+        return response.data
+    },
+    getMine: async () => {
+        const response = await apiClient.get('/submissions/mine')
+        return response.data
+    },
+    // Admin
+    getAll: async (params = {}) => {
+        const response = await apiClient.get('/submissions', { params })
+        return response.data
+    },
+    review: async (id, action, reviewNotes = '') => {
+        const response = await apiClient.patch(`/submissions/${id}/review`, { action, reviewNotes })
+        return response.data
+    },
+}
+
+/**
+ * Coupon Service — validate and manage coupon codes
+ */
+export const couponService = {
+    validate: async (code, planId) => {
+        const response = await apiClient.post('/coupons/validate', { code, planId })
+        return response.data
+    },
+    // Admin
+    getAll: async () => {
+        const response = await apiClient.get('/coupons')
+        return response.data
+    },
+    create: async (data) => {
+        const response = await apiClient.post('/coupons', data)
+        return response.data
+    },
+    update: async (id, data) => {
+        const response = await apiClient.patch(`/coupons/${id}`, data)
+        return response.data
+    },
+    remove: async (id) => {
+        const response = await apiClient.delete(`/coupons/${id}`)
+        return response.data
+    },
+}
+
+/**
+ * Blog Service — blog posts
+ */
+export const blogService = {
+    getPosts: async (params = {}) => {
+        const response = await apiClient.get('/blog', { params })
+        return response.data
+    },
+    getPost: async (slug) => {
+        const response = await apiClient.get(`/blog/${slug}`)
+        return response.data
+    },
+    // Admin
+    getAllPosts: async (params = {}) => {
+        const response = await apiClient.get('/blog/admin/all', { params })
+        return response.data
+    },
+    create: async (data) => {
+        const response = await apiClient.post('/blog', data)
+        return response.data
+    },
+    update: async (id, data) => {
+        const response = await apiClient.put(`/blog/${id}`, data)
+        return response.data
+    },
+    remove: async (id) => {
+        const response = await apiClient.delete(`/blog/${id}`)
+        return response.data
+    },
+}
+
+/**
+ * GDPR Service — data portability + erasure
+ */
+export const gdprService = {
+    getSummary: async () => {
+        const response = await apiClient.get('/gdpr/summary')
+        return response.data
+    },
+    exportData: async () => {
+        const response = await apiClient.get('/gdpr/export', { responseType: 'blob' })
+        return response
+    },
+    deleteData: async () => {
+        const response = await apiClient.delete('/gdpr/delete')
         return response.data
     },
 }

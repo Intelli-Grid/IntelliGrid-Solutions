@@ -15,41 +15,44 @@ class PaymentService {
     /**
      * Create PayPal order
      */
-    async createPayPalOrder(userId, subscriptionData) {
+    async createPayPalOrder(userId, subscriptionData, couponMeta = null) {
         const { tier, duration } = subscriptionData
 
-        // Calculate amount based on tier and duration
         const pricing = this.getSubscriptionPricing(tier, duration)
+
+        // Apply coupon discount if present
+        let finalAmount = pricing.amount
+        let discountAmount = 0
+        if (couponMeta) {
+            if (couponMeta.discountType === 'percentage') {
+                discountAmount = finalAmount * (couponMeta.discountValue / 100)
+                if (couponMeta.maxDiscount) discountAmount = Math.min(discountAmount, couponMeta.maxDiscount)
+            } else {
+                discountAmount = couponMeta.discountValue
+            }
+            finalAmount = Math.max(0, +(finalAmount - discountAmount).toFixed(2))
+        }
 
         const createPaymentJson = {
             intent: 'sale',
-            payer: {
-                payment_method: 'paypal',
-            },
+            payer: { payment_method: 'paypal' },
             redirect_urls: {
                 return_url: `${process.env.FRONTEND_URL}/payment/success?method=paypal`,
                 cancel_url: `${process.env.FRONTEND_URL}/payment/cancel?method=paypal`,
             },
-            transactions: [
-                {
-                    item_list: {
-                        items: [
-                            {
-                                name: `${tier} Subscription - ${duration}`,
-                                sku: `${tier.toLowerCase()}-${duration}`,
-                                price: pricing.amount.toString(),
-                                currency: 'USD',
-                                quantity: 1,
-                            },
-                        ],
-                    },
-                    amount: {
+            transactions: [{
+                item_list: {
+                    items: [{
+                        name: `${tier} Subscription - ${duration}`,
+                        sku: `${tier.toLowerCase()}-${duration}`,
+                        price: finalAmount.toString(),
                         currency: 'USD',
-                        total: pricing.amount.toString(),
-                    },
-                    description: `IntelliGrid ${tier} subscription (${duration})`,
+                        quantity: 1,
+                    }],
                 },
-            ],
+                amount: { currency: 'USD', total: finalAmount.toString() },
+                description: `IntelliGrid ${tier} subscription (${duration})${couponMeta ? ' [coupon applied]' : ''}`,
+            }],
         }
 
         return new Promise((resolve, reject) => {
@@ -58,30 +61,28 @@ class PaymentService {
                     console.error('PayPal order creation error:', error)
                     reject(ApiError.internal(`Failed to create PayPal order: ${JSON.stringify(error)}`))
                 } else {
-                    // Create order in database
                     const order = await Order.create({
                         orderId: payment.id,
                         user: userId,
                         subscription: { tier, duration },
                         amount: {
                             currency: 'USD',
-                            total: pricing.amount,
+                            total: finalAmount,
                             subtotal: pricing.amount,
+                            discount: discountAmount,
                         },
+                        coupon: couponMeta?.couponId || null,
                         paymentGateway: 'paypal',
                         status: 'pending',
                     })
 
-                    // Get approval URL
-                    const approvalUrl = payment.links.find(
-                        link => link.rel === 'approval_url'
-                    )?.href
+                    // Increment coupon usedCount only after gateway order is confirmed
+                    if (couponMeta?.couponId) {
+                        await Coupon.findByIdAndUpdate(couponMeta.couponId, { $inc: { usedCount: 1 } })
+                    }
 
-                    resolve({
-                        orderId: payment.id,
-                        approvalUrl,
-                        order,
-                    })
+                    const approvalUrl = payment.links.find(link => link.rel === 'approval_url')?.href
+                    resolve({ orderId: payment.id, approvalUrl, order })
                 }
             })
         })
@@ -149,19 +150,33 @@ class PaymentService {
     /**
      * Create Cashfree order
      */
-    async createCashfreeOrder(userId, subscriptionData) {
+    async createCashfreeOrder(userId, subscriptionData, couponMeta = null) {
         const { tier, duration } = subscriptionData
 
         // Calculate amount (INR for Cashfree)
         const pricing = this.getSubscriptionPricing(tier, duration, 'INR')
 
+        // Apply coupon discount if present
+        let finalAmount = pricing.amount
+        let discountAmount = 0
+        if (couponMeta) {
+            if (couponMeta.discountType === 'percentage') {
+                discountAmount = finalAmount * (couponMeta.discountValue / 100)
+                if (couponMeta.maxDiscount) discountAmount = Math.min(discountAmount, couponMeta.maxDiscount)
+            } else {
+                // Fixed discount — treat as USD-equivalent ×83 for INR rough conversion
+                discountAmount = couponMeta.discountValue * 83
+            }
+            finalAmount = Math.max(0, +(finalAmount - discountAmount).toFixed(2))
+        }
+
         const orderData = {
             order_id: `order_${nanoid(16)}`,
-            order_amount: pricing.amount,
+            order_amount: finalAmount,
             order_currency: 'INR',
             customer_details: {
                 customer_id: userId.toString(),
-                customer_phone: '9999999999', // Should come from user profile
+                customer_phone: '9999999999',
             },
             order_meta: {
                 return_url: `${process.env.FRONTEND_URL}/payment/success?orderId={order_id}&method=cashfree`,
@@ -177,34 +192,37 @@ class PaymentService {
 
             console.log('Cashfree API Response:', JSON.stringify(response.data, null, 2))
 
-            // Create order in database
             const order = await Order.create({
                 orderId: response.data.order_id,
                 user: userId,
                 subscription: { tier, duration },
                 amount: {
                     currency: 'INR',
-                    total: pricing.amount,
+                    total: finalAmount,
                     subtotal: pricing.amount,
+                    discount: discountAmount,
                 },
+                coupon: couponMeta?.couponId || null,
                 paymentGateway: 'cashfree',
                 status: 'pending',
             })
 
-            // Cashfree returns payment_session_id which is used to create the payment link
+            // Increment coupon usedCount only after gateway order is confirmed
+            if (couponMeta?.couponId) {
+                await Coupon.findByIdAndUpdate(couponMeta.couponId, { $inc: { usedCount: 1 } })
+            }
+
             const paymentSessionId = response.data.payment_session_id
             const orderId = response.data.order_id
-
-            // Cashfree hosted checkout URL - dynamically uses PROD or TEST base URL
             const cashfreeBase = getCashfreeBaseUrl()
             const checkoutUrl = `${cashfreeBase}/pay/${paymentSessionId}`
 
             return {
-                orderId: orderId,
-                paymentSessionId: paymentSessionId,
+                orderId,
+                paymentSessionId,
                 payment_session_id: paymentSessionId,
                 payment_link: checkoutUrl,
-                paymentUrl: checkoutUrl, // Fallback for frontend
+                paymentUrl: checkoutUrl,
                 order,
             }
         } catch (error) {
@@ -343,56 +361,38 @@ class PaymentService {
     }
 
     /**
-     * Apply coupon to order
+     * Apply coupon to an existing order (legacy endpoint — kept for backwards compat)
+     * Prefer resolveCoupon() at order-creation time instead.
      */
     async applyCoupon(orderId, couponCode) {
         const order = await Order.findById(orderId)
+        if (!order) throw ApiError.notFound('Order not found')
 
-        if (!order) {
-            throw ApiError.notFound('Order not found')
-        }
+        const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true })
+        if (!coupon) throw ApiError.notFound('Invalid coupon code')
 
-        const coupon = await Coupon.findOne({
-            code: couponCode.toUpperCase(),
-            isActive: true,
-        })
-
-        if (!coupon) {
-            throw ApiError.notFound('Invalid coupon code')
-        }
-
-        // Validate coupon
         const now = new Date()
-        if (now < coupon.validFrom || now > coupon.validUntil) {
+        if (coupon.expiresAt && now > coupon.expiresAt) {
             throw ApiError.badRequest('Coupon has expired')
         }
-
-        if (coupon.usageLimit?.total && coupon.usageCount >= coupon.usageLimit.total) {
+        if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
             throw ApiError.badRequest('Coupon usage limit reached')
         }
 
-        // Calculate discount
         let discount = 0
         if (coupon.discountType === 'percentage') {
             discount = (order.amount.subtotal * coupon.discountValue) / 100
-            if (coupon.maxDiscount) {
-                discount = Math.min(discount, coupon.maxDiscount)
-            }
+            if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount)
         } else {
             discount = coupon.discountValue
         }
 
-        // Update order
         order.amount.discount = discount
-        order.amount.total = order.amount.subtotal - discount
+        order.amount.total = Math.max(0, order.amount.subtotal - discount)
         order.coupon = coupon._id
-
         await order.save()
 
-        // Increment coupon usage
-        await Coupon.findByIdAndUpdate(coupon._id, {
-            $inc: { usageCount: 1 },
-        })
+        await Coupon.findByIdAndUpdate(coupon._id, { $inc: { usedCount: 1 } })
 
         return order
     }

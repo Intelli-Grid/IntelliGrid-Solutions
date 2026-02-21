@@ -20,30 +20,32 @@ const couponSchema = new mongoose.Schema(
             required: true,
             min: 0,
         },
+        // For percentage discounts – cap the discount at this value in $
         maxDiscount: Number,
-        minPurchase: Number,
-        applicableTiers: [{
-            type: String,
-            enum: ['Basic', 'Premium', 'Enterprise'],
-        }],
-        usageLimit: {
-            total: Number,
-            perUser: {
-                type: Number,
-                default: 1,
-            },
-        },
-        usageCount: {
+        // Minimum purchase amount to apply coupon
+        minPurchase: {
             type: Number,
             default: 0,
         },
-        validFrom: {
-            type: Date,
-            required: true,
+        // Which subscription plans this applies to. Empty = all plans.
+        applicablePlans: [{
+            type: String,
+            enum: ['BASIC', 'PRO', 'ENTERPRISE'],
+        }],
+        // Max number of total times this coupon can be used
+        maxUses: {
+            type: Number,
+            default: null, // null = unlimited
         },
-        validUntil: {
+        // How many times this coupon has been used
+        usedCount: {
+            type: Number,
+            default: 0,
+        },
+        // Optional expiry date — null = never expires
+        expiresAt: {
             type: Date,
-            required: true,
+            default: null,
         },
         isActive: {
             type: Boolean,
@@ -59,8 +61,10 @@ const couponSchema = new mongoose.Schema(
     }
 )
 
-// code is already indexed by unique: true
-couponSchema.index({ validFrom: 1, validUntil: 1 })
+// Indexes for fast lookup
+couponSchema.index({ code: 1 })           // already unique, but explicit
+couponSchema.index({ isActive: 1 })
+couponSchema.index({ expiresAt: 1 })
 
 const Coupon = mongoose.model('Coupon', couponSchema)
 

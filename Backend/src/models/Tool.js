@@ -23,8 +23,8 @@ const toolSchema = new mongoose.Schema(
             trim: true,
         },
         sourceUrl: {
+            // Populated by CSV import pipeline; not required for community submissions
             type: String,
-            required: [true, 'Source URL is required'],
             trim: true,
         },
         shortDescription: {
@@ -33,8 +33,8 @@ const toolSchema = new mongoose.Schema(
             maxlength: [500, 'Short description cannot exceed 500 characters'],
         },
         fullDescription: {
+            // Optional — community submissions may use shortDescription only
             type: String,
-            required: [true, 'Full description is required'],
         },
         category: {
             type: mongoose.Schema.Types.ObjectId,
