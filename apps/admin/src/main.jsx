@@ -4,9 +4,9 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import App from './App.jsx'
+import ClerkTokenBridge from './components/ClerkTokenBridge.jsx'
 import './index.css'
 
-// Use the same Clerk publishable key as the main app
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_bW9kZXN0LXJhdHRsZXItNjkuY2xlcmsuYWNjb3VudHMuZGV2JA'
 
 if (!PUBLISHABLE_KEY) {
@@ -15,7 +15,14 @@ if (!PUBLISHABLE_KEY) {
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
-        <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+        <ClerkProvider
+            publishableKey={PUBLISHABLE_KEY}
+            signInUrl="/sign-in"
+            signUpUrl="/sign-up"
+            afterSignOutUrl="/sign-in"
+        >
+            {/* Bridge: registers Clerk's getToken into the api.js interceptor */}
+            <ClerkTokenBridge />
             <BrowserRouter>
                 <App />
                 <Toaster
