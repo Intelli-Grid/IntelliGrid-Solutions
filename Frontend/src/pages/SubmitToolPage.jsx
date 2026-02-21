@@ -3,7 +3,7 @@ import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import { Send, CheckCircle, Upload, ExternalLink, ChevronDown, AlertCircle, Loader2, Sparkles } from 'lucide-react'
 import SEO from '../components/common/SEO'
-import apiClient from '../services/apiClient'
+import apiClient from '../services/api'
 
 const CATEGORIES = [
     'Image Generation', 'Video Generation', 'Writing & Content', 'Developer Tools',
