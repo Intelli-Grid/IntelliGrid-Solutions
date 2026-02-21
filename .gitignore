@@ -86,7 +86,14 @@ test-*.sh
 docs/
 guides/
 notes/
-apps/
+
+# apps/admin is a live Vercel project — keep tracked
+# Only exclude its local build artifacts and secrets
+apps/admin/node_modules/
+apps/admin/dist/
+apps/admin/.env
+apps/admin/.env.*
+apps/admin/.env.production
 
 # -----------------------------------------------------------------------------
 # CI & DEPLOYMENT TOOLS (local)
