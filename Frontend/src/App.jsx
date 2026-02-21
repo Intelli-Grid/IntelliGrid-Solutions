@@ -11,6 +11,10 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 // Components
 import CookieConsent from './components/CookieConsent'
 
+// Auth Pages — Dedicated Clerk sign-in/sign-up (required by Clerk Dashboard "application domain" path setting)
+import SignInPage from './pages/SignInPage'
+import SignUpPage from './pages/SignUpPage'
+
 // Lazy Load Pages — Public
 const HomePage = lazy(() => import('./pages/HomePage'))
 const ToolsPage = lazy(() => import('./pages/ToolsPage'))
@@ -55,79 +59,87 @@ function App() {
     }, [location])
 
     return (
-        <>
-            <Layout>
-                <Suspense fallback={<div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>}>
-                    <Routes>
-                        {/* ── Public Routes ─────────────────────────────── */}
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="/tools" element={<ToolsPage />} />
-                        <Route path="/tools/:slug" element={<ToolDetailsPage />} />
-                        <Route path="/collections/:idOrSlug" element={<CollectionDetailsPage />} />
-                        <Route path="/search" element={<SearchPage />} />
-                        <Route path="/category/:slug" element={<CategoryPage />} />
-                        <Route path="/compare/:slugs" element={<ComparisonPage />} />
-                        <Route path="/pricing" element={<PricingPage />} />
+        <Routes>
+            {/* ── Clerk Auth Pages (no site layout) ─────────── */}
+            <Route path="/sign-in/*" element={<SignInPage />} />
+            <Route path="/sign-up/*" element={<SignUpPage />} />
 
-                        {/* ── Legal Routes ──────────────────────────────── */}
-                        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-                        <Route path="/refund-policy" element={<RefundPolicyPage />} />
-                        <Route path="/faq" element={<FAQPage />} />
-                        <Route path="/unsubscribe" element={<UnsubscribePage />} />
-                        <Route path="/submit" element={<SubmitToolPage />} />
-                        <Route path="/blog" element={<BlogPage />} />
-                        <Route path="/blog/:slug" element={<BlogPostPage />} />
+            {/* ── All other routes wrapped in site Layout ──── */}
+            <Route path="*" element={<>
+                <Layout>
+                    <Suspense fallback={<div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>}>
+                        <Routes>
+                            {/* ── Public Routes ─────────────────────────────── */}
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="/tools" element={<ToolsPage />} />
+                            <Route path="/tools/:slug" element={<ToolDetailsPage />} />
+                            <Route path="/collections/:idOrSlug" element={<CollectionDetailsPage />} />
+                            <Route path="/search" element={<SearchPage />} />
+                            <Route path="/category/:slug" element={<CategoryPage />} />
+                            <Route path="/compare/:slugs" element={<ComparisonPage />} />
+                            <Route path="/pricing" element={<PricingPage />} />
 
-                        {/* ── Payment Routes ────────────────────────────── */}
-                        <Route path="/payment/success" element={<PaymentSuccessPage />} />
-                        <Route path="/payment/cancel" element={<PaymentCancelPage />} />
+                            {/* ── Legal Routes ──────────────────────────────── */}
+                            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                            <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+                            <Route path="/refund-policy" element={<RefundPolicyPage />} />
+                            <Route path="/faq" element={<FAQPage />} />
+                            <Route path="/unsubscribe" element={<UnsubscribePage />} />
+                            <Route path="/submit" element={<SubmitToolPage />} />
+                            <Route path="/blog" element={<BlogPage />} />
+                            <Route path="/blog/:slug" element={<BlogPostPage />} />
 
-                        {/* ── Protected: Any logged-in user ─────────────── */}
-                        <Route
-                            path="/dashboard"
-                            element={
-                                <ProtectedRoute>
-                                    <DashboardPage />
-                                </ProtectedRoute>
-                            }
-                        />
+                            {/* ── Payment Routes ────────────────────────────── */}
+                            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+                            <Route path="/payment/cancel" element={<PaymentCancelPage />} />
 
-                        {/* ── Protected: MODERATOR or above ─────────────── */}
-                        <Route
-                            path="/admin"
-                            element={
-                                <ProtectedRoute requiredRole="MODERATOR">
-                                    <AdminPage />
-                                </ProtectedRoute>
-                            }
-                        />
-                        <Route
-                            path="/admin/revenue"
-                            element={
-                                <ProtectedRoute requiredRole="MODERATOR">
-                                    <RevenueDashboard />
-                                </ProtectedRoute>
-                            }
-                        />
-                        <Route
-                            path="/admin/health"
-                            element={
-                                <ProtectedRoute requiredRole="MODERATOR">
-                                    <SystemHealthPage />
-                                </ProtectedRoute>
-                            }
-                        />
+                            {/* ── Protected: Any logged-in user ─────────────── */}
+                            <Route
+                                path="/dashboard"
+                                element={
+                                    <ProtectedRoute>
+                                        <DashboardPage />
+                                    </ProtectedRoute>
+                                }
+                            />
 
-                        {/* ── Catch-all ─────────────────────────────────── */}
-                        <Route path="*" element={<NotFoundPage />} />
-                    </Routes>
-                </Suspense>
-            </Layout>
+                            {/* ── Protected: MODERATOR or above ─────────────── */}
+                            <Route
+                                path="/admin"
+                                element={
+                                    <ProtectedRoute requiredRole="MODERATOR">
+                                        <AdminPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/admin/revenue"
+                                element={
+                                    <ProtectedRoute requiredRole="MODERATOR">
+                                        <RevenueDashboard />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/admin/health"
+                                element={
+                                    <ProtectedRoute requiredRole="MODERATOR">
+                                        <SystemHealthPage />
+                                    </ProtectedRoute>
+                                }
+                            />
 
-            {/* Global Components */}
-            <CookieConsent />
-        </>
+                            {/* ── Catch-all ─────────────────────────────────── */}
+                            <Route path="*" element={<NotFoundPage />} />
+                        </Routes>
+                    </Suspense>
+                </Layout>
+
+                {/* Global Components */}
+                <CookieConsent />
+            </>}
+            />
+        </Routes>
     )
 }
 

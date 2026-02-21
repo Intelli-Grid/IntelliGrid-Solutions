@@ -81,7 +81,7 @@ export default function Header() {
                             <UserButton afterSignOutUrl="/" />
                         </div>
                     ) : (
-                        <SignInButton mode="modal">
+                        <SignInButton>
                             <button className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 whitespace-nowrap">
                                 Sign In
                             </button>
@@ -148,7 +148,7 @@ export default function Header() {
                             </Link>
                         ) : (
                             <div className="px-4 py-2">
-                                <SignInButton mode="modal">
+                                <SignInButton>
                                     <button
                                         className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                                         onClick={() => setMobileMenuOpen(false)}
