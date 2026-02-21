@@ -10,6 +10,7 @@ import './index.css'
 import { ToastProvider } from './context/ToastContext'
 import Toaster from './components/common/Toaster'
 import { initGA } from './utils/analytics'
+import ClerkTokenBridge from './components/auth/ClerkTokenBridge'
 
 // Initialize Sentry
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -48,6 +49,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         signUpFallbackRedirectUrl="/"
         afterSignOutUrl="/"
       >
+        {/* Bridge: registers Clerk's getToken into the api.js interceptor */}
+        <ClerkTokenBridge />
         <Sentry.ErrorBoundary fallback={({ error }) => <ErrorFallback error={error} />}>
           <ToastProvider>
             <BrowserRouter>
