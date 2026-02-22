@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { setTokenGetter } from '../services/tokenStore'
+import { setTokenGetter } from '../../services/tokenStore'
 
 /**
  * ClerkTokenBridge
