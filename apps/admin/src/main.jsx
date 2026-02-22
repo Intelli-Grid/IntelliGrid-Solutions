@@ -20,6 +20,8 @@ createRoot(document.getElementById('root')).render(
             signInUrl="/sign-in"
             signUpUrl="/sign-up"
             afterSignOutUrl="/sign-in"
+            domain="intelligrid.online"
+            isSatellite={true}
         >
             {/* Bridge: registers Clerk's getToken into the api.js interceptor */}
             <ClerkTokenBridge />
