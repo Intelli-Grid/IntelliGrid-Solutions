@@ -18,13 +18,15 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
         const token = authHeader.split(' ')[1]
 
         // Verify token with Clerk
-        // authorizedParties must include all origins that Clerk tokens can be issued for.
-        // Without this, Clerk rejects tokens from intelligrid.online (azp mismatch).
+        // authorizedParties must include every origin where a Clerk token can be issued.
+        // This covers the main site, the admin subdomain, and local dev.
         const authorizedParties = [
             'https://www.intelligrid.online',
             'https://intelligrid.online',
+            'https://admin.intelligrid.online',
             'http://localhost:5173',
             'http://localhost:3000',
+            'http://localhost:5174',
         ]
         const session = await clerkClient.verifyToken(token, { authorizedParties })
 
@@ -114,8 +116,10 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
             const authorizedParties = [
                 'https://www.intelligrid.online',
                 'https://intelligrid.online',
+                'https://admin.intelligrid.online',
                 'http://localhost:5173',
                 'http://localhost:3000',
+                'http://localhost:5174',
             ]
             const session = await clerkClient.verifyToken(token, { authorizedParties })
 
