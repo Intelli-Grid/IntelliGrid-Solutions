@@ -2,469 +2,173 @@ import apiClient from './api'
 
 /**
  * Tool Service - API calls for tools
+ * NOTE: apiClient interceptor already unwraps response.data,
+ * so each method returns the parsed JSON body directly.
  */
 export const toolService = {
-    // Get all tools with pagination and filters
-    getTools: async (params = {}) => {
-        const response = await apiClient.get('/tools', { params })
-        return response.data
-    },
-
-    // Get single tool by ID
-    getToolById: async (id) => {
-        const response = await apiClient.get(`/tools/${id}`)
-        return response.data
-    },
-
-    // Get tool by slug
-    getToolBySlug: async (slug) => {
-        const response = await apiClient.get(`/tools/slug/${slug}`)
-        return response.data
-    },
-
-    // Search tools (Algolia)
-    searchTools: async (query, params = {}) => {
-        const response = await apiClient.get('/tools/search', {
-            params: { q: query, ...params },
-        })
-        return response.data
-    },
-
-    // Get trending tools
-    getTrendingTools: async (limit = 10) => {
-        const response = await apiClient.get('/tools/trending', {
-            params: { limit },
-        })
-        return response.data
-    },
-
-    // Get featured tools
-    getFeaturedTools: async (limit = 10) => {
-        const response = await apiClient.get('/tools/featured', {
-            params: { limit },
-        })
-        return response.data
-    },
-
-    // Increment tool views
-    incrementViews: async (id) => {
-        const response = await apiClient.post(`/tools/${id}/view`)
-        return response.data
-    },
-
-    // Get related tools
-    getRelatedTools: async (id, limit = 3) => {
-        const response = await apiClient.get(`/tools/${id}/related`, {
-            params: { limit },
-        })
-        return response.data
-    },
-
-    // Claim tool
-    claimTool: async (id, data) => {
-        const response = await apiClient.post(`/tools/${id}/claim`, data)
-        return response.data
-    },
-
-    // Get managed tools
-    getManagedTools: async () => {
-        const response = await apiClient.get('/tools/managed')
-        return response.data
-    },
-
-    // Compare tools
-    compareTools: async (toolSlugs) => {
-        const response = await apiClient.get('/tools/compare', {
-            params: { slugs: toolSlugs.join(',') }
-        })
-        return response.data
-    },
+    getTools: (params = {}) => apiClient.get('/tools', { params }),
+    getToolById: (id) => apiClient.get(`/tools/${id}`),
+    getToolBySlug: (slug) => apiClient.get(`/tools/slug/${slug}`),
+    searchTools: (query, params = {}) => apiClient.get('/tools/search', { params: { q: query, ...params } }),
+    getTrendingTools: (limit = 10) => apiClient.get('/tools/trending', { params: { limit } }),
+    getFeaturedTools: (limit = 10) => apiClient.get('/tools/featured', { params: { limit } }),
+    incrementViews: (id) => apiClient.post(`/tools/${id}/view`),
+    getRelatedTools: (id, limit = 3) => apiClient.get(`/tools/${id}/related`, { params: { limit } }),
+    claimTool: (id, data) => apiClient.post(`/tools/${id}/claim`, data),
+    getManagedTools: () => apiClient.get('/tools/managed'),
+    compareTools: (toolSlugs) => apiClient.get('/tools/compare', { params: { slugs: toolSlugs.join(',') } }),
 }
 
 /**
- * Category Service - API calls for categories
+ * Category Service
  */
 export const categoryService = {
-    // Get all categories
-    getCategories: async () => {
-        const response = await apiClient.get('/categories')
-        return response.data
-    },
-
-    // Get category by slug
-    getCategoryBySlug: async (slug) => {
-        const response = await apiClient.get(`/categories/${slug}`)
-        return response.data
-    },
-
-    // Get tools in category
-    getToolsByCategory: async (slug, params = {}) => {
-        const response = await apiClient.get(`/categories/${slug}/tools`, { params })
-        return response.data
-    },
+    getCategories: () => apiClient.get('/categories'),
+    getCategoryBySlug: (slug) => apiClient.get(`/categories/${slug}`),
+    getToolsByCategory: (slug, params = {}) => apiClient.get(`/categories/${slug}/tools`, { params }),
 }
 
 /**
- * User Service - API calls for user operations
+ * User Service
  */
 export const userService = {
-    // Get current user profile
-    getProfile: async () => {
-        const response = await apiClient.get('/user/profile')
-        return response.data
-    },
-
-    // Update user profile
-    updateProfile: async (data) => {
-        const response = await apiClient.put('/user/profile', data)
-        return response.data
-    },
-
-    // Get user stats
-    getStats: async () => {
-        const response = await apiClient.get('/user/stats')
-        return response.data
-    },
-
-    // Get user favorites
-    getFavorites: async () => {
-        const response = await apiClient.get('/user/favorites')
-        return response.data
-    },
-
-    // Add to favorites
-    addFavorite: async (toolId) => {
-        const response = await apiClient.post('/user/favorites', { toolId })
-        return response.data
-    },
-
-    // Remove from favorites
-    removeFavorite: async (toolId) => {
-        const response = await apiClient.delete(`/user/favorites/${toolId}`)
-        return response.data
-    },
+    getProfile: () => apiClient.get('/user/profile'),
+    updateProfile: (data) => apiClient.put('/user/profile', data),
+    getStats: () => apiClient.get('/user/stats'),
+    getFavorites: () => apiClient.get('/user/favorites'),
+    addFavorite: (toolId) => apiClient.post('/user/favorites', { toolId }),
+    removeFavorite: (toolId) => apiClient.delete(`/user/favorites/${toolId}`),
 }
 
 /**
- * Review Service - API calls for reviews
+ * Review Service
  */
 export const reviewService = {
-    // Get reviews for a tool
-    getToolReviews: async (toolId, params = {}) => {
-        const response = await apiClient.get(`/reviews/tool/${toolId}`, { params })
-        return response.data
-    },
-
-    // Create a review
-    createReview: async (data) => {
-        const response = await apiClient.post('/reviews', data)
-        return response.data
-    },
-
-    // Update a review
-    updateReview: async (id, data) => {
-        const response = await apiClient.put(`/reviews/${id}`, data)
-        return response.data
-    },
-
-    // Delete a review
-    deleteReview: async (id) => {
-        const response = await apiClient.delete(`/reviews/${id}`)
-        return response.data
-    },
-
-    // Mark review as helpful
-    markHelpful: async (id) => {
-        const response = await apiClient.post(`/reviews/${id}/helpful`)
-        return response.data
-    },
+    getToolReviews: (toolId, params = {}) => apiClient.get(`/reviews/tool/${toolId}`, { params }),
+    createReview: (data) => apiClient.post('/reviews', data),
+    updateReview: (id, data) => apiClient.put(`/reviews/${id}`, data),
+    deleteReview: (id) => apiClient.delete(`/reviews/${id}`),
+    markHelpful: (id) => apiClient.post(`/reviews/${id}/helpful`),
 }
 
 /**
- * Payment Service - API calls for payments
+ * Payment Service
  */
 export const paymentService = {
-    // Create PayPal order (couponCode is optional)
-    createPayPalOrder: async (plan, couponCode = null) => {
+    createPayPalOrder: (plan, couponCode = null) => {
         const body = { plan }
         if (couponCode) body.couponCode = couponCode
         return apiClient.post('/payment/paypal/create-order', body)
     },
-
-    // Capture PayPal payment
-    capturePayPalPayment: async (paymentId, payerId) => {
-        return apiClient.post('/payment/paypal/capture', { paymentId, payerId })
-    },
-
-    // Create Cashfree order (couponCode is optional)
-    createCashfreeOrder: async (plan, couponCode = null) => {
+    capturePayPalPayment: (paymentId, payerId) =>
+        apiClient.post('/payment/paypal/capture', { paymentId, payerId }),
+    createCashfreeOrder: (plan, couponCode = null) => {
         const body = { plan }
         if (couponCode) body.couponCode = couponCode
         return apiClient.post('/payment/cashfree/create-order', body)
     },
-
-    // Verify Cashfree payment
-    verifyCashfreePayment: async (orderId) => {
-        return apiClient.post('/payment/cashfree/verify', { orderId })
-    },
+    verifyCashfreePayment: (orderId) =>
+        apiClient.post('/payment/cashfree/verify', { orderId }),
 }
 
 /**
- * Analytics Service - API calls for analytics
+ * Analytics Service
  */
 export const analyticsService = {
-    // Track event
-    trackEvent: async (eventData) => {
-        const response = await apiClient.post('/analytics/track', eventData)
-        return response.data
-    },
+    trackEvent: (eventData) => apiClient.post('/analytics/track', eventData),
 }
 
 /**
- * Admin Service - API calls for admin operations
+ * Admin Service
  */
 export const adminService = {
-    // Get dashboard stats
-    getStats: async () => {
-        return await apiClient.get('/admin/stats')
-    },
-
-    // Get pending tools
-    getPendingTools: async () => {
-        return await apiClient.get('/admin/tools/pending')
-    },
-
-    // Approve tool
-    approveTool: async (id) => {
-        return await apiClient.put(`/admin/tools/${id}/approve`)
-    },
-
-    // Delete tool
-    deleteTool: async (id) => {
-        return await apiClient.delete(`/admin/tools/${id}`)
-    },
-
-    // Get pending reviews
-    getPendingReviews: async () => {
-        return await apiClient.get('/admin/reviews/pending')
-    },
-
-    // Approve review
-    approveReview: async (id) => {
-        return await apiClient.put(`/admin/reviews/${id}/approve`)
-    },
-
-    // Reject review
-    rejectReview: async (id) => {
-        return await apiClient.put(`/admin/reviews/${id}/reject`)
-    },
-
-    // Get payments
-    getPayments: async (params = {}) => {
-        return await apiClient.get('/admin/payments', { params })
-    },
-
-    // Get pending claims
-    getPendingClaims: async () => {
-        return await apiClient.get('/admin/claims/pending')
-    },
-
-    // Approve claim
-    approveClaim: async (id) => {
-        return await apiClient.put(`/admin/claims/${id}/approve`)
-    },
-
-    // Reject claim
-    rejectClaim: async (id) => {
-        return await apiClient.put(`/admin/claims/${id}/reject`)
-    },
-
-    // Send claim invitation
-    sendInvitation: async (id, data = {}) => {
-        return await apiClient.post(`/admin/tools/${id}/invite`, data)
-    },
-
-    // Update tool (Admin only)
-    updateTool: async (id, data) => {
-        return await apiClient.put(`/tools/${id}`, data)
-    },
-
-    // Get all users with search + pagination
-    getUsers: async (params = {}) => {
-        return await apiClient.get('/admin/users', { params })
-    },
-
-    // Get revenue analytics data
-    getRevenueAnalytics: async (days = 30) => {
-        return await apiClient.get(`/analytics/revenue?days=${days}`)
-    },
+    getStats: () => apiClient.get('/admin/stats'),
+    getPendingTools: () => apiClient.get('/admin/tools/pending'),
+    approveTool: (id) => apiClient.put(`/admin/tools/${id}/approve`),
+    deleteTool: (id) => apiClient.delete(`/admin/tools/${id}`),
+    getPendingReviews: () => apiClient.get('/admin/reviews/pending'),
+    approveReview: (id) => apiClient.put(`/admin/reviews/${id}/approve`),
+    rejectReview: (id) => apiClient.put(`/admin/reviews/${id}/reject`),
+    getPayments: (params = {}) => apiClient.get('/admin/payments', { params }),
+    getPendingClaims: () => apiClient.get('/admin/claims/pending'),
+    approveClaim: (id) => apiClient.put(`/admin/claims/${id}/approve`),
+    rejectClaim: (id) => apiClient.put(`/admin/claims/${id}/reject`),
+    sendInvitation: (id, data = {}) => apiClient.post(`/admin/tools/${id}/invite`, data),
+    updateTool: (id, data) => apiClient.put(`/tools/${id}`, data),
+    getUsers: (params = {}) => apiClient.get('/admin/users', { params }),
+    getRevenueAnalytics: (days = 30) => apiClient.get(`/analytics/revenue?days=${days}`),
+    // Blog
+    getAllBlogPosts: (params = {}) => apiClient.get('/blog/admin/all', { params }),
+    createBlogPost: (data) => apiClient.post('/blog', data),
+    updateBlogPost: (id, data) => apiClient.put(`/blog/${id}`, data),
+    deleteBlogPost: (id) => apiClient.delete(`/blog/${id}`),
+    // Coupons
+    getAllCoupons: () => apiClient.get('/coupons'),
+    createCoupon: (data) => apiClient.post('/coupons', data),
+    updateCoupon: (id, data) => apiClient.patch(`/coupons/${id}`, data),
+    deleteCoupon: (id) => apiClient.delete(`/coupons/${id}`),
 }
 
 /**
- * Collection Service - API calls for collections
+ * Collection Service
  */
 export const collectionService = {
-    // Get public collections
-    getPublicCollections: async (params = {}) => {
-        const response = await apiClient.get('/collections/public', { params })
-        return response.data
-    },
-
-    // Get collection by ID
-    getCollectionById: async (id) => {
-        const response = await apiClient.get(`/collections/${id}`)
-        return response.data
-    },
-
-    // Get my collections
-    getMyCollections: async () => {
-        const response = await apiClient.get('/collections/me')
-        return response.data
-    },
-
-    // Create collection
-    createCollection: async (data) => {
-        const response = await apiClient.post('/collections', data)
-        return response.data
-    },
-
-    // Update collection
-    updateCollection: async (id, data) => {
-        const response = await apiClient.put(`/collections/${id}`, data)
-        return response.data
-    },
-
-    // Delete collection
-    deleteCollection: async (id) => {
-        const response = await apiClient.delete(`/collections/${id}`)
-        return response.data
-    },
-
-    // Add tool to collection
-    addTool: async (collectionId, toolId) => {
-        const response = await apiClient.post(`/collections/${collectionId}/tools`, { toolId })
-        return response.data
-    },
-
-    // Remove tool from collection
-    removeTool: async (collectionId, toolId) => {
-        const response = await apiClient.delete(`/collections/${collectionId}/tools/${toolId}`)
-        return response.data
-    },
+    getPublicCollections: (params = {}) => apiClient.get('/collections/public', { params }),
+    getCollectionById: (id) => apiClient.get(`/collections/${id}`),
+    getMyCollections: () => apiClient.get('/collections/me'),
+    createCollection: (data) => apiClient.post('/collections', data),
+    updateCollection: (id, data) => apiClient.put(`/collections/${id}`, data),
+    deleteCollection: (id) => apiClient.delete(`/collections/${id}`),
+    addTool: (collectionId, toolId) => apiClient.post(`/collections/${collectionId}/tools`, { toolId }),
+    removeTool: (collectionId, toolId) => apiClient.delete(`/collections/${collectionId}/tools/${toolId}`),
 }
 
 /**
- * Newsletter Service - API calls for newsletter
+ * Newsletter Service
  */
 export const newsletterService = {
-    // Subscribe
-    subscribe: async (email, source = 'website') => {
-        const response = await apiClient.post('/newsletter/subscribe', { email, source })
-        return response.data
-    },
-
-    // Unsubscribe (used by /unsubscribe page — handles both marketing and transactional)
-    unsubscribe: async (email, type = 'marketing') => {
-        const response = await apiClient.post('/newsletter/unsubscribe', { email, type })
-        return response.data
-    },
+    subscribe: (email, source = 'website') => apiClient.post('/newsletter/subscribe', { email, source }),
+    unsubscribe: (email, type = 'marketing') => apiClient.post('/newsletter/unsubscribe', { email, type }),
 }
 
 /**
- * Submission Service — tool submissions from the community
+ * Submission Service
  */
 export const submissionService = {
-    submit: async (data) => {
-        const response = await apiClient.post('/submissions', data)
-        return response.data
-    },
-    getMine: async () => {
-        const response = await apiClient.get('/submissions/mine')
-        return response.data
-    },
-    // Admin
-    getAll: async (params = {}) => {
-        const response = await apiClient.get('/submissions', { params })
-        return response.data
-    },
-    review: async (id, action, reviewNotes = '') => {
-        const response = await apiClient.patch(`/submissions/${id}/review`, { action, reviewNotes })
-        return response.data
-    },
+    submit: (data) => apiClient.post('/submissions', data),
+    getMine: () => apiClient.get('/submissions/mine'),
+    getAll: (params = {}) => apiClient.get('/submissions', { params }),
+    review: (id, action, reviewNotes = '') => apiClient.patch(`/submissions/${id}/review`, { action, reviewNotes }),
 }
 
 /**
- * Coupon Service — validate and manage coupon codes
+ * Coupon Service
  */
 export const couponService = {
-    validate: async (code, planId) => {
-        const response = await apiClient.post('/coupons/validate', { code, planId })
-        return response.data
-    },
-    // Admin
-    getAll: async () => {
-        const response = await apiClient.get('/coupons')
-        return response.data
-    },
-    create: async (data) => {
-        const response = await apiClient.post('/coupons', data)
-        return response.data
-    },
-    update: async (id, data) => {
-        const response = await apiClient.patch(`/coupons/${id}`, data)
-        return response.data
-    },
-    remove: async (id) => {
-        const response = await apiClient.delete(`/coupons/${id}`)
-        return response.data
-    },
+    validate: (code, planId) => apiClient.post('/coupons/validate', { code, planId }),
+    getAll: () => apiClient.get('/coupons'),
+    create: (data) => apiClient.post('/coupons', data),
+    update: (id, data) => apiClient.patch(`/coupons/${id}`, data),
+    remove: (id) => apiClient.delete(`/coupons/${id}`),
 }
 
 /**
- * Blog Service — blog posts
+ * Blog Service
  */
 export const blogService = {
-    getPosts: async (params = {}) => {
-        const response = await apiClient.get('/blog', { params })
-        return response.data
-    },
-    getPost: async (slug) => {
-        const response = await apiClient.get(`/blog/${slug}`)
-        return response.data
-    },
-    // Admin
-    getAllPosts: async (params = {}) => {
-        const response = await apiClient.get('/blog/admin/all', { params })
-        return response.data
-    },
-    create: async (data) => {
-        const response = await apiClient.post('/blog', data)
-        return response.data
-    },
-    update: async (id, data) => {
-        const response = await apiClient.put(`/blog/${id}`, data)
-        return response.data
-    },
-    remove: async (id) => {
-        const response = await apiClient.delete(`/blog/${id}`)
-        return response.data
-    },
+    getPosts: (params = {}) => apiClient.get('/blog', { params }),
+    getPost: (slug) => apiClient.get(`/blog/${slug}`),
+    getAllPosts: (params = {}) => apiClient.get('/blog/admin/all', { params }),
+    create: (data) => apiClient.post('/blog', data),
+    update: (id, data) => apiClient.put(`/blog/${id}`, data),
+    remove: (id) => apiClient.delete(`/blog/${id}`),
 }
 
 /**
- * GDPR Service — data portability + erasure
+ * GDPR Service
  */
 export const gdprService = {
-    getSummary: async () => {
-        const response = await apiClient.get('/gdpr/summary')
-        return response.data
-    },
-    exportData: async () => {
-        const response = await apiClient.get('/gdpr/export', { responseType: 'blob' })
-        return response
-    },
-    deleteData: async () => {
-        const response = await apiClient.delete('/gdpr/delete')
-        return response.data
-    },
+    getSummary: () => apiClient.get('/gdpr/summary'),
+    exportData: () => apiClient.get('/gdpr/export', { responseType: 'blob' }),
+    deleteData: () => apiClient.delete('/gdpr/delete'),
 }
