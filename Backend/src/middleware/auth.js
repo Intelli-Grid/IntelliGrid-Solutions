@@ -1,3 +1,4 @@
+import { verifyToken } from '@clerk/express'
 import clerkClient from '../config/clerk.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
@@ -28,7 +29,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
             'http://localhost:3000',
             'http://localhost:5174',
         ]
-        const session = await clerkClient.verifyToken(token, { authorizedParties })
+        const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties })
 
         if (!session) {
             throw ApiError.unauthorized('Invalid token')
@@ -61,11 +62,10 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 
         next()
     } catch (error) {
-        console.error('requireAuth error:', error);
         if (error instanceof ApiError) {
             throw error
         }
-        throw ApiError.unauthorized(`Authentication failed: ${error.message || error}`)
+        throw ApiError.unauthorized('Authentication failed')
     }
 })
 
@@ -122,7 +122,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
                 'http://localhost:3000',
                 'http://localhost:5174',
             ]
-            const session = await clerkClient.verifyToken(token, { authorizedParties })
+            const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties })
 
             if (session) {
                 const clerkUser = await clerkClient.users.getUser(session.sub)
