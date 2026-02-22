@@ -61,10 +61,11 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 
         next()
     } catch (error) {
+        console.error('requireAuth error:', error);
         if (error instanceof ApiError) {
             throw error
         }
-        throw ApiError.unauthorized('Authentication failed')
+        throw ApiError.unauthorized(`Authentication failed: ${error.message || error}`)
     }
 })
 
@@ -135,7 +136,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
         }
     } catch (error) {
         // Silently fail for optional auth
-        console.log('Optional auth failed:', error.message)
+        console.log('Optional auth failed:', error.message || error)
     }
 
     next()
