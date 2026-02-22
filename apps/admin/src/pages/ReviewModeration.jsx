@@ -16,22 +16,6 @@ const ReviewModeration = () => {
 
     const fetchReviews = async () => {
         try {
-            const data = await adminService.getFlaggedReviews() // Check index.js, mapped to /reviews/pending?
-            // Wait, index.js has getFlaggedReviews mapped to '/admin/reviews/flagged'.
-            // Backend endpoint is '/reviews/pending'. I should check index.js mapping.
-            // Assuming index.js is correct or needs update. Let's assume standard 'pending' endpoint.
-            // If getFlaggedReviews calls /reviews/flagged, and backend is /reviews/pending, big problem.
-            // I'll fix index.js first if needed. But for now, I'll rely on what I wrote in index.js
-            // Actually, I should update index.js to getPendingReviews -> /reviews/pending.
-
-            // Re-checking index.js content from earlier view_file...
-            // It had: getFlaggedReviews: () => apiClient.get('/admin/reviews/flagged')
-            // Backend has: router.get('/reviews/pending', ...)
-            // So I must fix index.js OR allow failure.
-            // I will update index.js to `getPendingReviews` matching backend.
-
-            // For now, I'll write this component assuming `adminService.getPendingReviews()` exists.
-
             const response = await adminService.getPendingReviews()
             if (response.success) {
                 setReviews(response.reviews)

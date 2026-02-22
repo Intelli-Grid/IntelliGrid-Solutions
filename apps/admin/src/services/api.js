@@ -1,7 +1,11 @@
 import axios from 'axios'
 import { getAuthToken } from './tokenStore'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api/v1'
+let BASE_URL = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1'
+// Fallback override in case Vercel still has the old dead Railway URL configured in its environment variables
+if (BASE_URL.includes('intelligrid-solutions-production.up.railway.app')) {
+    BASE_URL = 'https://api.intelligrid.online/api/v1'
+}
 
 const apiClient = axios.create({
     baseURL: BASE_URL,
