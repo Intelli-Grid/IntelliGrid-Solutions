@@ -17,9 +17,9 @@ createRoot(document.getElementById('root')).render(
     <StrictMode>
         <ClerkProvider
             publishableKey={PUBLISHABLE_KEY}
-            signInUrl="/sign-in"
-            signUpUrl="/sign-up"
-            afterSignOutUrl="/sign-in"
+            signInUrl="https://intelligrid.online/sign-in"
+            signUpUrl="https://intelligrid.online/sign-up"
+            afterSignOutUrl="https://admin.intelligrid.online"
             domain="intelligrid.online"
             isSatellite={true}
         >
