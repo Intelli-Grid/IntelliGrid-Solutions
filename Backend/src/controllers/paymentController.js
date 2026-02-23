@@ -57,14 +57,19 @@ class PaymentController {
     createPayPalOrder = asyncHandler(async (req, res) => {
         const { plan, couponCode } = req.body
 
-        let tier, duration
-        if (plan === 'pro_monthly') {
-            tier = 'pro'; duration = 'monthly'
-        } else if (plan === 'pro_yearly') {
-            tier = 'pro'; duration = 'yearly'
-        } else {
-            throw ApiError.badRequest('Invalid plan selected')
+        // Map all purchasable plan IDs to { tier, duration }
+        const PLAN_MAP = {
+            'pro_monthly': { tier: 'pro', duration: 'monthly' },
+            'pro_yearly': { tier: 'pro', duration: 'yearly' },
+            'basic_monthly': { tier: 'basic', duration: 'monthly' },
+            'basic_yearly': { tier: 'basic', duration: 'yearly' },
+            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
+            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
         }
+
+        const planData = PLAN_MAP[plan]
+        if (!planData) throw ApiError.badRequest('Invalid plan selected')
+        const { tier, duration } = planData
 
         // Resolve coupon discount (if provided)
         const couponMeta = await resolveCoupon(couponCode, plan)
@@ -101,14 +106,19 @@ class PaymentController {
     createCashfreeOrder = asyncHandler(async (req, res) => {
         const { plan, couponCode } = req.body
 
-        let tier, duration
-        if (plan === 'pro_monthly') {
-            tier = 'pro'; duration = 'monthly'
-        } else if (plan === 'pro_yearly') {
-            tier = 'pro'; duration = 'yearly'
-        } else {
-            throw ApiError.badRequest('Invalid plan selected')
+        // Map all purchasable plan IDs to { tier, duration }
+        const PLAN_MAP = {
+            'pro_monthly': { tier: 'pro', duration: 'monthly' },
+            'pro_yearly': { tier: 'pro', duration: 'yearly' },
+            'basic_monthly': { tier: 'basic', duration: 'monthly' },
+            'basic_yearly': { tier: 'basic', duration: 'yearly' },
+            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
+            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
         }
+
+        const planData = PLAN_MAP[plan]
+        if (!planData) throw ApiError.badRequest('Invalid plan selected')
+        const { tier, duration } = planData
 
         // Resolve coupon discount (if provided)
         const couponMeta = await resolveCoupon(couponCode, plan)

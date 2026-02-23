@@ -1,16 +1,24 @@
+/**
+ * renewalService.js — Subscription renewal reminders + expiry downgrades
+ *
+ * Fixed: replaced unreliable setInterval with node-cron for deterministic
+ *        daily execution at 00:05 IST / UTC (resilient to Railway restarts).
+ * Fixed: downgradeExpired now sends a subscription-expired email to affected users.
+ */
+import cron from 'node-cron'
 import User from '../models/User.js'
 import emailService from './emailService.js'
 
 class RenewalService {
     /**
      * Check for active subscriptions expiring in exactly 7 days
-     * and send reminders (per checklist spec: 7 days, not 3).
+     * and send renewal reminders.
      */
     async checkRenewals() {
         console.log('🔄 Checking for subscription renewals (7-day window)...')
         try {
             const targetDate = new Date()
-            targetDate.setDate(targetDate.getDate() + 7) // ✅ Fixed: was +3, must be +7
+            targetDate.setDate(targetDate.getDate() + 7)
 
             const startOfDay = new Date(targetDate)
             startOfDay.setHours(0, 0, 0, 0)
@@ -27,21 +35,19 @@ class RenewalService {
                 }
             })
 
-            console.log(`📧 Found ${users.length} subscriptions expiring in 7 days (${startOfDay.toLocaleDateString()})`)
+            console.log(`📧 Found ${users.length} subscriptions expiring in 7 days`)
 
             for (const user of users) {
-                await emailService.sendRenewalReminder(user, user.subscription)
+                emailService.sendRenewalReminder(user, user.subscription)
+                    .catch(err => console.error(`Renewal reminder email failed for ${user.email}:`, err))
             }
-
         } catch (error) {
             console.error('❌ Error in renewal check:', error)
         }
     }
 
     /**
-     * Downgrade expired subscriptions to Free tier.
-     * Finds all users whose subscription.endDate has passed but tier is still non-Free.
-     * ✅ Bug #6 Fix: this logic was completely missing.
+     * Downgrade expired subscriptions to Free tier and notify users.
      */
     async downgradeExpired() {
         console.log('🔽 Checking for expired subscriptions to downgrade...')
@@ -67,7 +73,13 @@ class RenewalService {
                     'subscription.status': 'expired',
                     'subscription.autoRenew': false,
                 })
-                console.log(`↩️  Downgraded user ${user.email} from Pro → Free (expired: ${user.subscription.endDate?.toISOString()})`)
+
+                // Notify user their subscription has expired
+                emailService.sendPaymentFailure(user, {
+                    orderId: `EXP-${user._id}`
+                }).catch(err => console.error(`Expiry notification failed for ${user.email}:`, err))
+
+                console.log(`↩️  Downgraded ${user.email} → Free (expired: ${user.subscription.endDate?.toISOString()})`)
             }
 
             console.log(`✅ Downgrade complete: ${expiredUsers.length} user(s) downgraded.`)
@@ -77,22 +89,27 @@ class RenewalService {
     }
 
     /**
-     * Start the internal scheduler — runs daily
+     * Start the cron scheduler.
+     * Runs at 00:05 UTC every day — deterministic regardless of process restarts.
+     * setInterval(24h) is NOT used because Railway container restarts reset the interval.
      */
     startScheduler() {
-        console.log('⏰ Renewal Scheduler initialized (Daily: 7-day reminders + expiry downgrade)')
+        console.log('⏰ Renewal Scheduler initialised (node-cron: daily at 00:05 UTC)')
 
-        // Run both checks once on startup (after a short delay to allow DB connection)
+        // Run both checks once on startup after a short delay to ensure DB is connected
         setTimeout(async () => {
             await this.downgradeExpired()
             await this.checkRenewals()
         }, 15000)
 
-        // Run every 24 hours
-        setInterval(async () => {
+        // Schedule: 5 minutes past midnight UTC every day
+        cron.schedule('5 0 * * *', async () => {
+            console.log('⏰ [CRON] Running daily subscription maintenance...')
             await this.downgradeExpired()
             await this.checkRenewals()
-        }, 24 * 60 * 60 * 1000)
+        }, {
+            timezone: 'UTC',
+        })
     }
 }
 

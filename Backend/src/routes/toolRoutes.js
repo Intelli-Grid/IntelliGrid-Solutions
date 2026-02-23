@@ -75,6 +75,7 @@ router.get(
 
 router.post(
     '/:id/claim',
+    requireAuth,
     validationRules.objectId('id'),
     validate,
     toolController.submitClaimRequest
@@ -92,6 +93,7 @@ router.post(
 router.put(
     '/:id',
     requireAuth,
+    requireAdmin,
     validationRules.objectId('id'),
     validate,
     toolController.updateTool

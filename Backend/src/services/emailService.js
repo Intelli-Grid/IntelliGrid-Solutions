@@ -250,6 +250,28 @@ class EmailService {
     }
 
     /**
+     * Public sendEmail() — used by routes that need to send ad-hoc transactional
+     * emails without a pre-built template (e.g. submissionRoutes.js).
+     *
+     * Accepts either:
+     *   emailService.sendEmail(to, subject, html)         — positional args
+     *   emailService.sendEmail({ to, subject, html })     — object arg
+     */
+    async sendEmail(toOrObj, subject, html) {
+        let to, subj, body
+        if (toOrObj && typeof toOrObj === 'object' && !Array.isArray(toOrObj) && 'to' in toOrObj) {
+            to = toOrObj.to
+            subj = toOrObj.subject
+            body = toOrObj.html
+        } else {
+            to = toOrObj
+            subj = subject
+            body = html
+        }
+        return sendEmail(to, undefined, subj, body)
+    }
+
+    /**
      * Add or update a contact in the Brevo contacts list.
      * Used when users subscribe to the newsletter.
      */

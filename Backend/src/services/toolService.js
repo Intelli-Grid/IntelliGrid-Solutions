@@ -15,7 +15,6 @@ class ToolService {
      * Get all tools with pagination, filtering, and sorting
      */
     async getAllTools(options = {}) {
-        console.log('DEBUG: getAllTools options:', JSON.stringify(options))
         const {
             page = 1,
             limit = 20,
@@ -216,8 +215,15 @@ class ToolService {
     async createTool(toolData) {
         const tool = await Tool.create(toolData)
 
-        // Sync to Algolia
-        await syncToolToAlgolia(tool)
+        // Non-blocking: don't await Algolia — a slow Algolia response shouldn't
+        // fail or delay the API response. Errors are logged only.
+        syncToolToAlgolia(tool).catch(err => console.error('Algolia sync error (createTool):', err))
+
+        // Keep Category.toolCount in sync
+        if (tool.category) {
+            Category.findByIdAndUpdate(tool.category, { $inc: { toolCount: 1 } })
+                .catch(err => console.error('Category toolCount increment error:', err))
+        }
 
         // Invalidate cache
         await invalidateCache('cache:/api/v1/tools*')
@@ -229,6 +235,9 @@ class ToolService {
      * Update tool (admin)
      */
     async updateTool(id, updates) {
+        // Capture old category before update so we can fix toolCount if it changed
+        const oldTool = await Tool.findById(id).select('category').lean()
+
         const tool = await Tool.findByIdAndUpdate(id, updates, {
             new: true,
             runValidators: true,
@@ -238,8 +247,18 @@ class ToolService {
             throw ApiError.notFound('Tool not found')
         }
 
-        // Sync to Algolia
-        await syncToolToAlgolia(tool)
+        // Non-blocking Algolia sync
+        syncToolToAlgolia(tool).catch(err => console.error('Algolia sync error (updateTool):', err))
+
+        // If category changed, adjust toolCount on both old and new categories
+        const oldCatId = oldTool?.category?.toString()
+        const newCatId = tool.category?.toString()
+        if (oldCatId && newCatId && oldCatId !== newCatId) {
+            Category.findByIdAndUpdate(oldCatId, { $inc: { toolCount: -1 } })
+                .catch(err => console.error('Category toolCount decrement error:', err))
+            Category.findByIdAndUpdate(newCatId, { $inc: { toolCount: 1 } })
+                .catch(err => console.error('Category toolCount increment error:', err))
+        }
 
         // Invalidate cache
         await invalidateCache('cache:/api/v1/tools*')
@@ -257,8 +276,14 @@ class ToolService {
             throw ApiError.notFound('Tool not found')
         }
 
-        // Remove from Algolia
-        await deleteToolFromAlgolia(id)
+        // Non-blocking Algolia delete
+        deleteToolFromAlgolia(id).catch(err => console.error('Algolia delete error (deleteTool):', err))
+
+        // Keep Category.toolCount in sync
+        if (tool.category) {
+            Category.findByIdAndUpdate(tool.category, { $inc: { toolCount: -1 } })
+                .catch(err => console.error('Category toolCount decrement error:', err))
+        }
 
         // Invalidate cache
         await invalidateCache('cache:/api/v1/tools*')

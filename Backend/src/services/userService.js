@@ -2,6 +2,9 @@ import User from '../models/User.js'
 import Favorite from '../models/Favorite.js'
 import Review from '../models/Review.js'
 import Order from '../models/Order.js'
+import Collection from '../models/Collection.js'
+import Submission from '../models/Submission.js'
+import ClaimRequest from '../models/ClaimRequest.js'
 import ApiError from '../utils/ApiError.js'
 import { nanoid } from 'nanoid'
 
@@ -79,7 +82,8 @@ class UserService {
      * Update user profile
      */
     async updateUserProfile(userId, updates) {
-        const allowedUpdates = ['firstName', 'lastName', 'username', 'profile']
+        // avatar and email are allowed when called from Clerk webhook (authController)
+        const allowedUpdates = ['firstName', 'lastName', 'username', 'profile', 'avatar', 'email']
         const filteredUpdates = {}
 
         Object.keys(updates).forEach(key => {
@@ -202,11 +206,11 @@ class UserService {
     }
 
     /**
-     * Remove favorite
+     * Remove favorite — finds by userId + toolId (not favorite _id)
      */
-    async removeFavorite(userId, favoriteId) {
+    async removeFavorite(userId, toolId) {
         const favorite = await Favorite.findOneAndDelete({
-            _id: favoriteId,
+            tool: toolId,
             user: userId,
         })
 
@@ -230,7 +234,7 @@ class UserService {
     }
 
     /**
-     * Delete user
+     * Delete user — cascades all owned data (GDPR-compliant)
      */
     async deleteUser(userId) {
         const user = await User.findByIdAndDelete(userId)
@@ -239,10 +243,14 @@ class UserService {
             throw ApiError.notFound('User not found')
         }
 
-        // Clean up user data
+        // Full cascade: auth data, social, purchases, content
         await Promise.all([
             Favorite.deleteMany({ user: userId }),
             Review.deleteMany({ user: userId }),
+            Order.deleteMany({ user: userId }),
+            Collection.deleteMany({ owner: userId }),
+            Submission.deleteMany({ 'submittedBy.user': userId }),
+            ClaimRequest.deleteMany({ user: userId }),
         ])
 
         return user

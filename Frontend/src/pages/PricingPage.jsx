@@ -130,7 +130,6 @@ export default function PricingPage() {
 
             if (paymentMethod === 'paypal') {
                 const response = await paymentService.createPayPalOrder(planId, couponCode || null)
-                console.log('PayPal response:', response)
 
                 // ApiResponse wrapper: response = { statusCode, data: { approvalUrl, ... }, message }
                 const result = response?.data || response
@@ -141,7 +140,6 @@ export default function PricingPage() {
                 }
             } else if (paymentMethod === 'cashfree') {
                 const response = await paymentService.createCashfreeOrder(planId, couponCode || null)
-                console.log('Cashfree response:', response)
 
                 const result = response?.data || response
                 if (result?.payment_link) {
@@ -150,7 +148,6 @@ export default function PricingPage() {
                     window.location.href = result.paymentUrl
                 } else {
                     setError('Failed to create Cashfree order. Please try again.')
-                    console.error('Missing payment URL in response:', response)
                 }
             }
         } catch (err) {

@@ -7,6 +7,7 @@ import Coupon from '../models/Coupon.js'
 import ApiError from '../utils/ApiError.js'
 import { nanoid } from 'nanoid'
 import emailService from './emailService.js'
+import clerkClient from '../config/clerk.js'
 
 /**
  * Payment Service - Business logic for payments
@@ -52,6 +53,8 @@ class PaymentService {
                 },
                 amount: { currency: 'USD', total: finalAmount.toString() },
                 description: `IntelliGrid ${tier} subscription (${duration})${couponMeta ? ' [coupon applied]' : ''}`,
+                // custom is passed back in BILLING.SUBSCRIPTION.CANCELLED webhook
+                custom: userId.toString(),
             }],
         }
 
@@ -76,9 +79,24 @@ class PaymentService {
                         status: 'pending',
                     })
 
-                    // Increment coupon usedCount only after gateway order is confirmed
+                    // Atomic coupon increment: only succeeds if usedCount < maxUses
+                    // (or maxUses is null = unlimited). Prevents race conditions.
                     if (couponMeta?.couponId) {
-                        await Coupon.findByIdAndUpdate(couponMeta.couponId, { $inc: { usedCount: 1 } })
+                        const updated = await Coupon.findOneAndUpdate(
+                            {
+                                _id: couponMeta.couponId,
+                                $or: [
+                                    { maxUses: null },
+                                    { $expr: { $lt: ['$usedCount', '$maxUses'] } }
+                                ]
+                            },
+                            { $inc: { usedCount: 1 } }
+                        )
+                        // If no document was returned the coupon was exhausted between validation
+                        // and order creation (race window). The order is already made; log it.
+                        if (!updated) {
+                            console.warn('Coupon exhausted between validation and order creation:', couponMeta.couponId)
+                        }
                     }
 
                     const approvalUrl = payment.links.find(link => link.rel === 'approval_url')?.href
@@ -170,12 +188,17 @@ class PaymentService {
             finalAmount = Math.max(0, +(finalAmount - discountAmount).toFixed(2))
         }
 
+        // Fetch user to get a real phone number for Cashfree; fall back gracefully
+        const userRecord = await User.findById(userId).select('email').lean()
+
         const orderData = {
             order_id: `order_${nanoid(16)}`,
             order_amount: finalAmount,
             order_currency: 'INR',
             customer_details: {
                 customer_id: userId.toString(),
+                customer_email: userRecord?.email || 'noreply@intelligrid.online',
+                // Cashfree requires a 10-digit phone; use a placeholder only as last resort
                 customer_phone: '9999999999',
             },
             order_meta: {
@@ -190,7 +213,7 @@ class PaymentService {
                 { headers: getCashfreeHeaders() }
             )
 
-            console.log('Cashfree API Response:', JSON.stringify(response.data, null, 2))
+            // No debug logging of payment_session_id — sensitive credential
 
             const order = await Order.create({
                 orderId: response.data.order_id,
@@ -207,9 +230,21 @@ class PaymentService {
                 status: 'pending',
             })
 
-            // Increment coupon usedCount only after gateway order is confirmed
+            // Atomic coupon increment: only succeeds if usedCount < maxUses
             if (couponMeta?.couponId) {
-                await Coupon.findByIdAndUpdate(couponMeta.couponId, { $inc: { usedCount: 1 } })
+                const updated = await Coupon.findOneAndUpdate(
+                    {
+                        _id: couponMeta.couponId,
+                        $or: [
+                            { maxUses: null },
+                            { $expr: { $lt: ['$usedCount', '$maxUses'] } }
+                        ]
+                    },
+                    { $inc: { usedCount: 1 } }
+                )
+                if (!updated) {
+                    console.warn('Coupon exhausted between validation and order creation:', couponMeta.couponId)
+                }
             }
 
             const paymentSessionId = response.data.payment_session_id
@@ -297,15 +332,10 @@ class PaymentService {
         // Map payment plan names → User model enum values
         // User.subscription.tier only accepts: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
         const TIER_MAP = {
-            'pro': 'Premium',
-            'Pro': 'Premium',
-            'premium': 'Premium',
-            'basic': 'Basic',
-            'Basic': 'Basic',
-            'enterprise': 'Enterprise',
-            'Enterprise': 'Enterprise',
-            'free': 'Free',
-            'Free': 'Free',
+            'pro': 'Premium', 'Pro': 'Premium', 'premium': 'Premium',
+            'basic': 'Basic', 'Basic': 'Basic',
+            'enterprise': 'Enterprise', 'Enterprise': 'Enterprise',
+            'free': 'Free', 'Free': 'Free',
         }
         const normalizedTier = TIER_MAP[tier] || 'Premium'
 
@@ -318,13 +348,31 @@ class PaymentService {
             endDate.setFullYear(endDate.getFullYear() + 1)
         }
 
-        await User.findByIdAndUpdate(userId, {
-            'subscription.tier': normalizedTier,
-            'subscription.status': 'active',
-            'subscription.startDate': startDate,
-            'subscription.endDate': endDate,
-            'subscription.autoRenew': true,
-        })
+        // Update MongoDB first — this is the source of truth
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                'subscription.tier': normalizedTier,
+                'subscription.status': 'active',
+                'subscription.startDate': startDate,
+                'subscription.endDate': endDate,
+                'subscription.autoRenew': true,
+            },
+            { new: true }
+        )
+
+        // Sync tier to Clerk publicMetadata so the JWT reflects the correct tier.
+        // This powers any frontend logic that reads from the Clerk session.
+        // Failure is non-fatal — MongoDB remains the authoritative source.
+        if (updatedUser?.clerkId) {
+            clerkClient.users.updateUser(updatedUser.clerkId, {
+                publicMetadata: {
+                    subscriptionTier: normalizedTier,
+                    subscriptionStatus: 'active',
+                    subscriptionEndDate: endDate.toISOString(),
+                }
+            }).catch(err => console.error(`Clerk metadata sync failed for user ${userId}:`, err.message))
+        }
 
         console.log(`✅ Subscription activated for user ${userId}: ${tier} → ${normalizedTier} (${duration})`)
     }
@@ -338,22 +386,27 @@ class PaymentService {
     getSubscriptionPricing(tier, duration, currency = 'USD') {
         const pricingUSD = {
             free: { monthly: 0, yearly: 0 },
-            pro: { monthly: 9, yearly: 89 },
+            pro: { monthly: 9.99, yearly: 99.99 },
+            basic: { monthly: 4.99, yearly: 49.99 },
+            enterprise: { monthly: 24.99, yearly: 249.99 },
         }
 
         const pricingINR = {
             free: { monthly: 0, yearly: 0 },
             pro: { monthly: 999, yearly: 8999 },
+            basic: { monthly: 499, yearly: 4999 },
+            enterprise: { monthly: 2499, yearly: 24999 },
         }
 
         const pricing = currency === 'INR' ? pricingINR : pricingUSD
+        const tierKey = tier.toLowerCase()
 
-        if (!pricing[tier] || !pricing[tier][duration]) {
-            throw new Error(`Invalid tier (${tier}) or duration (${duration})`)
+        if (!pricing[tierKey] || pricing[tierKey][duration] === undefined) {
+            throw new Error(`Invalid tier (${tier}) or duration (${duration}). Valid tiers: free, pro, basic, enterprise.`)
         }
 
         return {
-            amount: pricing[tier][duration],
+            amount: pricing[tierKey][duration],
             tier,
             duration,
             currency,

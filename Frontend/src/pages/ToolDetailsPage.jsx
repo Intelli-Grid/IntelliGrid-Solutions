@@ -78,18 +78,18 @@ export default function ToolDetailsPage() {
     }
 
     const breadcrumbItems = [
-        { name: 'Home', url: 'https://intelligrid.online' },
-        { name: 'Tools', url: 'https://intelligrid.online/tools' }
+        { name: 'Home', url: 'https://www.intelligrid.online' },
+        { name: 'Tools', url: 'https://www.intelligrid.online/tools' }
     ]
 
     if (typeof tool.category === 'object') {
         breadcrumbItems.push({
             name: tool.category.name,
-            url: `https://intelligrid.online/category/${tool.category.slug}`
+            url: `https://www.intelligrid.online/category/${tool.category.slug}`
         })
     }
 
-    breadcrumbItems.push({ name: tool.name, url: `https://intelligrid.online/tools/${tool.slug}` })
+    breadcrumbItems.push({ name: tool.name, url: `https://www.intelligrid.online/tools/${tool.slug}` })
 
     const toolSchemaStr = generateToolSchema(tool)
     const breadcrumbSchemaStr = generateBreadcrumbSchema(breadcrumbItems)

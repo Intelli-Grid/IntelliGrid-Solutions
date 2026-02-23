@@ -90,8 +90,16 @@ function App() {
                             <Route path="/blog/:slug" element={<BlogPostPage />} />
 
                             {/* ── Payment Routes ────────────────────────────── */}
-                            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+                            <Route
+                                path="/payment/success"
+                                element={
+                                    <ProtectedRoute>
+                                        <PaymentSuccessPage />
+                                    </ProtectedRoute>
+                                }
+                            />
                             <Route path="/payment/cancel" element={<PaymentCancelPage />} />
+
 
                             {/* ── Protected: Any logged-in user ─────────────── */}
                             <Route

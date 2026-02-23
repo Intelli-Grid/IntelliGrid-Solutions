@@ -7,6 +7,8 @@ import Order from '../models/Order.js'
 import ClaimRequest from '../models/ClaimRequest.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import emailService from '../services/emailService.js'
+import toolService from '../services/toolService.js'
+import reviewService from '../services/reviewService.js'
 
 const router = express.Router()
 
@@ -95,63 +97,41 @@ router.get('/tools/pending', async (req, res) => {
 
 /**
  * @route   PUT /api/v1/admin/tools/:id/approve
- * @desc    Approve a pending tool
+ * @desc    Approve a pending tool — syncs to Algolia via toolService
  * @access  Admin only
  */
 router.put('/tools/:id/approve', async (req, res) => {
     try {
-        const tool = await Tool.findByIdAndUpdate(
-            req.params.id,
-            {
-                $set: {
-                    status: 'active',
-                    approvedAt: new Date(),
-                    // approvedBy: req.auth.userId // req.auth might not be populated if auth middleware isn't used explicitly here, but route is protected in app.js? No, usually middleware is applied in router. 
-                    // Wait, app.use('/api/v1/admin', adminRoutes) in app.js doesn't have auth middleware!
-                    // I should add auth middleware to these routes or in app.js.
-                    // For now, let's keep it simple and assume auth middleware is applied or will be applied. 
-                    // Actually, looking at toolRoutes, middleware is applied per route. 
-                    // adminRoutes doesn't seem to import/use middleware yet.
-                }
-            },
-            { new: true }
-        )
-
-        if (!tool) {
-            return res.status(404).json({
-                success: false,
-                message: 'Tool not found'
-            })
-        }
+        // Use toolService.updateTool so Algolia gets the updated (active) status
+        const tool = await toolService.updateTool(req.params.id, {
+            status: 'active',
+            approvedAt: new Date(),
+            approvedBy: req.user._id,
+        })
 
         res.json({
             success: true,
-            message: 'Tool approved successfully'
+            message: 'Tool approved successfully',
+            tool: { _id: tool._id, name: tool.name, status: tool.status }
         })
     } catch (error) {
         console.error('Tool approval error:', error)
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to approve tool'
+            message: error.message || 'Failed to approve tool'
         })
     }
 })
 
 /**
  * @route   DELETE /api/v1/admin/tools/:id
- * @desc    Delete a tool
+ * @desc    Delete a tool (Algolia + cache invalidation included)
  * @access  Admin only
  */
 router.delete('/tools/:id', async (req, res) => {
     try {
-        const tool = await Tool.findByIdAndDelete(req.params.id)
-
-        if (!tool) {
-            return res.status(404).json({
-                success: false,
-                message: 'Tool not found'
-            })
-        }
+        // Use toolService so Algolia index and Redis cache are both invalidated
+        await toolService.deleteTool(req.params.id)
 
         res.json({
             success: true,
@@ -159,9 +139,9 @@ router.delete('/tools/:id', async (req, res) => {
         })
     } catch (error) {
         console.error('Tool deletion error:', error)
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to delete tool'
+            message: error.message || 'Failed to delete tool'
         })
     }
 })
@@ -232,77 +212,36 @@ router.get('/reviews/pending', async (req, res) => {
 
 /**
  * @route   PUT /api/v1/admin/reviews/:id/approve
- * @desc    Approve a pending review
+ * @desc    Approve a pending review — recalculates Tool.ratings.average via reviewService
  * @access  Admin only
  */
 router.put('/reviews/:id/approve', async (req, res) => {
     try {
-        const review = await Review.findByIdAndUpdate(
-            req.params.id,
-            {
-                $set: {
-                    status: 'approved',
-                    moderatedAt: new Date(),
-                    // moderatedBy: req.auth.userId
-                }
-            },
-            { new: true }
-        )
-
-        if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Review not found'
-            })
-        }
-
-        res.json({
-            success: true,
-            message: 'Review approved successfully'
-        })
+        await reviewService.moderateReview(req.params.id, 'approved')
+        res.json({ success: true, message: 'Review approved successfully' })
     } catch (error) {
         console.error('Review approval error:', error)
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to approve review'
+            message: error.message || 'Failed to approve review'
         })
     }
 })
 
 /**
  * @route   PUT /api/v1/admin/reviews/:id/reject
- * @desc    Reject a pending review
+ * @desc    Reject a pending review — updates status only (no rating recalc needed)
  * @access  Admin only
  */
 router.put('/reviews/:id/reject', async (req, res) => {
     try {
-        const review = await Review.findByIdAndUpdate(
-            req.params.id,
-            {
-                $set: {
-                    status: 'rejected',
-                    moderatedAt: new Date(),
-                }
-            },
-            { new: true }
-        )
-
-        if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Review not found'
-            })
-        }
-
-        res.json({
-            success: true,
-            message: 'Review rejected successfully'
-        })
+        await reviewService.moderateReview(req.params.id, 'rejected')
+        res.json({ success: true, message: 'Review rejected successfully' })
     } catch (error) {
         console.error('Review rejection error:', error)
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to reject review'
+            message: error.message || 'Failed to reject review'
         })
     }
 })
@@ -388,14 +327,21 @@ router.get('/users', async (req, res) => {
 // Claim Management Routes
 router.get('/claims/pending', async (req, res) => {
     try {
+        const { page = 1, limit = 50 } = req.query
         const claims = await ClaimRequest.find({ status: 'pending' })
             .populate('tool', 'name slug')
             .populate('user', 'firstName lastName email avatar')
             .sort({ createdAt: -1 })
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .limit(parseInt(limit))
+            .lean()
+
+        const total = await ClaimRequest.countDocuments({ status: 'pending' })
 
         res.json({
             success: true,
-            claims
+            claims,
+            pagination: { total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) }
         })
     } catch (error) {
         console.error('Pending claims error:', error)
@@ -408,8 +354,7 @@ router.put('/claims/:id/approve', async (req, res) => {
         const claim = await ClaimRequest.findById(req.params.id)
         if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
 
-        // Find user 
-        const User = (await import('../models/User.js')).default
+        // Use already-imported User model — no dynamic import needed
         let userId = claim.user
 
         if (!userId) {
@@ -424,9 +369,6 @@ router.put('/claims/:id/approve', async (req, res) => {
         // Update Claim
         claim.status = 'approved'
         claim.reviewedAt = new Date()
-
-        // Admin user logic skipped for brevity/simplicity, can add later if needed for audit
-
         await claim.save()
 
         res.json({ success: true, message: 'Claim approved' })

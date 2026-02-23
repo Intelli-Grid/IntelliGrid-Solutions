@@ -1,141 +1,159 @@
+/**
+ * gdprController.js — GDPR Right to Access, Portability, and Erasure
+ *
+ * Fixed: req.userId (undefined) → req.user._id
+ * Fixed: clerkUserId field → clerkId
+ * Fixed: subscriptionPlan field → subscription.tier
+ * Fixed: Full cascade delete (Favorites, Reviews, Orders, Collections, Submissions, ClaimRequests)
+ * Fixed: Clerk account deletion actually executes
+ */
 import User from '../models/User.js'
+import Review from '../models/Review.js'
+import Favorite from '../models/Favorite.js'
+import Order from '../models/Order.js'
+import Collection from '../models/Collection.js'
+import Submission from '../models/Submission.js'
+import ClaimRequest from '../models/ClaimRequest.js'
 import clerkClient from '../config/clerk.js'
+import ApiError from '../utils/ApiError.js'
+import asyncHandler from '../utils/asyncHandler.js'
 
-// Export user data (GDPR compliance)
-export const exportUserData = async (req, res) => {
-    try {
-        const userId = req.userId // From auth middleware
+// ─── GET /api/v1/gdpr/summary ─────────────────────────────────────────────────
+export const getUserDataSummary = asyncHandler(async (req, res) => {
+    const userId = req.user._id
+    const clerkId = req.user.clerkId
 
-        // Get user data from MongoDB
-        const user = await User.findOne({ clerkUserId: userId }).lean()
+    const [
+        reviewCount,
+        favoriteCount,
+        orderCount,
+        collectionCount,
+        submissionCount,
+        claimCount,
+    ] = await Promise.all([
+        Review.countDocuments({ user: userId }),
+        Favorite.countDocuments({ user: userId }),
+        Order.countDocuments({ user: userId }),
+        Collection.countDocuments({ owner: userId }),
+        Submission.countDocuments({ 'submittedBy.user': userId }),
+        ClaimRequest.countDocuments({ user: userId }),
+    ])
 
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
-
-        // Get user data from Clerk
-        let clerkData = null
-        try {
-            clerkData = await clerkClient.users.getUser(userId)
-        } catch (error) {
-            console.error('Error fetching Clerk data:', error)
-        }
-
-        // Compile all user data
-        const userData = {
-            exportDate: new Date().toISOString(),
-            exportType: 'GDPR Data Export',
-            personalInformation: {
-                clerkUserId: user.clerkUserId,
-                email: user.email,
-                name: user.name,
-                profilePicture: user.profilePicture,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
+    res.json({
+        success: true,
+        summary: {
+            profile: {
+                email: req.user.email,
+                firstName: req.user.firstName,
+                lastName: req.user.lastName,
+                clerkId,
+                joinedAt: req.user.createdAt,
+            },
+            dataCounts: {
+                reviews: reviewCount,
+                favorites: favoriteCount,
+                orders: orderCount,
+                collections: collectionCount,
+                submissions: submissionCount,
+                claimRequests: claimCount,
             },
             subscription: {
-                plan: user.subscriptionPlan,
-                expiry: user.subscriptionExpiry,
-                paymentMethod: user.paymentMethod,
+                tier: req.user.subscription?.tier || 'Free',
+                status: req.user.subscription?.status || 'active',
+                endDate: req.user.subscription?.endDate || null,
             },
-            favorites: user.favorites,
-            clerkData: clerkData ? {
-                emailAddresses: clerkData.emailAddresses,
-                firstName: clerkData.firstName,
-                lastName: clerkData.lastName,
-                createdAt: clerkData.createdAt,
-                updatedAt: clerkData.updatedAt,
-            } : null,
-        }
+        },
+    })
+})
 
-        res.json({
-            success: true,
-            data: userData,
-            message: 'User data exported successfully',
-        })
-    } catch (error) {
-        console.error('Export user data error:', error)
-        res.status(500).json({ error: 'Failed to export user data' })
+// ─── GET /api/v1/gdpr/export ─────────────────────────────────────────────────
+export const exportUserData = asyncHandler(async (req, res) => {
+    const userId = req.user._id
+
+    // Fetch all user-related data in parallel
+    const [
+        profile,
+        reviews,
+        favorites,
+        orders,
+        collections,
+        submissions,
+        claimRequests,
+    ] = await Promise.all([
+        User.findById(userId).select('-__v').lean(),
+        Review.find({ user: userId }).lean(),
+        Favorite.find({ user: userId })
+            .populate('tool', 'name slug officialUrl')
+            .lean(),
+        Order.find({ user: userId }).select('-__v').lean(),
+        Collection.find({ owner: userId }).lean(),
+        Submission.find({ 'submittedBy.user': userId }).lean(),
+        ClaimRequest.find({ user: userId })
+            .populate('tool', 'name slug')
+            .lean(),
+    ])
+
+    // Remove sensitive internal fields from profile before export
+    const { clerkId, referralCode, ...safeProfile } = profile || {}
+
+    const exportData = {
+        exportedAt: new Date().toISOString(),
+        profile: safeProfile,
+        reviews,
+        favorites,
+        orders,
+        collections,
+        submissions,
+        claimRequests,
     }
-}
 
-// Delete user data (GDPR compliance)
-export const deleteUserData = async (req, res) => {
+    res.setHeader('Content-Disposition', 'attachment; filename="intelligrid-data-export.json"')
+    res.setHeader('Content-Type', 'application/json')
+    res.status(200).json(exportData)
+})
+
+// ─── DELETE /api/v1/gdpr/delete ─────────────────────────────────────────────
+export const deleteUserData = asyncHandler(async (req, res) => {
+    const userId = req.user._id
+    const clerkId = req.user.clerkId
+
+    // Block deletion if user has an active paid subscription
+    const subscriptionTier = req.user.subscription?.tier
+    const subscriptionStatus = req.user.subscription?.status
+    if (
+        subscriptionTier &&
+        subscriptionTier !== 'Free' &&
+        subscriptionStatus === 'active'
+    ) {
+        throw ApiError.badRequest(
+            'You have an active subscription. Please cancel it before deleting your account. Contact support@intelligrid.online for assistance.'
+        )
+    }
+
+    // Delete all user data in parallel
+    await Promise.all([
+        Favorite.deleteMany({ user: userId }),
+        Review.deleteMany({ user: userId }),
+        Order.deleteMany({ user: userId }),
+        Collection.deleteMany({ owner: userId }),
+        Submission.deleteMany({ 'submittedBy.user': userId }),
+        ClaimRequest.deleteMany({ user: userId }),
+    ])
+
+    // Delete User document from MongoDB
+    await User.findByIdAndDelete(userId)
+
+    // Delete Clerk account — this invalidates all sessions immediately
     try {
-        const userId = req.userId // From auth middleware
-
-        // Get user data
-        const user = await User.findOne({ clerkUserId: userId })
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
-
-        // Check if user has active subscription
-        const hasActiveSubscription = user.subscriptionPlan !== 'Free' &&
-            user.subscriptionExpiry &&
-            new Date(user.subscriptionExpiry) > new Date()
-
-        if (hasActiveSubscription) {
-            return res.status(400).json({
-                error: 'Please cancel your active subscription before deleting your account',
-                subscriptionPlan: user.subscriptionPlan,
-                subscriptionExpiry: user.subscriptionExpiry,
-            })
-        }
-
-        // Delete user from MongoDB
-        await User.deleteOne({ clerkUserId: userId })
-
-        // Delete user from Clerk
-        try {
-            await clerkClient.users.deleteUser(userId)
-        } catch (error) {
-            console.error('Error deleting Clerk user:', error)
-            // Continue even if Clerk deletion fails
-        }
-
-        res.json({
-            success: true,
-            message: 'User data deleted successfully',
-            deletedAt: new Date().toISOString(),
-        })
-    } catch (error) {
-        console.error('Delete user data error:', error)
-        res.status(500).json({ error: 'Failed to delete user data' })
+        await clerkClient.users.deleteUser(clerkId)
+    } catch (clerkErr) {
+        // Log but don't block — MongoDB data is already gone; Clerk failure
+        // will orphan the Clerk account (user cannot log in) which is acceptable
+        console.error('GDPR: Clerk account deletion failed for clerkId', clerkId, clerkErr?.message)
     }
-}
 
-// Get user data summary (for account settings)
-export const getUserDataSummary = async (req, res) => {
-    try {
-        const userId = req.userId
-
-        const user = await User.findOne({ clerkUserId: userId }).lean()
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
-
-        const summary = {
-            accountCreated: user.createdAt,
-            lastUpdated: user.updatedAt,
-            dataCategories: {
-                personalInfo: true,
-                subscriptionData: user.subscriptionPlan !== 'Free',
-                favorites: user.favorites && user.favorites.length > 0,
-            },
-            dataSize: {
-                favorites: user.favorites ? user.favorites.length : 0,
-            },
-        }
-
-        res.json({
-            success: true,
-            data: summary,
-        })
-    } catch (error) {
-        console.error('Get user data summary error:', error)
-        res.status(500).json({ error: 'Failed to get user data summary' })
-    }
-}
+    res.status(200).json({
+        success: true,
+        message: 'Your account and all associated data have been permanently deleted.',
+    })
+})
