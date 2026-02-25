@@ -460,6 +460,82 @@ router.get('/system', async (req, res) => {
 })
 
 import linkValidationService from '../services/linkValidationService.js'
+import discoveryScheduler from '../services/discoveryScheduler.js'
+import { enqueueTools } from '../services/discoveryQueue.js'
+
+/**
+ * @route   GET /api/v1/admin/discovery/pending
+ * @desc    List auto-discovered tools awaiting admin approval
+ * @access  Admin only
+ */
+router.get('/discovery/pending', async (req, res) => {
+    try {
+        const { page = 1, limit = 50 } = req.query
+        const skip = (parseInt(page) - 1) * parseInt(limit)
+
+        const [tools, total] = await Promise.all([
+            Tool.find({ status: 'pending', sourceFoundBy: { $in: ['scraper', 'producthunt', 'twitter', 'hacker-news'] } })
+                .select('name slug officialUrl shortDescription logo pricing hasFreeTier sourceFoundBy sourceUrl createdAt category')
+                .populate('category', 'name slug')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean(),
+            Tool.countDocuments({ status: 'pending', sourceFoundBy: { $in: ['scraper', 'producthunt', 'twitter', 'hacker-news'] } }),
+        ])
+
+        res.json({
+            success: true,
+            tools,
+            pagination: { total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) },
+        })
+    } catch (error) {
+        console.error('Discovery pending error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch pending discovered tools' })
+    }
+})
+
+/**
+ * @route   POST /api/v1/admin/discovery/trigger
+ * @desc    Manually trigger a discovery run from the admin panel
+ * @access  Admin only
+ */
+router.post('/discovery/trigger', async (req, res) => {
+    try {
+        const { daysBack = 1 } = req.body
+
+        // Run async — don't await so it doesn't timeout the HTTP request
+        discoveryScheduler.runDiscovery(Math.min(parseInt(daysBack) || 1, 30))
+            .catch(err => console.error('[Admin] Discovery trigger error:', err))
+
+        res.json({
+            success: true,
+            message: `Discovery run started (last ${daysBack} day(s)). Check pending queue in 1–2 minutes.`,
+        })
+    } catch (error) {
+        console.error('Discovery trigger error:', error)
+        res.status(500).json({ success: false, message: 'Failed to trigger discovery run' })
+    }
+})
+
+/**
+ * @route   POST /api/v1/admin/discovery/discard/:id
+ * @desc    Discard (hard-delete) a discovered tool that failed review
+ * @access  Admin only
+ */
+router.delete('/discovery/discard/:id', async (req, res) => {
+    try {
+        const tool = await Tool.findOneAndDelete({
+            _id: req.params.id,
+            status: 'pending',   // Safety: only discard pending tools
+        })
+        if (!tool) return res.status(404).json({ success: false, message: 'Pending tool not found' })
+        res.json({ success: true, message: `Discarded "${tool.name}"` })
+    } catch (error) {
+        console.error('Discovery discard error:', error)
+        res.status(500).json({ success: false, message: 'Failed to discard tool' })
+    }
+})
 
 /**
  * @route   GET /api/v1/admin/link-health

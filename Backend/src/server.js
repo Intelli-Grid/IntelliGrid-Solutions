@@ -1,6 +1,7 @@
 import app from './app.js'
 import renewalService from './services/renewalService.js'
 import linkValidationService from './services/linkValidationService.js'
+import discoveryScheduler from './services/discoveryScheduler.js'
 
 // Start Server
 const PORT = process.env.PORT || 10000
@@ -22,4 +23,5 @@ app.listen(PORT, () => {
     // Start Schedulers
     renewalService.startScheduler()
     linkValidationService.startScheduler()
+    discoveryScheduler.startScheduler()
 })
