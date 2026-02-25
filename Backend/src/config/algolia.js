@@ -42,6 +42,8 @@ export const configureToolsIndex = async () => {
                 'isTrending',
                 'status',
                 'linkStatus',         // Batch 1: allows filtering dead tools
+                'hasFreeTier',        // Batch 2
+                'targetAudience',     // Batch 2
             ],
             customRanking: [
                 'desc(ratings.average)',

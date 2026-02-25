@@ -69,6 +69,11 @@ async function syncToolsToAlgolia() {
             status: tool.status,
             linkStatus: tool.linkStatus || 'unknown',
             isActive: tool.isActive !== false,
+            // Batch 2 enrichment
+            hasFreeTier: tool.hasFreeTier ?? null,
+            startingPrice: tool.startingPrice || null,
+            targetAudience: tool.targetAudience || null,
+            launchedAt: tool.launchedAt || null,
             createdAt: tool.createdAt,
         }))
 

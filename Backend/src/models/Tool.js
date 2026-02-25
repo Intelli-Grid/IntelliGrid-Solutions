@@ -145,6 +145,60 @@ const toolSchema = new mongoose.Schema(
             enum: ['manual', 'scraper', 'producthunt', 'twitter', 'hacker-news', 'submission', 'csv-import'],
             default: 'manual',
         },
+
+        // ── Batch 2 — Schema enrichment fields ──
+        affiliateUrl: {
+            // Monetisation: override officialUrl with tracked affiliate link
+            type: String,
+            trim: true,
+        },
+        pricingPageUrl: {
+            type: String,
+            trim: true,
+        },
+        targetAudience: {
+            // e.g. 'developers', 'marketers', 'designers'
+            type: String,
+            trim: true,
+            maxlength: 100,
+        },
+        launchedAt: {
+            // When the tool itself publicly launched (not when added to IntelliGrid)
+            type: Date,
+            default: null,
+        },
+        hasFreeTier: {
+            type: Boolean,
+            default: null,   // null = unknown, true/false = confirmed
+        },
+        startingPrice: {
+            // Human-readable string e.g. "$9/mo", "Free", "$0.001 / 1K tokens"
+            type: String,
+            trim: true,
+            maxlength: 50,
+        },
+        metaTitle: {
+            // Override auto-generated SEO title for this tool page
+            type: String,
+            trim: true,
+            maxlength: 70,
+        },
+        metaDescription: {
+            // Override auto-generated SEO description for this tool page
+            type: String,
+            trim: true,
+            maxlength: 160,
+        },
+        lastMetaUpdate: {
+            // Timestamp of last time metadata was refreshed (by scraper or admin)
+            type: Date,
+            default: null,
+        },
+        verifiedAt: {
+            // Timestamp when an admin manually verified this tool’s data
+            type: Date,
+            default: null,
+        },
     },
     {
         timestamps: true,

@@ -109,11 +109,11 @@ export default function ToolDetailsPage() {
     return (
         <div className="bg-gray-950 min-h-screen pb-24 text-white font-sans antialiased">
             <SEO
-                title={`${tool.name} - AI Tool Review & Pricing | IntelliGrid`}
-                description={tool.shortDescription}
+                title={tool.metaTitle || `${tool.name} - AI Tool Review & Pricing | IntelliGrid`}
+                description={tool.metaDescription || tool.shortDescription}
                 canonicalUrl={`https://www.intelligrid.online/tools/${tool.slug}`}
-                ogImage={tool.logo || 'https://www.intelligrid.online/og-image.png'}
-                ogType="website"
+                ogImage={tool.logo || tool.metadata?.logo || 'https://www.intelligrid.online/og-image.png'}
+                ogType="product"
                 structuredData={schemas}
             />
 
