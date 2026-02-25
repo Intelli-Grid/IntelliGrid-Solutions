@@ -117,13 +117,11 @@ router.put('/tools/:id/approve', async (req, res) => {
         })
 
         // Fire-and-forget tweet — runs AFTER response is sent
-        // Import lazily to avoid circular issues at startup
         import('../services/twitterService.js')
-            .then(({ tweetNewTool }) => {
-                // Populate category for tweet hashtag
-                const Tool = (await import('../models/Tool.js')).default
-                return Tool.findById(tool._id).populate('category', 'name').lean()
-                    .then(populated => populated && tweetNewTool(populated))
+            .then(async ({ tweetNewTool }) => {
+                const { default: ToolModel } = await import('../models/Tool.js')
+                const populated = await ToolModel.findById(tool._id).populate('category', 'name').lean()
+                if (populated) await tweetNewTool(populated)
             })
             .catch(err => console.error('[Approve] Tweet error (non-fatal):', err.message))
 
