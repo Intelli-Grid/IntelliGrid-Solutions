@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import { Star, X, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { reviewService } from '../../services'
+import { reviewService, analyticsService } from '../../services'
 import { useUser, SignInButton } from '@clerk/clerk-react'
 import { toast } from 'react-hot-toast'
 
@@ -39,6 +39,12 @@ export default function ReviewForm({ toolId, isOpen, onClose, onSuccess }) {
                 pros: prosList,
                 cons: consList
             })
+
+            // Fire analytics event — fire-and-forget
+            analyticsService.trackEvent({
+                eventType: 'review_submitted',
+                data: { toolId, rating },
+            }).catch(() => { })
 
             toast.success('Review submitted for approval!')
             onSuccess()
@@ -99,8 +105,8 @@ export default function ReviewForm({ toolId, isOpen, onClose, onSuccess }) {
                                         >
                                             <Star
                                                 className={`h-8 w-8 ${star <= (hoverRating || rating)
-                                                        ? 'fill-yellow-400 text-yellow-400'
-                                                        : 'text-gray-600'
+                                                    ? 'fill-yellow-400 text-yellow-400'
+                                                    : 'text-gray-600'
                                                     }`}
                                             />
                                         </button>

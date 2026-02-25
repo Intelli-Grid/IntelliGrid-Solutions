@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { toolService } from '../services'
+import { toolService, analyticsService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import SEO from '../components/common/SEO'
@@ -38,12 +38,20 @@ export default function ToolDetailsPage() {
 
                 // 2. Fetch related tools (if we have an ID)
                 if (toolData?._id) {
-                    toolService.incrementViews(toolData._id).catch(console.error)
+                    // Increment view counter (fire-and-forget)
+                    toolService.incrementViews(toolData._id).catch(() => { })
+
+                    // Track analytics event (fire-and-forget — auth optional, fails silently if not logged in)
+                    analyticsService.trackEvent({
+                        eventType: 'tool_view',
+                        data: { toolId: toolData._id, toolName: toolData.name, slug: toolData.slug },
+                    }).catch(() => { })
+
                     try {
                         const related = await toolService.getRelatedTools(toolData._id)
                         setRelatedTools(related.data || related)
                     } catch (relatedErr) {
-                        console.warn("Failed to load related tools", relatedErr);
+                        console.warn('Failed to load related tools', relatedErr)
                     }
                 }
 

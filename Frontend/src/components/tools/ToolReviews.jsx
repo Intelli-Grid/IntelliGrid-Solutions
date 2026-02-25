@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react'
-import { Star, CheckCircle, ThumbsUp, ThumbsDown, MessageSquarePlus, User, AlertCircle } from 'lucide-react'
+import { Star, CheckCircle, ThumbsUp, ThumbsDown, MessageSquarePlus, User, AlertCircle, X } from 'lucide-react'
 import { reviewService } from '../../services'
 import LoadingSpinner from '../common/LoadingSpinner'
 import ReviewForm from './ReviewForm'
@@ -12,6 +12,8 @@ export default function ToolReviews({ tool }) {
     const [error, setError] = useState(null)
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [stats, setStats] = useState({ average: 0, count: 0, distribution: {} })
+    // Shows the "pending approval" notice after a user submits a review
+    const [pendingReviewSubmitted, setPendingReviewSubmitted] = useState(false)
 
     const fetchReviews = async () => {
         try {
@@ -128,6 +130,26 @@ export default function ToolReviews({ tool }) {
                 </button>
             </div>
 
+            {/* Pending review notice — shown after user submits */}
+            {pendingReviewSubmitted && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                    <div>
+                        <p className="text-sm font-semibold text-amber-300">Your review is pending approval</p>
+                        <p className="mt-0.5 text-xs text-amber-400/70">
+                            Thank you! Our team will review it shortly. It will appear here once approved.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setPendingReviewSubmitted(false)}
+                        className="ml-auto shrink-0 text-amber-500/50 hover:text-amber-400 transition-colors"
+                        aria-label="Dismiss"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Reviews List */}
             {loading ? (
                 <div className="py-12 flex justify-center">
@@ -232,7 +254,11 @@ export default function ToolReviews({ tool }) {
                 toolId={tool._id}
                 isOpen={isFormOpen}
                 onClose={() => setIsFormOpen(false)}
-                onSuccess={fetchReviews}
+                onSuccess={() => {
+                    // Review is pending — don't re-fetch (it won't appear); just show notice
+                    setPendingReviewSubmitted(true)
+                    setIsFormOpen(false)
+                }}
             />
         </div>
     )

@@ -15,14 +15,11 @@ export default function Header() {
             <nav className="container mx-auto flex h-16 items-center justify-between px-4">
                 {/* Logo */}
                 <Link to="/" className="flex items-center space-x-2 group flex-shrink-0">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
-                            <rect x="11" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
-                            <rect x="1" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
-                            <rect x="11" y="11" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
-                        </svg>
-                    </div>
+                    <img
+                        src="/logo.png"
+                        alt="IntelliGrid Logo"
+                        className="h-8 w-8 rounded-lg object-cover shadow-lg transition-transform group-hover:scale-105"
+                    />
                     <span className="text-xl font-bold text-white group-hover:text-blue-300 transition-colors">IntelliGrid</span>
                 </Link>
 

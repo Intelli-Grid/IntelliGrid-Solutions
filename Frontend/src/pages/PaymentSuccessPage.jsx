@@ -47,9 +47,9 @@ export default function PaymentSuccessPage() {
                     response = await paymentService.verifyCashfreePayment(orderId)
                 }
 
-                console.log('Verification Response:', response)
 
                 // Check various success indicators
+
                 const isSuccess =
                     response.success === true ||
                     response.statusCode === 200 ||

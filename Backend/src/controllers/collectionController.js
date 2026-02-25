@@ -44,8 +44,7 @@ class CollectionController {
             try {
                 collection = await collectionService.getCollectionById(idOrSlug, req.user?._id)
             } catch (error) {
-                // If not found by ID (and it was a valid ID structure), fall through to check slug
-                // This covers the rare edge case where a slug matches ObjectId format
+                // If not found by ID, fall through to try slug
             }
         }
 
@@ -54,8 +53,15 @@ class CollectionController {
             collection = await collectionService.getCollectionBySlug(idOrSlug, req.user?._id)
         }
 
+        // Increment views counter — fire-and-forget (don't await)
+        if (collection?._id) {
+            const Collection = (await import('../models/Collection.js')).default
+            Collection.findByIdAndUpdate(collection._id, { $inc: { views: 1 } }).catch(() => { })
+        }
+
         res.status(200).json(new ApiResponse(200, collection, 'Collection retrieved successfully'))
     })
+
 
     /**
      * Update collection
