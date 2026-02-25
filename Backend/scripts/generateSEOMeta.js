@@ -28,14 +28,42 @@ dotenv.config({ path: path.join(__dirname, '../.env') })
 
 import connectDB from '../src/config/database.js'
 import Tool from '../src/models/Tool.js'
+import '../src/models/Category.js'   // register Category schema for populate
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
 const LIMIT = (() => { const a = args.find(a => a.startsWith('--limit')); return a ? parseInt(a.split('=')[1] || args[args.indexOf(a) + 1]) : 0 })()
 const FORCE = args.includes('--force')
 const DRY_RUN = args.includes('--dry-run')
-const CONCURRENCY = 8    // parallel GPT calls
-const GPT_MODEL = 'gpt-4o-mini'
+// ── Provider config — supports OpenAI and Groq (free) ────────────────────────
+// Priority: GROQ_API_KEY > OPENAI_API_KEY
+// Groq is free (no billing), uses same API format, just different URL + model
+const PROVIDERS = {
+    groq: {
+        name: 'Groq (llama-3.3-70b — FREE)',
+        apiUrl: 'https://api.groq.com/openai/v1/chat/completions',
+        model: 'llama-3.3-70b-versatile',
+        envKey: 'GROQ_API_KEY',
+        jsonMode: false,  // Groq: use prompt instruction instead of response_format
+    },
+    openai: {
+        name: 'OpenAI (gpt-4o-mini)',
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        model: 'gpt-4o-mini',
+        envKey: 'OPENAI_API_KEY',
+        jsonMode: true,
+    },
+}
+
+function detectProvider() {
+    if (process.env.GROQ_API_KEY) return { ...PROVIDERS.groq, key: process.env.GROQ_API_KEY }
+    if (process.env.OPENAI_API_KEY) return { ...PROVIDERS.openai, key: process.env.OPENAI_API_KEY }
+    return null
+}
+
+const PROVIDER = detectProvider()
+const GPT_MODEL = PROVIDER?.model || 'llama-3.3-70b-versatile'
+const CONCURRENCY = 3    // parallel GPT calls (conservative for rate limits)
 const REPORT_PATH = path.join(__dirname, `../reports/seo-meta-${Date.now()}.csv`)
 
 function pLimit(n) {
@@ -56,71 +84,89 @@ async function generateMeta(tool) {
     const existingDesc = tool.shortDescription || ''
     const currentPricing = tool.pricing || 'Unknown'
 
-    const prompt = `You are an SEO expert writing metadata for an AI tools directory website called IntelliGrid.
+    const userPrompt = `Tool: ${tool.name}
+Category: ${categoryName || 'AI Tool'}
+Pricing: ${currentPricing}${tool.startingPrice ? ` (from ${tool.startingPrice})` : ''}
+Description: "${existingDesc}"
 
-Tool Information:
-- Name: ${tool.name}
-- Category: ${categoryName || 'AI Tool'}
-- Pricing: ${currentPricing}${tool.startingPrice ? ` (starting at ${tool.startingPrice})` : ''}
-- Existing description: "${existingDesc}"
-- Official URL: ${tool.officialUrl || ''}
-
-Write the following. Be specific, benefit-driven, and avoid generic filler. Do NOT start with the tool name.
-
-Return ONLY valid JSON in this exact format:
-{
-  "metaTitle": "under 65 chars including brand | IntelliGrid suffix NOT needed",
-  "metaDescription": "under 155 chars — what problem it solves and who it's for. Include pricing hint if relevant.",
-  "shortDescription": "1-2 sentence plain English summary under 200 chars — only if the existing one is weak or missing, else return null"
-}`
+Write SEO metadata. Return ONLY a JSON object with these keys:
+- metaTitle: string under 65 chars (what the tool does, not just name)
+- metaDescription: string under 155 chars (problem solved + who it's for)
+- shortDescription: string under 200 chars or null if existing is already good`
 
     try {
-        const res = await axios.post(
-            'https://api.openai.com/v1/chat/completions',
-            {
-                model: GPT_MODEL,
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 300,
-                temperature: 0.4,
-                response_format: { type: 'json_object' },
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-                    'Content-Type': 'application/json',
-                },
-                timeout: 15000,
-            }
-        )
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 25000)
 
-        const raw = res.data.choices[0]?.message?.content
+        const body = {
+            model: GPT_MODEL,
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are an SEO expert for an AI tools directory. Always respond with valid json only.',
+                },
+                { role: 'user', content: userPrompt },
+            ],
+            max_tokens: 300,
+            temperature: 0.3,
+        }
+
+        // json_object mode: OpenAI supports it reliably; Groq uses prompt instruction
+        if (PROVIDER?.jsonMode) {
+            body.response_format = { type: 'json_object' }
+        }
+
+        const res = await fetch(PROVIDER.apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${PROVIDER.key}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+        })
+
+        clearTimeout(timer)
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            console.error(`  ❌ GPT ${res.status} for "${tool.name}": ${err.error?.message || res.statusText}`)
+            return null
+        }
+
+        const data = await res.json()
+        const raw = data.choices[0]?.message?.content
         const parsed = JSON.parse(raw)
+
         return {
-            metaTitle: parsed.metaTitle?.slice(0, 70) || null,
-            metaDescription: parsed.metaDescription?.slice(0, 160) || null,
-            shortDescription: parsed.shortDescription?.slice(0, 300) || null,
+            metaTitle: (parsed.metaTitle || '').slice(0, 70) || null,
+            metaDescription: (parsed.metaDescription || '').slice(0, 160) || null,
+            shortDescription: (parsed.shortDescription || '').slice(0, 300) || null,
         }
     } catch (err) {
-        if (err.response?.status === 429) {
-            // Rate limit — wait and retry once
-            await new Promise(r => setTimeout(r, 10000))
-            return generateMeta(tool)
+        if (err.name === 'AbortError') {
+            console.error(`  ⏱  Timeout for "${tool.name}" — skipping`)
+        } else {
+            console.error(`  ❌ GPT error for "${tool.name}": ${err.message}`)
         }
-        console.error(`  ❌ GPT error for "${tool.name}": ${err.message}`)
         return null
     }
 }
 
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
     console.log(`\n🔍 IntelliGrid SEO Meta Generator — Batch 5`)
+    console.log(`   Provider: ${PROVIDER.name}`)
     console.log(`   Model: ${GPT_MODEL} | Concurrency: ${CONCURRENCY}`)
     console.log(`   Mode: ${DRY_RUN ? 'DRY RUN (no writes)' : 'LIVE'} | Force: ${FORCE}`)
     if (LIMIT) console.log(`   Limit: ${LIMIT} tools`)
     console.log('─'.repeat(55))
 
-    if (!process.env.OPENAI_API_KEY) {
-        console.error('❌ OPENAI_API_KEY not set in .env — aborting')
+    if (!PROVIDER) {
+        console.error('❌ No AI provider key found in .env')
+        console.error('   Set GROQ_API_KEY (free) or OPENAI_API_KEY (paid)')
+        console.error('   Get a free Groq key at: https://console.groq.com')
         process.exit(1)
     }
 
