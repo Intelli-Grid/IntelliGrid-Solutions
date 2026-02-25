@@ -14,7 +14,7 @@ import algoliasearch from 'algoliasearch'
 const { default: connectDB } = await import('../src/config/database.js')
 const { toolsIndex, configureToolsIndex } = await import('../src/config/algolia.js')
 const { default: Tool } = await import('../src/models/Tool.js')
-
+await import('../src/models/Category.js')   // register Category schema for populate
 
 /**
  * Sync all tools to Algolia search index
