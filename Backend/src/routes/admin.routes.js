@@ -459,5 +459,73 @@ router.get('/system', async (req, res) => {
     }
 })
 
+import linkValidationService from '../services/linkValidationService.js'
+
+/**
+ * @route   GET /api/v1/admin/link-health
+ * @desc    Get link validation stats — live/dead/redirected counts, health rate
+ * @access  Admin only
+ */
+router.get('/link-health', async (req, res) => {
+    try {
+        const stats = await linkValidationService.getStats()
+        res.json({ success: true, linkHealth: stats })
+    } catch (error) {
+        console.error('Link health stats error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch link health stats' })
+    }
+})
+
+/**
+ * @route   GET /api/v1/admin/link-health/dead
+ * @desc    List soft-deleted (dead) tools for admin review before purge
+ * @access  Admin only
+ */
+router.get('/link-health/dead', async (req, res) => {
+    try {
+        const { page = 1, limit = 50 } = req.query
+        const skip = (parseInt(page) - 1) * parseInt(limit)
+
+        const [tools, total] = await Promise.all([
+            Tool.find({ linkStatus: 'dead', isActive: false })
+                .select('name slug officialUrl lastLinkCheck createdAt')
+                .sort({ lastLinkCheck: -1 })
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean(),
+            Tool.countDocuments({ linkStatus: 'dead', isActive: false }),
+        ])
+
+        res.json({
+            success: true,
+            tools,
+            pagination: { total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) },
+        })
+    } catch (error) {
+        console.error('Dead tools fetch error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch dead tools' })
+    }
+})
+
+/**
+ * @route   POST /api/v1/admin/link-health/restore/:id
+ * @desc    Restore a soft-deleted tool back to active (override if incorrectly flagged dead)
+ * @access  Admin only
+ */
+router.post('/link-health/restore/:id', async (req, res) => {
+    try {
+        const tool = await Tool.findByIdAndUpdate(
+            req.params.id,
+            { $set: { isActive: true, linkStatus: 'live', lastLinkCheck: new Date() } },
+            { new: true }
+        )
+        if (!tool) return res.status(404).json({ success: false, message: 'Tool not found' })
+        res.json({ success: true, message: `Tool "${tool.name}" restored to active`, tool })
+    } catch (error) {
+        console.error('Tool restore error:', error)
+        res.status(500).json({ success: false, message: 'Failed to restore tool' })
+    }
+})
+
 export default router
 

@@ -1,5 +1,6 @@
 import app from './app.js'
 import renewalService from './services/renewalService.js'
+import linkValidationService from './services/linkValidationService.js'
 
 // Start Server
 const PORT = process.env.PORT || 10000
@@ -18,6 +19,7 @@ app.listen(PORT, () => {
     console.log(`   - Analytics: /api/v1/analytics`)
     console.log(`   - Admin: /api/v1/admin`)
 
-    // Start Renewal Scheduler
+    // Start Schedulers
     renewalService.startScheduler()
+    linkValidationService.startScheduler()
 })
