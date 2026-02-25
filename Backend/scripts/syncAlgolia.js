@@ -30,9 +30,11 @@ async function syncToolsToAlgolia() {
         console.log('⚙️  Configuring Algolia index...')
         await configureToolsIndex()
 
-        // Get all active tools (status === 'active' only — skip junk/pending)
+        // Get all active tools — exclude soft-deleted (isActive: false)
         console.log('📊 Fetching tools from database...')
-        const tools = await Tool.find({ status: 'active' }).lean()
+        const tools = await Tool.find({ status: 'active', isActive: { $ne: false } })
+            .populate('category', 'name slug')
+            .lean()
         console.log(`✅ Found ${tools.length} active tools\n`)
 
         if (tools.length === 0) {
@@ -49,9 +51,11 @@ async function syncToolsToAlgolia() {
             shortDescription: tool.shortDescription,
             fullDescription: tool.fullDescription,
             officialUrl: tool.officialUrl || '',
-            // Image fields — logo shown in search results
+            // Image fields
             logo: tool.logo || tool.metadata?.logo || '',
-            category: tool.category?.toString() || null,
+            // Category — both ID (for faceting) and name (for search)
+            category: tool.category?._id?.toString() || null,
+            categoryName: tool.category?.name || null,
             tags: tool.tags || [],
             pricing: tool.pricing,
             ratings: {
@@ -63,6 +67,8 @@ async function syncToolsToAlgolia() {
             isFeatured: tool.isFeatured || false,
             isTrending: tool.isTrending || false,
             status: tool.status,
+            linkStatus: tool.linkStatus || 'unknown',
+            isActive: tool.isActive !== false,
             createdAt: tool.createdAt,
         }))
 

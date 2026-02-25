@@ -28,8 +28,8 @@ class ToolService {
 
         const skip = (page - 1) * limit
 
-        // Build query
-        const query = { status }
+        // Build query — always exclude soft-deleted tools
+        const query = { status, isActive: { $ne: false } }
 
         if (category) {
             if (mongoose.Types.ObjectId.isValid(category)) {
@@ -99,7 +99,7 @@ class ToolService {
      * Get tool by slug
      */
     async getToolBySlug(slug) {
-        const tool = await Tool.findOne({ slug, status: 'active' })
+        const tool = await Tool.findOne({ slug, status: 'active', isActive: { $ne: false } })
             .populate('category', 'name slug')
             .lean()
 
@@ -144,7 +144,7 @@ class ToolService {
      */
     async getTrendingTools(limit = 10) {
         // Get tools sorted by views (most popular)
-        const tools = await Tool.find({ status: 'active' })
+        const tools = await Tool.find({ status: 'active', isActive: { $ne: false } })
             .populate('category', 'name slug')
             .sort('-views -ratings.average')
             .limit(limit)
@@ -157,7 +157,7 @@ class ToolService {
      * Get featured tools
      */
     async getFeaturedTools(limit = 10) {
-        const tools = await Tool.find({ status: 'active', isFeatured: true })
+        const tools = await Tool.find({ status: 'active', isFeatured: true, isActive: { $ne: false } })
             .populate('category', 'name slug')
             .sort('-ratings.average -views')
             .limit(limit)
@@ -181,13 +181,13 @@ class ToolService {
         const skip = (page - 1) * limit
 
         const [tools, total] = await Promise.all([
-            Tool.find({ category: category._id, status: 'active' })
+            Tool.find({ category: category._id, status: 'active', isActive: { $ne: false } })
                 .populate('category', 'name slug')
                 .sort(sort)
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            Tool.countDocuments({ category: category._id, status: 'active' }),
+            Tool.countDocuments({ category: category._id, status: 'active', isActive: { $ne: false } }),
         ])
 
         return {
@@ -303,7 +303,8 @@ class ToolService {
         const relatedTools = await Tool.find({
             category: tool.category,
             _id: { $ne: tool._id },
-            status: 'active'
+            status: 'active',
+            isActive: { $ne: false },
         })
             .populate('category', 'name slug')
             .sort('-ratings.average -views')
@@ -322,7 +323,8 @@ class ToolService {
 
         const tools = await Tool.find({
             slug: { $in: slugs },
-            status: 'active'
+            status: 'active',
+            isActive: { $ne: false },
         })
             .populate('category', 'name slug')
             .lean()

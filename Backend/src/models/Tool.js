@@ -121,6 +121,30 @@ const toolSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
         },
+
+        // ── Link health & freshness (Batch 1 — added for validation pipeline) ──
+        linkStatus: {
+            type: String,
+            enum: ['live', 'dead', 'redirected', 'unknown'],
+            default: 'unknown',
+            index: true,
+        },
+        lastLinkCheck: {
+            type: Date,
+            default: null,
+        },
+        // isActive is the soft-delete flag. false = hidden from all public queries.
+        // Use this instead of hard-deleting until you are 100% sure a tool is gone.
+        isActive: {
+            type: Boolean,
+            default: true,
+            index: true,
+        },
+        sourceFoundBy: {
+            type: String,
+            enum: ['manual', 'scraper', 'producthunt', 'twitter', 'hacker-news', 'submission', 'csv-import'],
+            default: 'manual',
+        },
     },
     {
         timestamps: true,
@@ -140,10 +164,14 @@ toolSchema.pre('save', function (next) {
 // Indexes for search optimization
 toolSchema.index({ name: 'text', shortDescription: 'text', fullDescription: 'text' })
 toolSchema.index({ category: 1, status: 1 })
-toolSchema.index({ status: 1, isFeatured: 1 }) // Optimize featured active tools
-toolSchema.index({ status: 1, isTrending: 1 }) // Optimize trending active tools
-toolSchema.index({ status: 1, views: -1 }) // Optimize most viewed active tools
-toolSchema.index({ status: 1, createdAt: -1 }) // Optimize latest active tools
+toolSchema.index({ status: 1, isFeatured: 1 })          // featured active tools
+toolSchema.index({ status: 1, isTrending: 1 })          // trending active tools
+toolSchema.index({ status: 1, views: -1 })              // most viewed active tools
+toolSchema.index({ status: 1, createdAt: -1 })          // latest active tools
+// Batch 1 — link-validation pipeline indexes
+toolSchema.index({ isActive: 1, status: 1, createdAt: -1 }) // primary list query
+toolSchema.index({ linkStatus: 1, lastLinkCheck: 1 })        // stale-link cron query
+toolSchema.index({ isActive: 1, linkStatus: 1 })             // purge-dead-tools query
 
 /**
  * ✅ Cascade Delete Hook

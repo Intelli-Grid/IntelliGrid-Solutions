@@ -32,13 +32,16 @@ export const configureToolsIndex = async () => {
                 'shortDescription',
                 'fullDescription',
                 'tags',
+                'categoryName',       // Batch 1: enables category-name search
             ],
             attributesForFaceting: [
                 'category',
+                'categoryName',       // Batch 1: facet filter by category name
                 'pricing',
                 'isFeatured',
                 'isTrending',
                 'status',
+                'linkStatus',         // Batch 1: allows filtering dead tools
             ],
             customRanking: [
                 'desc(ratings.average)',
@@ -68,13 +71,20 @@ export const configureToolsIndex = async () => {
  */
 export const syncToolToAlgolia = async (tool) => {
     try {
+        // Resolve category name for searchable/facet attribute
+        const categoryName = tool.category?.name ||
+            (typeof tool.category === 'string' ? tool.category : null) ||
+            null
+
         await toolsIndex.saveObject({
             objectID: tool._id.toString(),
             name: tool.name,
             slug: tool.slug,
             shortDescription: tool.shortDescription,
             fullDescription: tool.fullDescription,
-            category: tool.category,
+            logo: tool.logo || tool.metadata?.logo || '',
+            category: tool.category?._id?.toString() || tool.category?.toString() || null,
+            categoryName,                   // Batch 1
             tags: tool.tags || [],
             pricing: tool.pricing,
             ratings: tool.ratings,
@@ -83,6 +93,8 @@ export const syncToolToAlgolia = async (tool) => {
             isFeatured: tool.isFeatured,
             isTrending: tool.isTrending,
             status: tool.status,
+            linkStatus: tool.linkStatus || 'unknown',   // Batch 1
+            isActive: tool.isActive !== false,           // Batch 1
         })
     } catch (error) {
         console.error('Failed to sync tool to Algolia:', error)
