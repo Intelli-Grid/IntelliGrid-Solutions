@@ -107,6 +107,14 @@ export const adminService = {
     createCoupon: (data) => apiClient.post('/coupons', data),
     updateCoupon: (id, data) => apiClient.patch(`/coupons/${id}`, data),
     deleteCoupon: (id) => apiClient.delete(`/coupons/${id}`),
+    // Batch 7 — Link Health
+    getLinkHealth: () => apiClient.get('/admin/link-health'),
+    getDeadTools: (params = {}) => apiClient.get('/admin/link-health/dead', { params }),
+    restoreTool: (id) => apiClient.post(`/admin/link-health/restore/${id}`),
+    // Batch 7 — Discovery Queue
+    getDiscoveryPending: (params = {}) => apiClient.get('/admin/discovery/pending', { params }),
+    triggerDiscovery: (daysBack = 1) => apiClient.post('/admin/discovery/trigger', { daysBack }),
+    discardDiscoveredTool: (id) => apiClient.delete(`/admin/discovery/discard/${id}`),
 }
 
 /**

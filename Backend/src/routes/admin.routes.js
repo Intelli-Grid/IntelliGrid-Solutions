@@ -105,6 +105,7 @@ router.put('/tools/:id/approve', async (req, res) => {
         // Use toolService.updateTool so Algolia gets the updated (active) status
         const tool = await toolService.updateTool(req.params.id, {
             status: 'active',
+            isActive: true,    // ensure soft-delete gate is lifted
             approvedAt: new Date(),
             approvedBy: req.user._id,
         })
@@ -114,6 +115,18 @@ router.put('/tools/:id/approve', async (req, res) => {
             message: 'Tool approved successfully',
             tool: { _id: tool._id, name: tool.name, status: tool.status }
         })
+
+        // Fire-and-forget tweet — runs AFTER response is sent
+        // Import lazily to avoid circular issues at startup
+        import('../services/twitterService.js')
+            .then(({ tweetNewTool }) => {
+                // Populate category for tweet hashtag
+                const Tool = (await import('../models/Tool.js')).default
+                return Tool.findById(tool._id).populate('category', 'name').lean()
+                    .then(populated => populated && tweetNewTool(populated))
+            })
+            .catch(err => console.error('[Approve] Tweet error (non-fatal):', err.message))
+
     } catch (error) {
         console.error('Tool approval error:', error)
         res.status(error.statusCode || 500).json({

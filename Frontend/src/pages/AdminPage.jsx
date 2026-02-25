@@ -25,6 +25,11 @@ import {
     ChevronRight,
     Crown,
     RefreshCw,
+    Wifi,
+    Radar,
+    RotateCcw,
+    AlertTriangle,
+    Zap,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import { adminService, toolService, submissionService, blogService, couponService } from '../services'
@@ -96,6 +101,8 @@ export default function AdminPage() {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'tools', label: 'Tools', icon: Package },
+        { id: 'link-health', label: 'Link Health', icon: Wifi },
+        { id: 'discovery', label: 'Discovery', icon: Radar },
         { id: 'claims', label: 'Claims', icon: ShieldCheck },
         { id: 'submissions', label: 'Submissions', icon: Plus },
         { id: 'blog', label: 'Blog', icon: TrendingUp },
@@ -178,6 +185,8 @@ export default function AdminPage() {
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                     {activeTab === 'overview' && <OverviewTab setActiveTab={setActiveTab} stats={stats} />}
                     {activeTab === 'tools' && <ToolsTab />}
+                    {activeTab === 'link-health' && <LinkHealthTab />}
+                    {activeTab === 'discovery' && <DiscoveryTab />}
                     {activeTab === 'claims' && <ClaimsTab />}
                     {activeTab === 'submissions' && <SubmissionsTab />}
                     {activeTab === 'blog' && <BlogAdminTab />}
@@ -1784,6 +1793,304 @@ function CouponsAdminTab() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Batch 7: Link Health Tab ──────────────────────────────────────────────────
+function LinkHealthTab() {
+    const [stats, setStats] = useState(null)
+    const [deadTools, setDeadTools] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [restoring, setRestoring] = useState(null)
+    const { toast } = useToast()
+
+    const load = async () => {
+        setLoading(true)
+        try {
+            const [healthData, deadData] = await Promise.all([
+                adminService.getLinkHealth(),
+                adminService.getDeadTools({ limit: 50 }),
+            ])
+            if (healthData?.success) setStats(healthData.linkHealth)
+            if (deadData?.success) setDeadTools(deadData.tools || [])
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load link health data', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { load() }, [])
+
+    const handleRestore = async (id, name) => {
+        setRestoring(id)
+        try {
+            await adminService.restoreTool(id)
+            toast({ title: 'Restored', description: `"${name}" is now active again` })
+            load()
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to restore tool', variant: 'destructive' })
+        } finally {
+            setRestoring(null)
+        }
+    }
+
+    if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>
+
+    const healthPct = stats ? parseFloat(stats.healthRate) : 0
+    const healthColor = healthPct >= 90 ? 'text-green-400' : healthPct >= 70 ? 'text-yellow-400' : 'text-red-400'
+    const barColor = healthPct >= 90 ? 'bg-green-500' : healthPct >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+
+    return (
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Link Health Monitor</h2>
+                <button onClick={load} className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-gray-400 hover:text-white transition">
+                    <RefreshCw className="h-4 w-4" /> Refresh
+                </button>
+            </div>
+
+            {/* Stats cards */}
+            {stats && (
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+                    {[
+                        { label: 'Total Active', value: stats.total, color: 'text-white', bg: 'bg-white/5' },
+                        { label: 'Live', value: stats.live, color: 'text-green-400', bg: 'bg-green-500/10' },
+                        { label: 'Redirected', value: stats.redirected, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                        { label: 'Unknown', value: stats.unknown, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+                        { label: 'Dead (hidden)', value: stats.dead, color: 'text-red-400', bg: 'bg-red-500/10' },
+                    ].map(s => (
+                        <div key={s.label} className={`rounded-lg border border-white/10 ${s.bg} p-4`}>
+                            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+                            <p className={`text-2xl font-bold ${s.color}`}>{s.value?.toLocaleString()}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Health rate bar */}
+            {stats && (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm text-gray-400">Overall Health Rate</p>
+                        <p className={`text-2xl font-bold ${healthColor}`}>{stats.healthRate}</p>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-white/10 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${healthPct}%` }} />
+                    </div>
+                    {stats.pendingPurge > 0 && (
+                        <p className="mt-3 flex items-center gap-2 text-xs text-amber-400">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            {stats.pendingPurge} tool(s) dead {'>'}7 days — eligible for hard-delete
+                            {stats.purgeEnabled ? ' (LINK_PURGE_ENABLED=true — daily auto-purge active)' : ' (set LINK_PURGE_ENABLED=true to enable auto-purge)'}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* Dead tools table */}
+            <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Dead Tools ({deadTools.length})</h3>
+                {deadTools.length === 0 ? (
+                    <div className="rounded-lg border border-white/10 bg-white/5 py-10 text-center text-gray-500">
+                        <Wifi className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                        <p>No dead tools — everything looks healthy!</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-white/5 text-xs uppercase text-gray-400">
+                                <tr>
+                                    <th className="px-4 py-3">Tool</th>
+                                    <th className="px-4 py-3">URL</th>
+                                    <th className="px-4 py-3">Last Checked</th>
+                                    <th className="px-4 py-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {deadTools.map(t => (
+                                    <tr key={t._id} className="hover:bg-white/5">
+                                        <td className="px-4 py-3 font-medium text-white">{t.name}</td>
+                                        <td className="px-4 py-3 max-w-[220px] truncate">
+                                            <a href={t.officialUrl} target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-purple-400 flex items-center gap-1">
+                                                {t.officialUrl} <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                            </a>
+                                        </td>
+                                        <td className="px-4 py-3 text-xs text-gray-500">
+                                            {t.lastLinkCheck ? new Date(t.lastLinkCheck).toLocaleDateString() : 'Never'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <button
+                                                onClick={() => handleRestore(t._id, t.name)}
+                                                disabled={restoring === t._id}
+                                                className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-500/15 text-green-400 hover:bg-green-500/25 disabled:opacity-50 transition"
+                                            >
+                                                <RotateCcw className="h-3 w-3" />
+                                                {restoring === t._id ? 'Restoring...' : 'Restore'}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ── Batch 7: Discovery Tab ────────────────────────────────────────────────────
+function DiscoveryTab() {
+    const [tools, setTools] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [triggering, setTriggering] = useState(false)
+    const [pagination, setPagination] = useState({ total: 0 })
+    const { toast } = useToast()
+
+    const load = async () => {
+        setLoading(true)
+        try {
+            const data = await adminService.getDiscoveryPending({ limit: 50 })
+            if (data?.success) {
+                setTools(data.tools || [])
+                setPagination(data.pagination || { total: 0 })
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load discovery queue', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { load() }, [])
+
+    const handleApprove = async (id) => {
+        try {
+            await adminService.approveTool(id)
+            toast({ title: '✅ Approved', description: 'Tool is now live and tweeted' })
+            load()
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to approve tool', variant: 'destructive' })
+        }
+    }
+
+    const handleDiscard = async (id, name) => {
+        if (!window.confirm(`Permanently discard "${name}"?`)) return
+        try {
+            await adminService.discardDiscoveredTool(id)
+            toast({ title: 'Discarded', description: `"${name}" removed from queue` })
+            load()
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to discard tool', variant: 'destructive' })
+        }
+    }
+
+    const handleTrigger = async () => {
+        setTriggering(true)
+        try {
+            const data = await adminService.triggerDiscovery(1)
+            toast({ title: '🔍 Discovery Started', description: data?.message || 'Check back in 1–2 min' })
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to trigger discovery', variant: 'destructive' })
+        } finally {
+            setTimeout(() => setTriggering(false), 3000)
+        }
+    }
+
+    const SOURCE_BADGE = {
+        producthunt: { label: 'Product Hunt', color: 'bg-orange-500/20 text-orange-400' },
+        scraper: { label: 'Scraper', color: 'bg-blue-500/20 text-blue-400' },
+        'hacker-news': { label: 'Hacker News', color: 'bg-amber-500/20 text-amber-400' },
+        twitter: { label: 'Twitter/X', color: 'bg-sky-500/20 text-sky-400' },
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white">Discovery Queue</h2>
+                    <p className="text-sm text-gray-500 mt-1">{pagination.total} tools awaiting your review</p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={load} className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-gray-400 hover:text-white transition">
+                        <RefreshCw className="h-4 w-4" /> Refresh
+                    </button>
+                    <button
+                        onClick={handleTrigger}
+                        disabled={triggering}
+                        className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-1.5 text-sm text-white hover:bg-purple-700 disabled:opacity-60 transition"
+                    >
+                        <Zap className="h-4 w-4" />
+                        {triggering ? 'Running...' : 'Trigger Discovery'}
+                    </button>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-16"><LoadingSpinner /></div>
+            ) : tools.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 py-14 text-center">
+                    <Radar className="h-12 w-12 mx-auto mb-4 text-gray-600" />
+                    <p className="text-gray-400 font-medium">No auto-discovered tools pending review</p>
+                    <p className="text-sm text-gray-600 mt-1">Click "Trigger Discovery" to run a manual fetch from Product Hunt</p>
+                </div>
+            ) : (
+                <div className="grid gap-4">
+                    {tools.map(tool => {
+                        const badge = SOURCE_BADGE[tool.sourceFoundBy] || { label: tool.sourceFoundBy, color: 'bg-white/10 text-gray-400' }
+                        return (
+                            <div key={tool._id} className="flex items-start gap-4 rounded-lg border border-white/10 bg-white/5 p-4 hover:border-white/20 transition">
+                                {/* Logo */}
+                                <div className="flex-shrink-0 h-12 w-12 rounded-lg bg-white/10 overflow-hidden flex items-center justify-center">
+                                    {tool.logo
+                                        ? <img src={tool.logo} alt={tool.name} className="h-full w-full object-contain" onError={e => e.target.style.display = 'none'} />
+                                        : <Package className="h-6 w-6 text-gray-500" />
+                                    }
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-semibold text-white">{tool.name}</h3>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
+                                        {tool.pricing && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">{tool.pricing}</span>}
+                                    </div>
+                                    <p className="text-sm text-gray-400 mt-0.5 line-clamp-2">{tool.shortDescription}</p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <a href={tool.officialUrl} target="_blank" rel="noreferrer" className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                                            Visit site <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        {tool.sourceUrl && (
+                                            <a href={tool.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1">
+                                                Source <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                        <span className="text-xs text-gray-600">{new Date(tool.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex flex-col gap-2 flex-shrink-0">
+                                    <button
+                                        onClick={() => handleApprove(tool._id)}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm font-medium transition"
+                                    >
+                                        <Check className="h-4 w-4" /> Approve
+                                    </button>
+                                    <button
+                                        onClick={() => handleDiscard(tool._id, tool.name)}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm font-medium transition"
+                                    >
+                                        <X className="h-4 w-4" /> Discard
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>
