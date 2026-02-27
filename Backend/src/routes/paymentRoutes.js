@@ -50,9 +50,22 @@ router.post(
     paymentController.verifyCashfreePayment
 )
 
-// Webhook routes (no authentication — verified by signature)
-router.post('/webhooks/paypal', paymentController.paypalWebhook)
+// ── Webhook routes (no authentication — verified by signature) ───────────────
+// BUG-14 fix: Both PayPal and Cashfree signature verification requires the RAW
+// body bytes. Express's global express.json() parses + re-serialises the body,
+// which can alter byte ordering and breaks HMAC/signature checks.
+// express.raw() captures the exact bytes PayPal/Cashfree signed, making
+// verification reliable. We parse it manually in the controller.
+router.post(
+    '/webhooks/paypal',
+    express.raw({ type: 'application/json' }),
+    paymentController.paypalWebhook
+)
 
-router.post('/webhooks/cashfree', paymentController.cashfreeWebhook)
+router.post(
+    '/webhooks/cashfree',
+    express.raw({ type: 'application/json' }),
+    paymentController.cashfreeWebhook
+)
 
 export default router

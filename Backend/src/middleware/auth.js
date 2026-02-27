@@ -6,10 +6,14 @@ import User from '../models/User.js'
 
 /**
  * Verify Clerk JWT and authenticate user
+ *
+ * BUG-10 fix: Removed clerkClient.users.getUser() from the hot path.
+ * Clerk JWTs already contain `sub` (clerkId) — we use it directly for a DB lookup.
+ * The Clerk API call is only made when we need to CREATE a new user record,
+ * which is a one-time occurrence per user, not on every request.
  */
 export const requireAuth = asyncHandler(async (req, res, next) => {
     try {
-        // Get token from Authorization header
         const authHeader = req.headers.authorization
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,9 +22,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 
         const token = authHeader.split(' ')[1]
 
-        // Verify token with Clerk
-        // authorizedParties must include every origin where a Clerk token can be issued.
-        // This covers the main site, the admin subdomain, and local dev.
+        // Verify token with Clerk (local JWKS verification — no network call)
         const authorizedParties = [
             'https://www.intelligrid.online',
             'https://intelligrid.online',
@@ -35,18 +37,16 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
             throw ApiError.unauthorized('Invalid token')
         }
 
-        // Get user from Clerk
-        const clerkUser = await clerkClient.users.getUser(session.sub)
-
-        if (!clerkUser) {
-            throw ApiError.unauthorized('User not found')
-        }
-
-        // Find or create user in database
-        let user = await User.findOne({ clerkId: clerkUser.id })
+        // Try to find user in our DB by clerkId (JWT sub claim)
+        let user = await User.findOne({ clerkId: session.sub })
 
         if (!user) {
-            // Create user if doesn't exist
+            // First time this Clerk user hits our API — fetch their profile once
+            // to populate firstName, lastName, email, avatar in the DB.
+            const clerkUser = await clerkClient.users.getUser(session.sub)
+            if (!clerkUser) {
+                throw ApiError.unauthorized('User not found in Clerk')
+            }
             user = await User.create({
                 clerkId: clerkUser.id,
                 email: clerkUser.emailAddresses[0]?.emailAddress,
@@ -56,9 +56,8 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
             })
         }
 
-        // Attach user to request
+        // Attach MongoDB user to request — avoid attaching clerkUser to not leak data
         req.user = user
-        req.clerkUser = clerkUser
 
         next()
     } catch (error) {
@@ -107,6 +106,7 @@ export const requireAdmin = asyncHandler(async (req, res, next) => {
 
 /**
  * Optional authentication (doesn't throw error if no token)
+ * BUG-10 fix: Same as requireAuth — removed Clerk API call from the hot path.
  */
 export const optionalAuth = asyncHandler(async (req, res, next) => {
     try {
@@ -125,12 +125,10 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
             const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties })
 
             if (session) {
-                const clerkUser = await clerkClient.users.getUser(session.sub)
-                const user = await User.findOne({ clerkId: clerkUser.id })
-
+                // DB-only lookup — no Clerk API call on the hot path
+                const user = await User.findOne({ clerkId: session.sub })
                 if (user) {
                     req.user = user
-                    req.clerkUser = clerkUser
                 }
             }
         }

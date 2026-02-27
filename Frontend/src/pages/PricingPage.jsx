@@ -134,6 +134,8 @@ export default function PricingPage() {
                 const result = response?.data || response
 
                 if (result?.approveUrl) {
+                    // BUG-15 fix: store plan so PaymentSuccessPage can log correct GA4 value
+                    sessionStorage.setItem('pendingPlan', planId)
                     // Redirect user to PayPal approval page — after approval,
                     // PayPal sends BILLING.SUBSCRIPTION.ACTIVATED webhook to activate the account
                     window.location.href = result.approveUrl

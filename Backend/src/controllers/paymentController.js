@@ -223,10 +223,22 @@ class PaymentController {
     /**
      * PayPal Webhook Handler
      * POST /api/v1/payment/webhooks/paypal
-     * ✅ Bug #2a Fix: now performs real signature verification before processing
+     * BUG-14 fix: express.raw() applied in paymentRoutes.js — req.body is a Buffer.
+     * Raw string passed to verifyPayPalWebhook so signature is checked against
+     * the exact bytes PayPal signed, not a re-serialised JS object.
      */
     paypalWebhook = asyncHandler(async (req, res) => {
-        const eventType = req.body.event_type || 'UNKNOWN'
+        // express.raw() gives us a Buffer — parse it ourselves
+        const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body)
+        let parsedBody
+        try {
+            parsedBody = JSON.parse(rawBody)
+        } catch {
+            console.error('❌ PayPal webhook: invalid JSON body')
+            return res.status(400).json({ error: 'Invalid JSON body' })
+        }
+
+        const eventType = parsedBody.event_type || 'UNKNOWN'
         const transmissionId = req.headers['paypal-transmission-id']
 
         // ── Deduplication: prevent double-processing the same webhook ───────
@@ -242,21 +254,20 @@ class PaymentController {
         const log = await WebhookLog.create({
             source: 'paypal',
             eventType,
-            payload: req.body,
+            payload: parsedBody,
             headers: req.headers,
             status: 'received',
         })
 
-        // ── Verify signature ─────────────────────────────────────────────────
-        const isValid = await verifyPayPalWebhook(req.headers, req.body)
+        // ── Verify signature using raw string (exact bytes PayPal signed) ────
+        const isValid = await verifyPayPalWebhook(req.headers, rawBody)
         if (!isValid) {
             await WebhookLog.findByIdAndUpdate(log._id, { status: 'signature_failed' })
             console.error(`❌ PayPal webhook signature failed for event: ${eventType}`)
-            // Return 200 to stop PayPal retrying — but don't process
             return res.status(200).json({ received: true, verified: false })
         }
 
-        const { event_type, resource } = req.body
+        const { event_type, resource } = parsedBody
 
         try {
             switch (event_type) {
@@ -435,19 +446,30 @@ class PaymentController {
     /**
      * Cashfree Webhook Handler
      * POST /api/v1/payment/webhooks/cashfree
-     * ✅ Bug #2b Fix: now performs real HMAC-SHA256 signature verification
+     * BUG-14 fix: express.raw() applied in paymentRoutes.js — req.body is a Buffer.
+     * BUG-13 fix: idempotency guard uses cf_payment_id against processed WebhookLogs.
      */
     cashfreeWebhook = asyncHandler(async (req, res) => {
-        const eventType = req.body.type || 'UNKNOWN'
+        // express.raw() gives us a Buffer — parse it ourselves
+        const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body)
+        let parsedBody
+        try {
+            parsedBody = JSON.parse(rawBody)
+        } catch {
+            console.error('❌ Cashfree webhook: invalid JSON body')
+            return res.status(400).json({ error: 'Invalid JSON body' })
+        }
+
+        const eventType = parsedBody.type || 'UNKNOWN'
 
         // Handle test webhooks from Cashfree dashboard
-        if (!req.body.type || req.body.test === true) {
+        if (!parsedBody.type || parsedBody.test === true) {
             console.log('✅ Cashfree test webhook received')
             return res.status(200).json({ received: true, message: 'Test webhook accepted' })
         }
 
-        // ── Deduplication: use Cashfree's cf_payment_id ─────────────────────
-        const cfPaymentId = req.body.data?.payment?.cf_payment_id?.toString()
+        // ── Deduplication (BUG-13 fix): use Cashfree's cf_payment_id ────────
+        const cfPaymentId = parsedBody.data?.payment?.cf_payment_id?.toString()
         if (cfPaymentId) {
             const existing = await WebhookLog.findOne({
                 source: 'cashfree',
@@ -464,15 +486,14 @@ class PaymentController {
         const log = await WebhookLog.create({
             source: 'cashfree',
             eventType,
-            payload: req.body,
+            payload: parsedBody,
             headers: req.headers,
             status: 'received',
         })
 
-        // ── Verify signature ─────────────────────────────────────────────────
+        // ── Verify HMAC-SHA256 signature using raw body string ───────────────
         const signature = req.headers['x-webhook-signature']
         const timestamp = req.headers['x-webhook-timestamp']
-        const rawBody = JSON.stringify(req.body)
 
         const isValid = verifyCashfreeWebhook(signature, timestamp, rawBody)
         if (!isValid) {
@@ -481,7 +502,7 @@ class PaymentController {
             return res.status(200).json({ received: true, verified: false })
         }
 
-        const { type, data } = req.body
+        const { type, data } = parsedBody
 
         try {
             switch (type) {

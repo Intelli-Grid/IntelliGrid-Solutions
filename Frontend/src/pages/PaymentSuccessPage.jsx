@@ -43,10 +43,17 @@ export default function PaymentSuccessPage() {
                         return
                     }
 
+                    // BUG-15 fix: read actual plan price from sessionStorage
+                    // (stored in PricingPage before PayPal redirect)
+                    const PLAN_PRICES = { pro_monthly: 9.99, pro_yearly: 99.99, basic_monthly: 4.99, basic_yearly: 49.99 }
+                    const pendingPlan = sessionStorage.getItem('pendingPlan') || 'pro_monthly'
+                    const purchaseValue = PLAN_PRICES[pendingPlan] || 9.99
+                    sessionStorage.removeItem('pendingPlan')
+
                     // Track subscription start event in GA4
                     logEvent('purchase', {
                         transaction_id: subscriptionId || baToken || 'paypal-sub',
-                        value: 9.99,
+                        value: purchaseValue,
                         currency: 'USD',
                     })
 
