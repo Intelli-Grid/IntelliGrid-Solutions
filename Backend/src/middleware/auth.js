@@ -77,7 +77,7 @@ export const requirePremium = asyncHandler(async (req, res, next) => {
         throw ApiError.unauthorized('Authentication required')
     }
 
-    const premiumTiers = ['Premium', 'Enterprise']
+    const premiumTiers = ['Basic', 'Premium', 'Enterprise']
 
     if (!premiumTiers.includes(req.user.subscription.tier)) {
         throw ApiError.forbidden('Premium subscription required')

@@ -35,7 +35,7 @@ import blogRoutes from './routes/blogRoutes.js'
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express()
 
-console.log(`🚀 INTELLIGRID BACKEND v2.2 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
+console.log(`🚀 INTELLIGRID BACKEND v2.3.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
 console.log(`   PayPal mode: ${process.env.PAYPAL_MODE || 'sandbox'} | Cashfree env: ${process.env.CASHFREE_ENV || 'TEST'}`)
 
 // Trust proxy (Railway sits behind a proxy layer)

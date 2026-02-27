@@ -106,8 +106,10 @@ export const adminService = {
     sendInvitation: (id, data = {}) => apiClient.post(`/admin/tools/${id}/invite`, data),
     updateTool: (id, data) => apiClient.put(`/tools/${id}`, data),
     getUsers: (params = {}) => apiClient.get('/admin/users', { params }),
-    overrideSubscription: (userId, action, tier = 'Premium', duration = 'monthly') =>
-        apiClient.post(`/admin/users/${userId}/subscription`, { action, tier, duration }),
+    // BUG-02 fix: backend expects { tier, status, startDate, endDate, autoRenew }
+    // old signature was { action, tier, duration } which the backend never consumed
+    overrideSubscription: (userId, data) =>
+        apiClient.post(`/admin/users/${userId}/subscription`, data),
     getRevenueAnalytics: (days = 30) => apiClient.get(`/analytics/revenue?days=${days}`),
     // Blog
     getAllBlogPosts: (params = {}) => apiClient.get('/blog/admin/all', { params }),

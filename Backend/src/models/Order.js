@@ -15,7 +15,8 @@ const orderSchema = new mongoose.Schema(
         subscription: {
             tier: {
                 type: String,
-                enum: ['free', 'pro'],
+                // All plan tiers used by paymentController PLAN_MAP
+                enum: ['free', 'basic', 'pro', 'enterprise', 'Basic', 'Premium', 'Enterprise', 'Free'],
                 required: true,
             },
             duration: {
@@ -39,7 +40,8 @@ const orderSchema = new mongoose.Schema(
         },
         paymentGateway: {
             type: String,
-            enum: ['paypal', 'cashfree'],
+            // admin_override = subscription set via admin panel without payment
+            enum: ['paypal', 'cashfree', 'admin_override'],
             required: true,
         },
         paymentDetails: {

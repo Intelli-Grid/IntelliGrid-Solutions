@@ -84,7 +84,7 @@ export const getRevenueAnalytics = async (req, res) => {
         })
             .sort({ createdAt: -1 })
             .limit(10)
-            .populate('user', 'email name')
+            .populate('user', 'email firstName lastName')
             .lean()
 
         // 4. Calculate Payment Success Rate
@@ -129,7 +129,10 @@ export const getRevenueAnalytics = async (req, res) => {
                 id: order._id,
                 date: order.createdAt,
                 userEmail: order.user ? order.user.email : 'Deleted User',
-                userName: order.user ? order.user.name : 'Unknown',
+                // BUG-20 fix: User model has firstName+lastName, not name
+                userName: order.user
+                    ? (`${order.user.firstName || ''} ${order.user.lastName || ''}`).trim() || order.user.email
+                    : 'Deleted User',
                 plan: order.subscription?.tier || 'Pro',
                 amount: order.amount?.total || 0,
                 status: order.status,

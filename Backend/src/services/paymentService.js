@@ -247,10 +247,12 @@ class PaymentService {
                 }
             }
 
-            const paymentSessionId = response.data.payment_session_id
-            const orderId = response.data.order_id
-            const cashfreeBase = getCashfreeBaseUrl()
-            const checkoutUrl = `${cashfreeBase}/pay/${paymentSessionId}`
+            // ✅ BUG-07 fix: Cashfree checkout URL uses payment checkout domain,
+            // NOT the API base URL. getCashfreeBaseUrl() returns the API endpoint.
+            const checkoutBase = process.env.CASHFREE_ENV === 'PROD'
+                ? 'https://checkout.cashfree.com/pg'
+                : 'https://sandbox.cashfree.com/pg'
+            const checkoutUrl = `${checkoutBase}/pay/${paymentSessionId}`
 
             return {
                 orderId,
@@ -278,7 +280,6 @@ class PaymentService {
 
             const paymentStatus = response.data.order_status
 
-            // Update order in database
             // Update order in database
             const order = await Order.findOneAndUpdate(
                 { orderId },

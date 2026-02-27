@@ -9,6 +9,28 @@ import ApiResponse from '../utils/ApiResponse.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
 
+// ── Module-level constants (BUG-11 fix: was copy-pasted 3x) ─────────────────────
+// Maps our plan keys to { tier, duration } — used by create-order + create-subscription routes
+const PLAN_MAP = {
+    'pro_monthly': { tier: 'pro', duration: 'monthly' },
+    'pro_yearly': { tier: 'pro', duration: 'yearly' },
+    'basic_monthly': { tier: 'basic', duration: 'monthly' },
+    'basic_yearly': { tier: 'basic', duration: 'yearly' },
+    'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
+    'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
+}
+
+// Maps PayPal Billing Plan IDs (from env vars) back to { tier, duration }
+// Used in webhook handlers to determine what plan was being billed
+const getPlanIdMap = () => ({
+    [process.env.PAYPAL_PLAN_BASIC_MONTHLY]: { tier: 'basic', duration: 'monthly' },
+    [process.env.PAYPAL_PLAN_BASIC_YEARLY]: { tier: 'basic', duration: 'yearly' },
+    [process.env.PAYPAL_PLAN_PRO_MONTHLY]: { tier: 'pro', duration: 'monthly' },
+    [process.env.PAYPAL_PLAN_PRO_YEARLY]: { tier: 'pro', duration: 'yearly' },
+    [process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY]: { tier: 'enterprise', duration: 'monthly' },
+    [process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY]: { tier: 'enterprise', duration: 'yearly' },
+})
+
 /**
  * Resolve and validate a coupon code at order-creation time.
  * Returns coupon metadata (discountType, discountValue, maxDiscount, couponId)
@@ -57,16 +79,7 @@ class PaymentController {
     createPayPalOrder = asyncHandler(async (req, res) => {
         const { plan, couponCode } = req.body
 
-        // Map all purchasable plan IDs to { tier, duration }
-        const PLAN_MAP = {
-            'pro_monthly': { tier: 'pro', duration: 'monthly' },
-            'pro_yearly': { tier: 'pro', duration: 'yearly' },
-            'basic_monthly': { tier: 'basic', duration: 'monthly' },
-            'basic_yearly': { tier: 'basic', duration: 'yearly' },
-            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
-            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
-        }
-
+        // Uses module-level PLAN_MAP constant
         const planData = PLAN_MAP[plan]
         if (!planData) throw ApiError.badRequest('Invalid plan selected')
         const { tier, duration } = planData
@@ -106,16 +119,6 @@ class PaymentController {
     createPayPalSubscription = asyncHandler(async (req, res) => {
         const { plan } = req.body
 
-        // Same plan map as one-time orders
-        const PLAN_MAP = {
-            'pro_monthly': { tier: 'pro', duration: 'monthly' },
-            'pro_yearly': { tier: 'pro', duration: 'yearly' },
-            'basic_monthly': { tier: 'basic', duration: 'monthly' },
-            'basic_yearly': { tier: 'basic', duration: 'yearly' },
-            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
-            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
-        }
-
         const planData = PLAN_MAP[plan]
         if (!planData) throw ApiError.badRequest('Invalid plan selected')
 
@@ -148,16 +151,7 @@ class PaymentController {
     createCashfreeOrder = asyncHandler(async (req, res) => {
         const { plan, couponCode } = req.body
 
-        // Map all purchasable plan IDs to { tier, duration }
-        const PLAN_MAP = {
-            'pro_monthly': { tier: 'pro', duration: 'monthly' },
-            'pro_yearly': { tier: 'pro', duration: 'yearly' },
-            'basic_monthly': { tier: 'basic', duration: 'monthly' },
-            'basic_yearly': { tier: 'basic', duration: 'yearly' },
-            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
-            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
-        }
-
+        // Uses module-level PLAN_MAP constant
         const planData = PLAN_MAP[plan]
         if (!planData) throw ApiError.badRequest('Invalid plan selected')
         const { tier, duration } = planData
@@ -274,33 +268,23 @@ class PaymentController {
                     const isSubscriptionPayment = !!resource.billing_agreement_id
 
                     if (isSubscriptionPayment) {
-                        // Subscription payment confirmed — extend endDate by billing cycle
+                        // Subscription payment confirmed — activate using plan_id reverse map
+                        // (BUG-04 fix: was using unreliable timing-window heuristic)
                         const subscriptionId = resource.billing_agreement_id
                         const user = await User.findOne({ 'subscription.paypalSubscriptionId': subscriptionId })
 
                         if (user) {
-                            // Fetch subscription details from PayPal to get billing cycle
+                            // Fetch subscription from PayPal to get the plan_id
                             let subDetails = null
                             try { subDetails = await getPayPalSubscription(subscriptionId) } catch (_) { /* non-fatal */ }
 
-                            // Determine cycle length from existing sub data
-                            const isYearly = subDetails?.billing_info?.cycle_executions
-                                ?.some(c => c.tenure_type === 'REGULAR' && c.sequence === 1)
-                                ? (subDetails.billing_info.next_billing_time &&
-                                    new Date(subDetails.billing_info.next_billing_time) - new Date() > 35 * 24 * 60 * 60 * 1000)
-                                : false
+                            // Use plan_id reverse map — same reliable approach as BILLING.SUBSCRIPTION.RENEWED
+                            const PLAN_ID_MAP = getPlanIdMap()
+                            const planData = (subDetails?.plan_id && PLAN_ID_MAP[subDetails.plan_id])
+                                || { tier: 'pro', duration: 'monthly' }  // safe fallback
 
-                            const newEndDate = new Date()
-                            if (isYearly) newEndDate.setFullYear(newEndDate.getFullYear() + 1)
-                            else newEndDate.setMonth(newEndDate.getMonth() + 1)
-
-                            await User.findByIdAndUpdate(user._id, {
-                                'subscription.status': 'active',
-                                'subscription.startDate': new Date(),
-                                'subscription.endDate': newEndDate,
-                                'subscription.autoRenew': true,
-                            })
-                            console.log(`🔄 Subscription renewed for ${user.email} until ${newEndDate.toISOString()}`)
+                            await paymentService.activateSubscription(user._id, planData, subscriptionId)
+                            console.log(`🔄 Subscription payment extended for ${user.email} — plan: ${planData.tier}/${planData.duration}`)
                         } else {
                             console.warn(`⚠️  PAYMENT.SALE.COMPLETED: no user found for subscription ${subscriptionId}`)
                         }
@@ -329,14 +313,7 @@ class PaymentController {
                     if (userId) {
                         // Determine tier/duration from the plan_id of the activated subscription
                         // Look up User to infer plan from plan_id → env var reverse map
-                        const PLAN_ID_MAP = {
-                            [process.env.PAYPAL_PLAN_BASIC_MONTHLY]: { tier: 'basic', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_BASIC_YEARLY]: { tier: 'basic', duration: 'yearly' },
-                            [process.env.PAYPAL_PLAN_PRO_MONTHLY]: { tier: 'pro', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_PRO_YEARLY]: { tier: 'pro', duration: 'yearly' },
-                            [process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY]: { tier: 'enterprise', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY]: { tier: 'enterprise', duration: 'yearly' },
-                        }
+                        const PLAN_ID_MAP = getPlanIdMap()
                         const planData = PLAN_ID_MAP[resource.plan_id] || { tier: 'pro', duration: 'monthly' }
 
                         await paymentService.activateSubscription(userId, planData, subscriptionId)
@@ -362,22 +339,14 @@ class PaymentController {
                 }
 
                 case 'BILLING.SUBSCRIPTION.RENEWED': {
-                    // PayPal auto-renewed — same as PAYMENT.SALE.COMPLETED for subscriptions
-                    // but more explicit. Extend the user's endDate.
+                    // PayPal auto-renewed — extend the user's endDate using plan_id reverse map
                     const subscriptionId = resource.id
                     const userId = resource.custom_id
 
                     console.log(`🔄 PayPal subscription renewed: ${subscriptionId}`)
 
                     if (userId) {
-                        const PLAN_ID_MAP = {
-                            [process.env.PAYPAL_PLAN_BASIC_MONTHLY]: { tier: 'basic', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_BASIC_YEARLY]: { tier: 'basic', duration: 'yearly' },
-                            [process.env.PAYPAL_PLAN_PRO_MONTHLY]: { tier: 'pro', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_PRO_YEARLY]: { tier: 'pro', duration: 'yearly' },
-                            [process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY]: { tier: 'enterprise', duration: 'monthly' },
-                            [process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY]: { tier: 'enterprise', duration: 'yearly' },
-                        }
+                        const PLAN_ID_MAP = getPlanIdMap()
                         const planData = PLAN_ID_MAP[resource.plan_id] || { tier: 'pro', duration: 'monthly' }
                         await paymentService.activateSubscription(userId, planData, subscriptionId)
                     }
@@ -422,13 +391,6 @@ class PaymentController {
                             'subscription.paypalSubscriptionId': null,
                         })
                         console.log(`↩️  User ${userId} subscription marked cancelled`)
-                    } else if (resource.custom_id) {
-                        // Legacy fallback — old one-time order flow used custom for userId
-                        await User.findByIdAndUpdate(resource.custom_id, {
-                            'subscription.tier': 'Free',
-                            'subscription.status': 'cancelled',
-                            'subscription.autoRenew': false,
-                        })
                     }
                     break
                 }
