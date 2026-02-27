@@ -10,90 +10,77 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '../.env') })
 
-const BASE_URL = process.env.FRONTEND_URL || 'https://intelligrid.online'
-// Output to Frontend/public/sitemap.xml
-// Assuming script is in Backend/scripts/
+const BASE_URL = 'https://www.intelligrid.online'
 const OUTPUT_PATH = path.join(__dirname, '../../Frontend/public/sitemap.xml')
 
-// Connect DB
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('DB Connected'))
+    .then(() => console.log('✅ DB Connected'))
     .catch(err => {
-        console.error('DB Connection Error:', err)
+        console.error('❌ DB Connection Error:', err)
         process.exit(1)
     })
 
 const generateSitemap = async () => {
     try {
-        console.log('Generating sitemap...')
+        console.log('🗺️  Generating sitemap...')
 
-        // Ensure directory exists
         const dir = path.dirname(OUTPUT_PATH)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
+        // ✅ FIXED: status:'active' (not 'published') is the correct enum value
+        // ✅ FIXED: isActive field is missing on most docs — use $ne:false to
+        //    include tools where isActive is true OR missing/null (bulk-imported tools)
         const [tools, categories] = await Promise.all([
-            Tool.find({ status: 'published', isActive: true }).select('slug updatedAt'),
-            Category.find({ isActive: true }).select('slug updatedAt')
+            Tool.find({ status: 'active', isActive: { $ne: false } }).select('slug updatedAt').lean(),
+            Category.find({ isActive: { $ne: false } }).select('slug updatedAt').lean()
         ])
 
-        console.log(`Found ${tools.length} active tools and ${categories.length} categories.`)
+        console.log(`   Found ${tools.length} tools, ${categories.length} categories`)
 
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
+        const now = new Date().toISOString()
 
-        // Static Pages
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
+
+        // ── Static pages ────────────────────────────────────────────────────────
         const staticPages = [
-            '',
-            '/tools',
-            '/pricing',
-            '/privacy-policy',
-            '/terms-of-service',
-            '/refund-policy',
-            '/faq'
+            { p: '', freq: 'weekly', pri: '1.0' },
+            { p: '/tools', freq: 'daily', pri: '0.9' },
+            { p: '/pricing', freq: 'weekly', pri: '0.8' },
+            { p: '/faq', freq: 'monthly', pri: '0.7' },
+            { p: '/privacy-policy', freq: 'monthly', pri: '0.5' },
+            { p: '/terms-of-service', freq: 'monthly', pri: '0.5' },
+            { p: '/refund-policy', freq: 'monthly', pri: '0.5' },
         ]
 
-        staticPages.forEach(page => {
-            xml += `
-    <url>
-        <loc>${BASE_URL}${page}</loc>
-        <lastmod>${new Date().toISOString()}</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>${page === '' ? '1.0' : '0.8'}</priority>
-    </url>`
-        })
+        for (const { p, freq, pri } of staticPages) {
+            xml += `\n    <url>\n        <loc>${BASE_URL}${p}</loc>\n        <lastmod>${now}</lastmod>\n        <changefreq>${freq}</changefreq>\n        <priority>${pri}</priority>\n    </url>`
+        }
 
-        // Categories
-        categories.forEach(cat => {
-            xml += `
-    <url>
-        <loc>${BASE_URL}/category/${cat.slug}</loc>
-        <lastmod>${cat.updatedAt ? new Date(cat.updatedAt).toISOString() : new Date().toISOString()}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>0.9</priority>
-    </url>`
-        })
+        // ── Category pages ──────────────────────────────────────────────────────
+        for (const cat of categories) {
+            const lastmod = cat.updatedAt ? new Date(cat.updatedAt).toISOString() : now
+            xml += `\n    <url>\n        <loc>${BASE_URL}/category/${cat.slug}</loc>\n        <lastmod>${lastmod}</lastmod>\n        <changefreq>daily</changefreq>\n        <priority>0.8</priority>\n    </url>`
+        }
 
-        // Tools
-        tools.forEach(tool => {
-            xml += `
-    <url>
-        <loc>${BASE_URL}/tools/${tool.slug}</loc>
-        <lastmod>${tool.updatedAt ? new Date(tool.updatedAt).toISOString() : new Date().toISOString()}</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.7</priority>
-    </url>`
-        })
+        // ── Tool pages ── highest SEO value ─────────────────────────────────────
+        for (const tool of tools) {
+            const lastmod = tool.updatedAt ? new Date(tool.updatedAt).toISOString() : now
+            xml += `\n    <url>\n        <loc>${BASE_URL}/tools/${tool.slug}</loc>\n        <lastmod>${lastmod}</lastmod>\n        <changefreq>weekly</changefreq>\n        <priority>0.7</priority>\n    </url>`
+        }
 
-        xml += `
-</urlset>`
+        xml += `\n</urlset>`
 
-        fs.writeFileSync(OUTPUT_PATH, xml)
-        console.log(`Sitemap generated successfully at ${OUTPUT_PATH}`)
+        fs.writeFileSync(OUTPUT_PATH, xml, 'utf-8')
+
+        const total = staticPages.length + categories.length + tools.length
+        console.log(`\n✅ Sitemap written → ${OUTPUT_PATH}`)
+        console.log(`   Static  : ${staticPages.length}`)
+        console.log(`   Category: ${categories.length}`)
+        console.log(`   Tools   : ${tools.length}`)
+        console.log(`   TOTAL   : ${total} URLs`)
 
     } catch (error) {
-        console.error('Error generating sitemap:', error)
+        console.error('❌ Error generating sitemap:', error)
     } finally {
         await mongoose.disconnect()
         process.exit(0)
