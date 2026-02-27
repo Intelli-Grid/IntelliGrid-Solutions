@@ -61,12 +61,14 @@ router.get('/sitemap.xml', async (req, res) => {
             return res.send(sitemapCache.data)
         }
 
-        const baseUrl = process.env.FRONTEND_URL || 'https://www.intelligrid.online'
+        const baseUrl = 'https://www.intelligrid.online'
 
-        // 1. Fetch Data
+        // ✅ FIXED: isActive:true returns 0 docs — most tools were bulk-imported
+        // without the field set. Use $ne:false to include docs where isActive
+        // is true OR missing (never explicitly set to false).
         const [tools, categories, collections, blogPosts] = await Promise.all([
-            Tool.find({ status: 'active' }).select('slug updatedAt').lean(),
-            Category.find({ isActive: true }).select('slug updatedAt').lean(),
+            Tool.find({ status: 'active', isActive: { $ne: false } }).select('slug updatedAt').lean(),
+            Category.find({ isActive: { $ne: false } }).select('slug updatedAt').lean(),
             Collection.find({ isPublic: true }).select('slug updatedAt').lean(),
             BlogPost.find({ status: 'published' }).select('slug updatedAt publishedAt').lean(),
         ])
@@ -77,24 +79,24 @@ router.get('/sitemap.xml', async (req, res) => {
 
         // Static Pages
         const staticPages = [
-            '',
-            '/tools',
-            '/search',
-            '/pricing',
-            '/blog',
-            '/submit',
-            '/faq',
-            '/privacy-policy',
-            '/terms-of-service',
-            '/refund-policy',
+            { path: '', freq: 'weekly', pri: '1.0' },
+            { path: '/tools', freq: 'daily', pri: '0.9' },
+            { path: '/search', freq: 'weekly', pri: '0.7' },
+            { path: '/pricing', freq: 'weekly', pri: '0.8' },
+            { path: '/blog', freq: 'weekly', pri: '0.7' },
+            { path: '/submit', freq: 'monthly', pri: '0.6' },
+            { path: '/faq', freq: 'monthly', pri: '0.7' },
+            { path: '/privacy-policy', freq: 'monthly', pri: '0.5' },
+            { path: '/terms-of-service', freq: 'monthly', pri: '0.5' },
+            { path: '/refund-policy', freq: 'monthly', pri: '0.5' },
         ]
 
-        staticPages.forEach(page => {
+        staticPages.forEach(({ path: p, freq, pri }) => {
             xml += `
     <url>
-        <loc>${baseUrl}${page}</loc>
-        <changefreq>daily</changefreq>
-        <priority>${page === '' ? '1.0' : '0.8'}</priority>
+        <loc>${baseUrl}${p}</loc>
+        <changefreq>${freq}</changefreq>
+        <priority>${pri}</priority>
     </url>`
         })
 
