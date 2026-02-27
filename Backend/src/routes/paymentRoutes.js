@@ -24,6 +24,19 @@ router.post(
     paymentController.capturePayPalPayment
 )
 
+// PayPal Subscriptions API v2 — recurring billing
+router.post(
+    '/paypal/create-subscription',
+    requireAuth,
+    paymentController.createPayPalSubscription
+)
+
+router.post(
+    '/paypal/cancel-subscription',
+    requireAuth,
+    paymentController.cancelPayPalSubscription
+)
+
 // Cashfree routes (require authentication)
 router.post(
     '/cashfree/create-order',

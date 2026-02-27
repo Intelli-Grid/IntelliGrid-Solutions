@@ -9,6 +9,9 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import emailService from '../services/emailService.js'
 import toolService from '../services/toolService.js'
 import reviewService from '../services/reviewService.js'
+import linkValidationService from '../services/linkValidationService.js'
+import discoveryScheduler from '../services/discoveryScheduler.js'
+import { enqueueTools } from '../services/discoveryQueue.js'
 
 const router = express.Router()
 
@@ -39,7 +42,7 @@ router.get('/stats', async (req, res) => {
             Review.countDocuments({ status: 'pending' }),
             Order.countDocuments(),
             Order.countDocuments({ status: 'failed' }),
-            User.countDocuments({ 'subscription.status': 'active', 'subscription.tier': { $ne: 'Free' } }) // Assuming User model imported
+            User.countDocuments({ 'subscription.status': 'active', 'subscription.tier': { $ne: 'Free' } })
         ])
 
         const totalRevenueResult = await Order.aggregate([
@@ -54,7 +57,7 @@ router.get('/stats', async (req, res) => {
                 pendingTools: pendingToolsCount,
                 totalUsers: usersCount,
                 totalReviews: reviewsCount,
-                pendingReviews: flaggedReviewsCount, // Use pending count here
+                pendingReviews: flaggedReviewsCount,
                 totalPayments: paymentsCount,
                 failedPayments: failedPaymentsCount,
                 totalRevenue: totalRevenueResult[0]?.total || 0,
@@ -102,10 +105,9 @@ router.get('/tools/pending', async (req, res) => {
  */
 router.put('/tools/:id/approve', async (req, res) => {
     try {
-        // Use toolService.updateTool so Algolia gets the updated (active) status
         const tool = await toolService.updateTool(req.params.id, {
             status: 'active',
-            isActive: true,    // ensure soft-delete gate is lifted
+            isActive: true,
             approvedAt: new Date(),
             approvedBy: req.user._id,
         })
@@ -141,9 +143,7 @@ router.put('/tools/:id/approve', async (req, res) => {
  */
 router.delete('/tools/:id', async (req, res) => {
     try {
-        // Use toolService so Algolia index and Redis cache are both invalidated
         await toolService.deleteTool(req.params.id)
-
         res.json({
             success: true,
             message: 'Tool deleted successfully'
@@ -335,7 +335,106 @@ router.get('/users', async (req, res) => {
     }
 })
 
+/**
+ * @route   POST /api/v1/admin/users/:id/subscription
+ * @desc    Manually override a user's subscription (activate, downgrade, cancel).
+ *          Used by support when a payment gateway is unavailable or for dispute resolutions.
+ * @body    { action: 'activate'|'downgrade'|'cancel', tier?: string, duration?: 'monthly'|'yearly' }
+ * @access  Admin only
+ */
+router.post('/users/:id/subscription', async (req, res) => {
+    try {
+        const { action, tier = 'Premium', duration = 'monthly' } = req.body
+
+        if (!['activate', 'downgrade', 'cancel'].includes(action)) {
+            return res.status(400).json({ success: false, message: "action must be 'activate', 'downgrade', or 'cancel'" })
+        }
+
+        const user = await User.findById(req.params.id)
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+        // Map tier names to User model enum values (same logic as paymentService)
+        const TIER_MAP = {
+            pro: 'Premium', Pro: 'Premium', premium: 'Premium', Premium: 'Premium',
+            basic: 'Basic', Basic: 'Basic',
+            enterprise: 'Enterprise', Enterprise: 'Enterprise',
+            free: 'Free', Free: 'Free',
+        }
+
+        let update = {}
+
+        if (action === 'activate') {
+            const normalizedTier = TIER_MAP[tier] || 'Premium'
+            const startDate = new Date()
+            const endDate = new Date()
+            if (duration === 'yearly') {
+                endDate.setFullYear(endDate.getFullYear() + 1)
+            } else {
+                endDate.setMonth(endDate.getMonth() + 1)
+            }
+            update = {
+                'subscription.tier': normalizedTier,
+                'subscription.status': 'active',
+                'subscription.startDate': startDate,
+                'subscription.endDate': endDate,
+                'subscription.autoRenew': false, // manual overrides don't auto-renew
+            }
+            // Sync tier to Clerk publicMetadata — non-fatal if Clerk is unavailable
+            if (user.clerkId) {
+                clerkClient.users.updateUser(user.clerkId, {
+                    publicMetadata: {
+                        subscriptionTier: normalizedTier,
+                        subscriptionStatus: 'active',
+                        subscriptionEndDate: endDate.toISOString(),
+                    }
+                }).catch(err => console.error(`[Admin Override] Clerk sync failed for ${user.clerkId}:`, err.message))
+            }
+        } else if (action === 'downgrade') {
+            update = {
+                'subscription.tier': 'Free',
+                'subscription.status': 'active',
+                'subscription.autoRenew': false,
+            }
+            if (user.clerkId) {
+                clerkClient.users.updateUser(user.clerkId, {
+                    publicMetadata: { subscriptionTier: 'Free', subscriptionStatus: 'active' }
+                }).catch(err => console.error(`[Admin Override] Clerk sync failed for ${user.clerkId}:`, err.message))
+            }
+        } else if (action === 'cancel') {
+            update = {
+                'subscription.status': 'cancelled',
+                'subscription.autoRenew': false,
+            }
+            if (user.clerkId) {
+                clerkClient.users.updateUser(user.clerkId, {
+                    publicMetadata: { subscriptionStatus: 'cancelled' }
+                }).catch(err => console.error(`[Admin Override] Clerk sync failed for ${user.clerkId}:`, err.message))
+            }
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            req.params.id,
+            update,
+            { new: true, select: 'firstName lastName email subscription role' }
+        )
+
+        console.log(`[Admin Override] ${req.user.email} performed '${action}' on user ${user.email}`)
+
+        res.json({
+            success: true,
+            message: `Subscription ${action}d successfully for ${updatedUser.email}`,
+            subscription: updatedUser.subscription
+        })
+    } catch (error) {
+        console.error('Subscription override error:', error)
+        res.status(500).json({ success: false, message: 'Failed to override subscription' })
+    }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Claim Management Routes
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.get('/claims/pending', async (req, res) => {
     try {
         const { page = 1, limit = 50 } = req.query
@@ -365,7 +464,6 @@ router.put('/claims/:id/approve', async (req, res) => {
         const claim = await ClaimRequest.findById(req.params.id)
         if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
 
-        // Use already-imported User model — no dynamic import needed
         let userId = claim.user
 
         if (!userId) {
@@ -405,6 +503,9 @@ router.put('/claims/:id/reject', async (req, res) => {
     }
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// System Health
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * @route   GET /api/v1/admin/system
@@ -470,9 +571,9 @@ router.get('/system', async (req, res) => {
     }
 })
 
-import linkValidationService from '../services/linkValidationService.js'
-import discoveryScheduler from '../services/discoveryScheduler.js'
-import { enqueueTools } from '../services/discoveryQueue.js'
+// ─────────────────────────────────────────────────────────────────────────────
+// Discovery Queue Routes
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * @route   GET /api/v1/admin/discovery/pending
@@ -530,7 +631,7 @@ router.post('/discovery/trigger', async (req, res) => {
 })
 
 /**
- * @route   POST /api/v1/admin/discovery/discard/:id
+ * @route   DELETE /api/v1/admin/discovery/discard/:id
  * @desc    Discard (hard-delete) a discovered tool that failed review
  * @access  Admin only
  */
@@ -538,7 +639,7 @@ router.delete('/discovery/discard/:id', async (req, res) => {
     try {
         const tool = await Tool.findOneAndDelete({
             _id: req.params.id,
-            status: 'pending',   // Safety: only discard pending tools
+            status: 'pending',  // Safety: only discard pending tools
         })
         if (!tool) return res.status(404).json({ success: false, message: 'Pending tool not found' })
         res.json({ success: true, message: `Discarded "${tool.name}"` })
@@ -547,6 +648,10 @@ router.delete('/discovery/discard/:id', async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to discard tool' })
     }
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Link Health Routes
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * @route   GET /api/v1/admin/link-health
@@ -615,4 +720,3 @@ router.post('/link-health/restore/:id', async (req, res) => {
 })
 
 export default router
-

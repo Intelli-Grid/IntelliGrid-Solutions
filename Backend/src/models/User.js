@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema(
                 type: Boolean,
                 default: false,
             },
+            // PayPal Subscriptions API v2 — stored so webhooks can look up the user
+            paypalSubscriptionId: {
+                type: String,
+                default: null,
+                index: true,
+                sparse: true,
+            },
         },
         role: {
             type: String,

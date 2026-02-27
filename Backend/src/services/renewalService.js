@@ -2,8 +2,11 @@
  * renewalService.js — Subscription renewal reminders + expiry downgrades
  *
  * Fixed: replaced unreliable setInterval with node-cron for deterministic
- *        daily execution at 00:05 IST / UTC (resilient to Railway restarts).
+ *        daily execution at 00:05 UTC (resilient to Railway restarts).
  * Fixed: downgradeExpired now sends a subscription-expired email to affected users.
+ * Fixed: PayPal recurring subscribers (paypalSubscriptionId set) are excluded from
+ *        both downgrade and reminder jobs. PayPal manages their billing cycle;
+ *        our cron must not interfere.
  */
 import cron from 'node-cron'
 import User from '../models/User.js'
@@ -13,6 +16,9 @@ class RenewalService {
     /**
      * Check for active subscriptions expiring in exactly 7 days
      * and send renewal reminders.
+     *
+     * NOTE: Users with paypalSubscriptionId are excluded — PayPal sends its own
+     * renewal notifications and manages re-billing automatically.
      */
     async checkRenewals() {
         console.log('🔄 Checking for subscription renewals (7-day window)...')
@@ -32,10 +38,12 @@ class RenewalService {
                 'subscription.endDate': {
                     $gte: startOfDay,
                     $lte: endOfDay
-                }
+                },
+                // Exclude PayPal recurring subscribers — PayPal manages their renewal
+                'subscription.paypalSubscriptionId': { $in: [null, undefined, ''] }
             })
 
-            console.log(`📧 Found ${users.length} subscriptions expiring in 7 days`)
+            console.log(`📧 Found ${users.length} non-PayPal subscriptions expiring in 7 days`)
 
             for (const user of users) {
                 emailService.sendRenewalReminder(user, user.subscription)
@@ -48,6 +56,11 @@ class RenewalService {
 
     /**
      * Downgrade expired subscriptions to Free tier and notify users.
+     *
+     * NOTE: Users with paypalSubscriptionId are excluded — their subscription
+     * lifecycle is managed by PayPal webhooks (BILLING.SUBSCRIPTION.EXPIRED /
+     * BILLING.SUBSCRIPTION.CANCELLED). Downgrading them here would race with
+     * PayPal's renewal webhook and could incorrectly remove access mid-cycle.
      */
     async downgradeExpired() {
         console.log('🔽 Checking for expired subscriptions to downgrade...')
@@ -57,11 +70,13 @@ class RenewalService {
             const expiredUsers = await User.find({
                 'subscription.status': 'active',
                 'subscription.tier': { $ne: 'Free' },
-                'subscription.endDate': { $lt: now }
+                'subscription.endDate': { $lt: now },
+                // Exclude PayPal recurring subscribers — PayPal manages their lifecycle
+                'subscription.paypalSubscriptionId': { $in: [null, undefined, ''] }
             })
 
             if (expiredUsers.length === 0) {
-                console.log('✅ No expired subscriptions found.')
+                console.log('✅ No expired non-PayPal subscriptions found.')
                 return
             }
 
@@ -74,10 +89,9 @@ class RenewalService {
                     'subscription.autoRenew': false,
                 })
 
-                // Notify user their subscription has expired
-                emailService.sendPaymentFailure(user, {
-                    orderId: `EXP-${user._id}`
-                }).catch(err => console.error(`Expiry notification failed for ${user.email}:`, err))
+                // Notify user their subscription has expired naturally (correct email — not "payment failed")
+                emailService.sendSubscriptionExpired(user)
+                    .catch(err => console.error(`Expiry notification failed for ${user.email}:`, err))
 
                 console.log(`↩️  Downgraded ${user.email} → Free (expired: ${user.subscription.endDate?.toISOString()})`)
             }

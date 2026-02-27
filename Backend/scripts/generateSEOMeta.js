@@ -63,7 +63,8 @@ function detectProvider() {
 
 const PROVIDER = detectProvider()
 const GPT_MODEL = PROVIDER?.model || 'llama-3.3-70b-versatile'
-const CONCURRENCY = 3    // parallel GPT calls (conservative for rate limits)
+const CONCURRENCY = 1      // Groq free tier: 30 RPM — serial is safest
+const REQUEST_DELAY = 2100   // ms between requests (~28 RPM, within 30 RPM limit)
 const REPORT_PATH = path.join(__dirname, `../reports/seo-meta-${Date.now()}.csv`)
 
 function pLimit(n) {
@@ -78,8 +79,8 @@ function pLimit(n) {
     return fn => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next() })
 }
 
-// ── GPT call ──────────────────────────────────────────────────────────────────
-async function generateMeta(tool) {
+// ── GPT call with retry ───────────────────────────────────────────────────────
+async function generateMeta(tool, attempt = 1) {
     const categoryName = typeof tool.category === 'object' ? tool.category?.name : null
     const existingDesc = tool.shortDescription || ''
     const currentPricing = tool.pricing || 'Unknown'
@@ -130,13 +131,22 @@ Write SEO metadata. Return ONLY a JSON object with these keys:
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({}))
+            if (res.status === 429 && attempt <= 5) {
+                // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+                const wait = 5000 * attempt
+                process.stdout.write(`\r  ⏳ Rate limited — waiting ${wait / 1000}s (attempt ${attempt}/5)...`)
+                await new Promise(r => setTimeout(r, wait))
+                return generateMeta(tool, attempt + 1)
+            }
             console.error(`  ❌ GPT ${res.status} for "${tool.name}": ${err.error?.message || res.statusText}`)
             return null
         }
 
         const data = await res.json()
         const raw = data.choices[0]?.message?.content
-        const parsed = JSON.parse(raw)
+        // Groq sometimes wraps response in ```json ``` fence — strip it
+        const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+        const parsed = JSON.parse(cleaned)
 
         return {
             metaTitle: (parsed.metaTitle || '').slice(0, 70) || null,
@@ -218,6 +228,8 @@ async function main() {
         tools.map(tool =>
             limit(async () => {
                 const meta = await generateMeta(tool)
+                // Throttle to stay within Groq free-tier 30 RPM limit
+                await new Promise(r => setTimeout(r, REQUEST_DELAY))
                 processed++
 
                 if (!meta) {

@@ -168,4 +168,103 @@ const paypalService = {
     },
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PayPal Subscriptions API v2
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Create a PayPal subscription using the Subscriptions API v2.
+ *
+ * Requires a pre-created Billing Plan ID (created once in the PayPal dashboard
+ * or via createBillingPlan() below).
+ *
+ * @param {string} planId    - PayPal Billing Plan ID (e.g. P-XXXXXXXXX)
+ * @param {string} userId    - Our internal MongoDB user ID (stored in custom_id for webhook lookup)
+ * @param {string} returnUrl - Frontend URL after PayPal approval
+ * @param {string} cancelUrl - Frontend URL if user cancels
+ * @returns {Promise<{subscriptionId: string, approveUrl: string}>}
+ */
+export const createPayPalSubscription = async (planId, userId, returnUrl, cancelUrl) => {
+    const token = await getPayPalAccessToken()
+
+    const response = await axios.post(
+        `${getBaseUrl()}/v1/billing/subscriptions`,
+        {
+            plan_id: planId,
+            custom_id: userId.toString(), // stored on every webhook event for user lookup
+            application_context: {
+                brand_name: 'IntelliGrid',
+                locale: 'en-US',
+                shipping_preference: 'NO_SHIPPING',
+                user_action: 'SUBSCRIBE_NOW',
+                return_url: returnUrl,
+                cancel_url: cancelUrl,
+            },
+        },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation',
+            },
+        }
+    )
+
+    const subscription = response.data
+    const approveLink = subscription.links?.find(l => l.rel === 'approve')
+
+    if (!approveLink) {
+        throw new Error('PayPal subscription created but no approve URL returned')
+    }
+
+    return {
+        subscriptionId: subscription.id,
+        approveUrl: approveLink.href,
+        status: subscription.status,
+    }
+}
+
+/**
+ * Cancel a PayPal subscription via the Subscriptions API v2.
+ *
+ * @param {string} subscriptionId - PayPal subscription ID (e.g. I-XXXXXXXXX)
+ * @param {string} reason         - Cancellation reason string shown to PayPal
+ * @returns {Promise<void>}
+ */
+export const cancelPayPalSubscription = async (subscriptionId, reason = 'User requested cancellation') => {
+    const token = await getPayPalAccessToken()
+
+    await axios.post(
+        `${getBaseUrl()}/v1/billing/subscriptions/${subscriptionId}/cancel`,
+        { reason },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        }
+    )
+}
+
+/**
+ * Get details of a PayPal subscription (useful for webhook verification cross-check).
+ *
+ * @param {string} subscriptionId
+ * @returns {Promise<object>} PayPal subscription details
+ */
+export const getPayPalSubscription = async (subscriptionId) => {
+    const token = await getPayPalAccessToken()
+    const response = await axios.get(
+        `${getBaseUrl()}/v1/billing/subscriptions/${subscriptionId}`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        }
+    )
+    return response.data
+}
+
 export default paypalService
+

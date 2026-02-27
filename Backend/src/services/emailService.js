@@ -218,6 +218,31 @@ class EmailService {
         return sendEmail(user.email, user.firstName, 'Action Required: Payment Failed', emailWrapper(content, user.email))
     }
 
+    /** Subscription expired — sent when subscription reaches its end date naturally */
+    async sendSubscriptionExpired(user) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Your IntelliGrid Subscription Has Ended</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName},</p>
+            <p style="color:#374151;line-height:1.6;">Your <strong>IntelliGrid Pro</strong> subscription has reached its end date and your account has been moved to the Free plan.</p>
+            <p style="color:#374151;line-height:1.6;">You can continue browsing tools on the Free plan, or resubscribe anytime to restore full Pro access instantly.</p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:20px 0;">
+                <p style="margin:0;color:#374151;font-size:14px;"><strong>What you lose on Free:</strong></p>
+                <ul style="color:#6b7280;font-size:14px;line-height:1.8;margin:8px 0 0;">
+                    <li>Unlimited favourites &amp; collections</li>
+                    <li>Advanced filters &amp; sorting</li>
+                    <li>Priority tool discovery</li>
+                    <li>Ad-free experience</li>
+                </ul>
+            </div>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Resubscribe to Pro &rarr;
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;line-height:1.6;">Questions? Reach us at <a href="mailto:support@intelligrid.online" style="color:#7c3aed;">support@intelligrid.online</a> — we're happy to help.</p>`
+        return sendEmail(user.email, user.firstName, 'Your IntelliGrid Pro Subscription Has Ended', emailWrapper(content, user.email))
+    }
+
     /** Claim verification — sent to tool owner when they submit a claim */
     async sendClaimVerificationEmail(claim, tool) {
         const content = `

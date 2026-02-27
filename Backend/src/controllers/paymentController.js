@@ -1,5 +1,5 @@
 import paymentService from '../services/paymentService.js'
-import { verifyPayPalWebhook } from '../config/paypal.js'
+import { verifyPayPalWebhook, getPayPalSubscription } from '../config/paypal.js'
 import { verifyCashfreeWebhook } from '../config/cashfree.js'
 import WebhookLog from '../models/WebhookLog.js'
 import Order from '../models/Order.js'
@@ -96,6 +96,48 @@ class PaymentController {
 
         res.status(200).json(
             new ApiResponse(200, result, 'Payment captured successfully')
+        )
+    })
+
+    /**
+     * Create PayPal Subscription (Subscriptions API v2 — recurring billing)
+     * POST /api/v1/payment/paypal/create-subscription
+     */
+    createPayPalSubscription = asyncHandler(async (req, res) => {
+        const { plan } = req.body
+
+        // Same plan map as one-time orders
+        const PLAN_MAP = {
+            'pro_monthly': { tier: 'pro', duration: 'monthly' },
+            'pro_yearly': { tier: 'pro', duration: 'yearly' },
+            'basic_monthly': { tier: 'basic', duration: 'monthly' },
+            'basic_yearly': { tier: 'basic', duration: 'yearly' },
+            'enterprise_monthly': { tier: 'enterprise', duration: 'monthly' },
+            'enterprise_yearly': { tier: 'enterprise', duration: 'yearly' },
+        }
+
+        const planData = PLAN_MAP[plan]
+        if (!planData) throw ApiError.badRequest('Invalid plan selected')
+
+        const result = await paymentService.createPayPalSubscription(
+            req.user._id,
+            planData
+        )
+
+        res.status(201).json(
+            new ApiResponse(201, result, 'PayPal subscription created successfully')
+        )
+    })
+
+    /**
+     * Cancel PayPal Subscription — user-initiated
+     * POST /api/v1/payment/paypal/cancel-subscription
+     */
+    cancelPayPalSubscription = asyncHandler(async (req, res) => {
+        await paymentService.cancelUserPayPalSubscription(req.user._id)
+
+        res.status(200).json(
+            new ApiResponse(200, {}, 'Subscription cancellation requested. You will retain access until the end of your billing period.')
         )
     })
 
@@ -224,39 +266,194 @@ class PaymentController {
 
         try {
             switch (event_type) {
-                case 'PAYMENT.SALE.COMPLETED':
-                    console.log('✅ PayPal payment completed:', resource.id)
-                    // Payment is already captured via capturePayPalPayment endpoint;
-                    // webhook is a confirmation — update order status if still pending
-                    if (resource.id) {
-                        await Order.findOneAndUpdate(
-                            { 'paymentDetails.transactionId': resource.id, status: 'pending' },
-                            { status: 'completed' }
-                        )
+
+                // ── One-time payment (legacy / Cashfree fallback) ──────────────────────
+                case 'PAYMENT.SALE.COMPLETED': {
+                    // For SUBSCRIPTION payments this fires too — resource.billing_agreement_id
+                    // is set. For one-time payments resource.billing_agreement_id is absent.
+                    const isSubscriptionPayment = !!resource.billing_agreement_id
+
+                    if (isSubscriptionPayment) {
+                        // Subscription payment confirmed — extend endDate by billing cycle
+                        const subscriptionId = resource.billing_agreement_id
+                        const user = await User.findOne({ 'subscription.paypalSubscriptionId': subscriptionId })
+
+                        if (user) {
+                            // Fetch subscription details from PayPal to get billing cycle
+                            let subDetails = null
+                            try { subDetails = await getPayPalSubscription(subscriptionId) } catch (_) { /* non-fatal */ }
+
+                            // Determine cycle length from existing sub data
+                            const isYearly = subDetails?.billing_info?.cycle_executions
+                                ?.some(c => c.tenure_type === 'REGULAR' && c.sequence === 1)
+                                ? (subDetails.billing_info.next_billing_time &&
+                                    new Date(subDetails.billing_info.next_billing_time) - new Date() > 35 * 24 * 60 * 60 * 1000)
+                                : false
+
+                            const newEndDate = new Date()
+                            if (isYearly) newEndDate.setFullYear(newEndDate.getFullYear() + 1)
+                            else newEndDate.setMonth(newEndDate.getMonth() + 1)
+
+                            await User.findByIdAndUpdate(user._id, {
+                                'subscription.status': 'active',
+                                'subscription.startDate': new Date(),
+                                'subscription.endDate': newEndDate,
+                                'subscription.autoRenew': true,
+                            })
+                            console.log(`🔄 Subscription renewed for ${user.email} until ${newEndDate.toISOString()}`)
+                        } else {
+                            console.warn(`⚠️  PAYMENT.SALE.COMPLETED: no user found for subscription ${subscriptionId}`)
+                        }
+                    } else {
+                        // Legacy one-time payment — update order status if still pending
+                        if (resource.id) {
+                            await Order.findOneAndUpdate(
+                                { 'paymentDetails.transactionId': resource.id, status: 'pending' },
+                                { status: 'completed' }
+                            )
+                        }
                     }
                     break
+                }
 
-                case 'PAYMENT.SALE.REFUNDED':
-                    console.log('⚠️  PayPal payment refunded:', resource.id)
-                    // Mark order as refunded
-                    if (resource.sale_id) {
-                        await Order.findOneAndUpdate(
-                            { 'paymentDetails.transactionId': resource.sale_id },
-                            { status: 'refunded' }
-                        )
+                // ── Subscription lifecycle events ──────────────────────────────────────
+
+                case 'BILLING.SUBSCRIPTION.ACTIVATED': {
+                    // Fired when user approves the subscription after redirect.
+                    // This is when we activate the user's account.
+                    const subscriptionId = resource.id
+                    const userId = resource.custom_id  // set during createPayPalSubscription
+
+                    console.log(`✅ PayPal subscription activated: ${subscriptionId} for user ${userId}`)
+
+                    if (userId) {
+                        // Determine tier/duration from the plan_id of the activated subscription
+                        // Look up User to infer plan from plan_id → env var reverse map
+                        const PLAN_ID_MAP = {
+                            [process.env.PAYPAL_PLAN_BASIC_MONTHLY]: { tier: 'basic', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_BASIC_YEARLY]: { tier: 'basic', duration: 'yearly' },
+                            [process.env.PAYPAL_PLAN_PRO_MONTHLY]: { tier: 'pro', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_PRO_YEARLY]: { tier: 'pro', duration: 'yearly' },
+                            [process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY]: { tier: 'enterprise', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY]: { tier: 'enterprise', duration: 'yearly' },
+                        }
+                        const planData = PLAN_ID_MAP[resource.plan_id] || { tier: 'pro', duration: 'monthly' }
+
+                        await paymentService.activateSubscription(userId, planData, subscriptionId)
+
+                        // Send welcome email (non-fatal)
+                        const user = await User.findById(userId)
+                        if (user) {
+                            const emailPayload = {
+                                tier: planData.tier,
+                                duration: planData.duration,
+                                amount: 'See PayPal receipt',
+                                nextBillingDate: new Date(
+                                    Date.now() + (planData.duration === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000
+                                ).toLocaleDateString()
+                            }
+                            import('../services/emailService.js').then(m =>
+                                m.default.sendSubscriptionConfirmation(user, emailPayload)
+                                    .catch(e => console.error('Welcome email error:', e))
+                            )
+                        }
                     }
                     break
+                }
 
-                case 'BILLING.SUBSCRIPTION.CANCELLED':
-                    console.log('⚠️  PayPal subscription cancelled:', resource.id)
-                    // Downgrade user to Free tier
-                    if (resource.custom_id) {
+                case 'BILLING.SUBSCRIPTION.RENEWED': {
+                    // PayPal auto-renewed — same as PAYMENT.SALE.COMPLETED for subscriptions
+                    // but more explicit. Extend the user's endDate.
+                    const subscriptionId = resource.id
+                    const userId = resource.custom_id
+
+                    console.log(`🔄 PayPal subscription renewed: ${subscriptionId}`)
+
+                    if (userId) {
+                        const PLAN_ID_MAP = {
+                            [process.env.PAYPAL_PLAN_BASIC_MONTHLY]: { tier: 'basic', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_BASIC_YEARLY]: { tier: 'basic', duration: 'yearly' },
+                            [process.env.PAYPAL_PLAN_PRO_MONTHLY]: { tier: 'pro', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_PRO_YEARLY]: { tier: 'pro', duration: 'yearly' },
+                            [process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY]: { tier: 'enterprise', duration: 'monthly' },
+                            [process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY]: { tier: 'enterprise', duration: 'yearly' },
+                        }
+                        const planData = PLAN_ID_MAP[resource.plan_id] || { tier: 'pro', duration: 'monthly' }
+                        await paymentService.activateSubscription(userId, planData, subscriptionId)
+                    }
+                    break
+                }
+
+                case 'BILLING.SUBSCRIPTION.SUSPENDED': {
+                    // Payment failed — subscription suspended by PayPal
+                    const subscriptionId = resource.id
+                    const userId = resource.custom_id
+
+                    console.warn(`⚠️  PayPal subscription suspended: ${subscriptionId} for user ${userId}`)
+
+                    if (userId) {
+                        await User.findByIdAndUpdate(userId, {
+                            'subscription.status': 'inactive',
+                            'subscription.autoRenew': false,
+                        })
+                        // Send payment failed email (non-fatal)
+                        const user = await User.findById(userId)
+                        if (user) {
+                            import('../services/emailService.js').then(m =>
+                                m.default.sendPaymentFailure(user, { orderId: subscriptionId })
+                                    .catch(e => console.error('Payment fail email error:', e))
+                            )
+                        }
+                    }
+                    break
+                }
+
+                case 'BILLING.SUBSCRIPTION.CANCELLED': {
+                    // User or admin cancelled the subscription (via PayPal or our API)
+                    const subscriptionId = resource.id
+                    const userId = resource.custom_id
+
+                    console.log(`⚠️  PayPal subscription cancelled: ${subscriptionId} for user ${userId}`)
+
+                    if (userId) {
+                        await User.findByIdAndUpdate(userId, {
+                            'subscription.status': 'cancelled',
+                            'subscription.autoRenew': false,
+                            'subscription.paypalSubscriptionId': null,
+                        })
+                        console.log(`↩️  User ${userId} subscription marked cancelled`)
+                    } else if (resource.custom_id) {
+                        // Legacy fallback — old one-time order flow used custom for userId
                         await User.findByIdAndUpdate(resource.custom_id, {
                             'subscription.tier': 'Free',
                             'subscription.status': 'cancelled',
                             'subscription.autoRenew': false,
                         })
-                        console.log(`↩️  User ${resource.custom_id} downgraded to Free (PayPal cancellation)`)
+                    }
+                    break
+                }
+
+                case 'BILLING.SUBSCRIPTION.EXPIRED': {
+                    const userId = resource.custom_id
+                    if (userId) {
+                        await User.findByIdAndUpdate(userId, {
+                            'subscription.tier': 'Free',
+                            'subscription.status': 'expired',
+                            'subscription.autoRenew': false,
+                            'subscription.paypalSubscriptionId': null,
+                        })
+                        console.log(`↩️  PayPal subscription expired for user ${userId} — downgraded to Free`)
+                    }
+                    break
+                }
+
+                case 'PAYMENT.SALE.REFUNDED':
+                    console.log('⚠️  PayPal payment refunded:', resource.id)
+                    if (resource.sale_id) {
+                        await Order.findOneAndUpdate(
+                            { 'paymentDetails.transactionId': resource.sale_id },
+                            { status: 'refunded' }
+                        )
                     }
                     break
 

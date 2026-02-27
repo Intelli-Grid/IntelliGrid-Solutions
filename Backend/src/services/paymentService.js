@@ -1,4 +1,4 @@
-import paypal from '../config/paypal.js'
+import paypal, { createPayPalSubscription, cancelPayPalSubscription } from '../config/paypal.js'
 import axios from 'axios'
 import { getCashfreeBaseUrl, getCashfreeHeaders } from '../config/cashfree.js'
 import Order from '../models/Order.js'
@@ -324,9 +324,91 @@ class PaymentService {
     }
 
     /**
+     * Create a PayPal recurring subscription (Subscriptions API v2)
+     * Returns { subscriptionId, approveUrl } — frontend redirects user to approveUrl.
+     * After approval PayPal sends BILLING.SUBSCRIPTION.ACTIVATED webhook which activates the sub.
+     *
+     * @param {string} userId          - MongoDB User _id
+     * @param {object} subscriptionData - { tier, duration }
+     * @returns {Promise<{subscriptionId, approveUrl}>}
+     */
+    async createPayPalSubscription(userId, subscriptionData) {
+        const { tier, duration } = subscriptionData
+
+        // Map our plan keys to PayPal Billing Plan IDs defined in env vars
+        // These must be created ONCE in PayPal dashboard → Products & Plans
+        // and stored as: PAYPAL_PLAN_BASIC_MONTHLY, PAYPAL_PLAN_BASIC_YEARLY, etc.
+        const PLAN_ENV_MAP = {
+            basic_monthly: process.env.PAYPAL_PLAN_BASIC_MONTHLY,
+            basic_yearly: process.env.PAYPAL_PLAN_BASIC_YEARLY,
+            pro_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,
+            pro_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,
+            premium_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,   // alias
+            premium_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,    // alias
+            enterprise_monthly: process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY,
+            enterprise_yearly: process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY,
+        }
+
+        const planKey = `${tier.toLowerCase()}_${duration}`
+        const paypalPlanId = PLAN_ENV_MAP[planKey]
+
+        if (!paypalPlanId) {
+            throw ApiError.badRequest(
+                `No PayPal Billing Plan configured for ${tier} ${duration}. ` +
+                `Set PAYPAL_PLAN_${tier.toUpperCase()}_${duration.toUpperCase()} in environment variables.`
+            )
+        }
+
+        const returnUrl = `${process.env.FRONTEND_URL}/payment/success?method=paypal-subscription`
+        const cancelUrl = `${process.env.FRONTEND_URL}/payment/cancel?method=paypal-subscription`
+
+        try {
+            const result = await createPayPalSubscription(paypalPlanId, userId, returnUrl, cancelUrl)
+            console.log(`✅ PayPal subscription created: ${result.subscriptionId} for user ${userId}`)
+            return result
+        } catch (error) {
+            console.error('PayPal subscription creation error:', error.response?.data || error.message)
+            throw ApiError.internal(`Failed to create PayPal subscription: ${error.response?.data?.message || error.message}`)
+        }
+    }
+
+    /**
+     * Cancel an active PayPal subscription for a user.
+     * Called when a user requests cancellation from the frontend.
+     * PayPal will still send BILLING.SUBSCRIPTION.CANCELLED webhook — which is the
+     * authoritative source of truth for downgrading the user's DB record.
+     *
+     * @param {string} userId - MongoDB User _id
+     * @returns {Promise<void>}
+     */
+    async cancelUserPayPalSubscription(userId) {
+        const user = await User.findById(userId).select('subscription email')
+        if (!user) throw ApiError.notFound('User not found')
+
+        const subscriptionId = user.subscription?.paypalSubscriptionId
+        if (!subscriptionId) {
+            throw ApiError.badRequest('No active PayPal subscription found for this user')
+        }
+
+        try {
+            await cancelPayPalSubscription(subscriptionId, 'User requested cancellation via IntelliGrid dashboard')
+
+            // Mark autoRenew off immediately in DB — user retains access until period ends
+            await User.findByIdAndUpdate(userId, {
+                'subscription.autoRenew': false,
+            })
+
+            console.log(`✅ PayPal subscription ${subscriptionId} cancel requested for user ${user.email}`)
+        } catch (error) {
+            console.error('PayPal subscription cancellation error:', error.response?.data || error.message)
+            throw ApiError.internal(`Failed to cancel PayPal subscription: ${error.response?.data?.message || error.message}`)
+        }
+    }
+
+    /**
      * Activate user subscription
      */
-    async activateSubscription(userId, subscriptionData) {
+    async activateSubscription(userId, subscriptionData, paypalSubscriptionId = null) {
         const { tier, duration } = subscriptionData
 
         // Map payment plan names → User model enum values
@@ -348,16 +430,22 @@ class PaymentService {
             endDate.setFullYear(endDate.getFullYear() + 1)
         }
 
+        // Build update — include paypalSubscriptionId if this is a recurring sub
+        const subscriptionUpdate = {
+            'subscription.tier': normalizedTier,
+            'subscription.status': 'active',
+            'subscription.startDate': startDate,
+            'subscription.endDate': endDate,
+            'subscription.autoRenew': paypalSubscriptionId ? true : false,
+        }
+        if (paypalSubscriptionId) {
+            subscriptionUpdate['subscription.paypalSubscriptionId'] = paypalSubscriptionId
+        }
+
         // Update MongoDB first — this is the source of truth
         const updatedUser = await User.findByIdAndUpdate(
             userId,
-            {
-                'subscription.tier': normalizedTier,
-                'subscription.status': 'active',
-                'subscription.startDate': startDate,
-                'subscription.endDate': endDate,
-                'subscription.autoRenew': true,
-            },
+            subscriptionUpdate,
             { new: true }
         )
 
@@ -374,7 +462,7 @@ class PaymentService {
             }).catch(err => console.error(`Clerk metadata sync failed for user ${userId}:`, err.message))
         }
 
-        console.log(`✅ Subscription activated for user ${userId}: ${tier} → ${normalizedTier} (${duration})`)
+        console.log(`✅ Subscription activated for user ${userId}: ${tier} → ${normalizedTier} (${duration})${paypalSubscriptionId ? ` [PayPal sub: ${paypalSubscriptionId}]` : ''}`)
     }
 
     /**

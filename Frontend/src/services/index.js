@@ -55,6 +55,13 @@ export const reviewService = {
  * Payment Service
  */
 export const paymentService = {
+    // ── PayPal Subscriptions API v2 (recurring billing) ────────────────────────
+    createPayPalSubscription: (plan) =>
+        apiClient.post('/payment/paypal/create-subscription', { plan }),
+    cancelPayPalSubscription: () =>
+        apiClient.post('/payment/paypal/cancel-subscription'),
+
+    // ── PayPal legacy one-time (kept for backward compat / fallback) ───────────
     createPayPalOrder: (plan, couponCode = null) => {
         const body = { plan }
         if (couponCode) body.couponCode = couponCode
@@ -62,6 +69,8 @@ export const paymentService = {
     },
     capturePayPalPayment: (paymentId, payerId) =>
         apiClient.post('/payment/paypal/capture', { paymentId, payerId }),
+
+    // ── Cashfree ───────────────────────────────────────────────────────────────
     createCashfreeOrder: (plan, couponCode = null) => {
         const body = { plan }
         if (couponCode) body.couponCode = couponCode
@@ -70,6 +79,7 @@ export const paymentService = {
     verifyCashfreePayment: (orderId) =>
         apiClient.post('/payment/cashfree/verify', { orderId }),
 }
+
 
 /**
  * Analytics Service
@@ -96,6 +106,8 @@ export const adminService = {
     sendInvitation: (id, data = {}) => apiClient.post(`/admin/tools/${id}/invite`, data),
     updateTool: (id, data) => apiClient.put(`/tools/${id}`, data),
     getUsers: (params = {}) => apiClient.get('/admin/users', { params }),
+    overrideSubscription: (userId, action, tier = 'Premium', duration = 'monthly') =>
+        apiClient.post(`/admin/users/${userId}/subscription`, { action, tier, duration }),
     getRevenueAnalytics: (days = 30) => apiClient.get(`/analytics/revenue?days=${days}`),
     // Blog
     getAllBlogPosts: (params = {}) => apiClient.get('/blog/admin/all', { params }),

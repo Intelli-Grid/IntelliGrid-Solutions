@@ -1,5 +1,7 @@
 import User from '../models/User.js'
 import Order from '../models/Order.js'
+import Tool from '../models/Tool.js'
+import Category from '../models/Category.js'
 
 // Get revenue analytics
 export const getRevenueAnalytics = async (req, res) => {
@@ -20,26 +22,35 @@ export const getRevenueAnalytics = async (req, res) => {
         let totalMRR = 0
         let activeSubscriptions = 0
 
+        // Monthly USD pricing — must match paymentService.getSubscriptionPricing()
+        // MRR contribution:
+        //   monthly subscriber → full monthly price
+        //   yearly subscriber  → annual price ÷ 12 (annualised monthly equivalent)
+        const MONTHLY_PRICE = { Basic: 4.99, Premium: 9.99, Enterprise: 24.99 }
+        const YEARLY_PRICE = { Basic: 49.99, Premium: 99.99, Enterprise: 249.99 }
+
         users.forEach(user => {
             const sub = user.subscription || {}
             const tier = sub.tier || 'Free'
             const status = sub.status
-
-            // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
             const PAID_TIERS = ['Basic', 'Premium', 'Enterprise']
 
             if (PAID_TIERS.includes(tier) && status === 'active') {
                 activeSubscriptions++
-                // Approximate MRR per tier (adjust to match actual pricing)
-                const MRR_BY_TIER = { Basic: 4.99, Premium: 9.99, Enterprise: 24.99 }
-                const tierMRR = MRR_BY_TIER[tier] || 9.99
 
-                if (tier === 'Premium' || tier === 'Basic') {
-                    subscriptionBreakdown.proMonthly++
-                    totalMRR += tierMRR
-                } else if (tier === 'Enterprise') {
+                // Determine billing cadence from subscription duration stored in endDate window
+                // If endDate is > 35 days from startDate it's a yearly plan
+                const start = sub.startDate ? new Date(sub.startDate) : null
+                const end = sub.endDate ? new Date(sub.endDate) : null
+                const isYearly = start && end && (end - start) > 35 * 24 * 60 * 60 * 1000
+
+                if (isYearly) {
                     subscriptionBreakdown.proYearly++
-                    totalMRR += tierMRR
+                    // MRR contribution = annual price / 12
+                    totalMRR += (YEARLY_PRICE[tier] || 99.99) / 12
+                } else {
+                    subscriptionBreakdown.proMonthly++
+                    totalMRR += MONTHLY_PRICE[tier] || 9.99
                 }
             } else {
                 subscriptionBreakdown.free++
@@ -172,17 +183,31 @@ export const getUserGrowthAnalytics = async (req, res) => {
     }
 }
 
-// Get tool analytics
+// Get tool analytics — real DB queries (no hardcoded values)
 export const getToolAnalytics = async (req, res) => {
     try {
-        // This would require Tool model - placeholder for now
+        const now = new Date()
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+        const [totalTools, newToolsThisMonth, totalCategories, ratingResult] = await Promise.all([
+            Tool.countDocuments({ status: 'active', isActive: { $ne: false } }),
+            Tool.countDocuments({ status: 'active', isActive: { $ne: false }, createdAt: { $gte: startOfMonth } }),
+            Category.countDocuments({ isActive: true }),
+            Tool.aggregate([
+                { $match: { status: 'active', isActive: { $ne: false }, 'ratings.count': { $gt: 0 } } },
+                { $group: { _id: null, avg: { $avg: '$ratings.average' } } }
+            ])
+        ])
+
         res.json({
             success: true,
             data: {
-                totalTools: 3690,
-                newToolsThisMonth: 45,
-                categories: 50,
-                averageRating: 4.5
+                totalTools,
+                newToolsThisMonth,
+                categories: totalCategories,
+                averageRating: ratingResult[0]?.avg
+                    ? parseFloat(ratingResult[0].avg.toFixed(2))
+                    : 0
             }
         })
     } catch (error) {

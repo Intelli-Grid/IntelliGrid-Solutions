@@ -120,28 +120,32 @@ export default function PricingPage() {
             return
         }
 
-        if (planId === 'free') {
-            return
-        }
+        if (planId === 'free') return
 
         try {
             setLoading(planId)
             setError(null)
 
             if (paymentMethod === 'paypal') {
-                const response = await paymentService.createPayPalOrder(planId, couponCode || null)
-
-                // ApiResponse wrapper: response = { statusCode, data: { approvalUrl, ... }, message }
+                // ── PayPal Subscriptions API v2 (recurring billing) ──────────────
+                // Note: PayPal Billing Plans don't support coupon discounts at the API level.
+                // Coupons are only applied via Cashfree.
+                const response = await paymentService.createPayPalSubscription(planId)
                 const result = response?.data || response
-                if (result?.approvalUrl) {
-                    window.location.href = result.approvalUrl
+
+                if (result?.approveUrl) {
+                    // Redirect user to PayPal approval page — after approval,
+                    // PayPal sends BILLING.SUBSCRIPTION.ACTIVATED webhook to activate the account
+                    window.location.href = result.approveUrl
                 } else {
-                    setError('Failed to create PayPal order. Please try again.')
+                    setError('Failed to create PayPal subscription. Please try again.')
                 }
-            } else if (paymentMethod === 'cashfree') {
-                const response = await paymentService.createCashfreeOrder(planId, couponCode || null)
 
+            } else if (paymentMethod === 'cashfree') {
+                // ── Cashfree one-time order (supports coupons) ────────────────────
+                const response = await paymentService.createCashfreeOrder(planId, couponCode || null)
                 const result = response?.data || response
+
                 if (result?.payment_link) {
                     window.location.href = result.payment_link
                 } else if (result?.paymentUrl) {
@@ -157,6 +161,7 @@ export default function PricingPage() {
             setLoading(null)
         }
     }
+
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
@@ -261,12 +266,20 @@ export default function PricingPage() {
                 )}
 
 
+                {/* Coupon + PayPal notice */}
+                {isSignedIn && couponData && paymentMethod === 'paypal' && (
+                    <div className="mx-auto mb-6 max-w-md rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center text-xs text-amber-300">
+                        ⚠️ Coupon discounts apply to <strong>Cashfree</strong> payments only. PayPal recurring subscriptions use fixed billing plan pricing.
+                    </div>
+                )}
+
                 {/* Error Message */}
                 {error && (
                     <div className="mx-auto mb-8 max-w-md rounded-xl border border-error/30 bg-error/10 p-4 text-center text-sm text-error animate-fade-in">
                         {error}
                     </div>
                 )}
+
 
                 {/* Pricing Cards */}
                 <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-3 mb-16">

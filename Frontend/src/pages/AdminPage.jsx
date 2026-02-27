@@ -639,6 +639,12 @@ function UsersTab() {
     const [page, setPage] = useState(1)
     const [pagination, setPagination] = useState({ total: 0, pages: 1 })
     const [searchTimeout, setSearchTimeout] = useState(null)
+    // Subscription override modal state
+    const [subModal, setSubModal] = useState(null) // null | { userId, userName, currentTier }
+    const [subAction, setSubAction] = useState('activate')
+    const [subTier, setSubTier] = useState('Premium')
+    const [subDuration, setSubDuration] = useState('monthly')
+    const [subLoading, setSubLoading] = useState(false)
     const { toast } = useToast()
 
     const fetchUsers = async (searchVal = search, pageVal = page) => {
@@ -663,6 +669,30 @@ function UsersTab() {
         setPage(1)
         clearTimeout(searchTimeout)
         setSearchTimeout(setTimeout(() => fetchUsers(val, 1), 400))
+    }
+
+    const openSubModal = (user) => {
+        setSubModal({ userId: user._id, userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email, currentTier: user.subscription?.tier || 'Free' })
+        setSubAction('activate')
+        setSubTier('Premium')
+        setSubDuration('monthly')
+    }
+
+    const handleSubOverride = async () => {
+        if (!subModal) return
+        setSubLoading(true)
+        try {
+            const res = await adminService.overrideSubscription(subModal.userId, subAction, subTier, subDuration)
+            if (res.success) {
+                toast({ title: '✅ Done', description: res.message })
+                setSubModal(null)
+                fetchUsers()
+            }
+        } catch (error) {
+            toast({ title: 'Error', description: error?.response?.data?.message || 'Override failed', variant: 'destructive' })
+        } finally {
+            setSubLoading(false)
+        }
     }
 
     const TIER_COLORS = {
@@ -709,6 +739,7 @@ function UsersTab() {
                                 <th className="px-4 py-3">Sub Status</th>
                                 <th className="px-4 py-3">Role</th>
                                 <th className="px-4 py-3">Joined</th>
+                                <th className="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -726,14 +757,12 @@ function UsersTab() {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TIER_COLORS[u.subscription?.tier] || TIER_COLORS.Free
-                                            }`}>
+                                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TIER_COLORS[u.subscription?.tier] || TIER_COLORS.Free}`}>
                                             {u.subscription?.tier || 'Free'}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`text-xs ${u.subscription?.status === 'active' ? 'text-green-400' : 'text-gray-500'
-                                            }`}>
+                                        <span className={`text-xs ${u.subscription?.status === 'active' ? 'text-green-400' : 'text-gray-500'}`}>
                                             {u.subscription?.status || 'inactive'}
                                         </span>
                                     </td>
@@ -742,6 +771,16 @@ function UsersTab() {
                                     </td>
                                     <td className="px-4 py-3 text-xs text-gray-400">
                                         {new Date(u.createdAt).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                        <button
+                                            onClick={() => openSubModal(u)}
+                                            title="Manage subscription"
+                                            className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-xs font-medium text-purple-300 hover:bg-purple-500/20 transition-colors"
+                                        >
+                                            <Crown className="h-3 w-3" />
+                                            Manage Sub
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -772,9 +811,119 @@ function UsersTab() {
                     </div>
                 </div>
             )}
+
+            {/* Subscription Override Modal */}
+            {subModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl">
+                        <div className="mb-5 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Crown className="h-5 w-5 text-amber-400" />
+                                    Manage Subscription
+                                </h3>
+                                <p className="text-sm text-gray-400 mt-0.5">{subModal.userName}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">Current: <span className="text-purple-300 font-medium">{subModal.currentTier}</span></p>
+                            </div>
+                            <button onClick={() => setSubModal(null)} className="text-gray-400 hover:text-white transition-colors">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Action */}
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Action</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['activate', 'downgrade', 'cancel'].map(a => (
+                                        <button
+                                            key={a}
+                                            onClick={() => setSubAction(a)}
+                                            className={`py-2 rounded-lg text-xs font-semibold capitalize border transition-all ${subAction === a
+                                                ? a === 'activate' ? 'bg-green-500/20 border-green-500/50 text-green-300'
+                                                    : a === 'downgrade' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                                        : 'bg-red-500/20 border-red-500/50 text-red-300'
+                                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                                }`}
+                                        >
+                                            {a}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Tier — only shown for activate */}
+                            {subAction === 'activate' && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Tier</label>
+                                        <select
+                                            value={subTier}
+                                            onChange={e => setSubTier(e.target.value)}
+                                            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+                                        >
+                                            <option value="Premium">Premium ($9.99/mo)</option>
+                                            <option value="Basic">Basic ($4.99/mo)</option>
+                                            <option value="Enterprise">Enterprise ($24.99/mo)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Duration</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['monthly', 'yearly'].map(d => (
+                                                <button
+                                                    key={d}
+                                                    onClick={() => setSubDuration(d)}
+                                                    className={`py-2 rounded-lg text-xs font-semibold capitalize border transition-all ${subDuration === d
+                                                        ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
+                                                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                                        }`}
+                                                >
+                                                    {d}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Warning for destructive actions */}
+                            {(subAction === 'cancel' || subAction === 'downgrade') && (
+                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                                    <p className="text-xs text-amber-300">
+                                        {subAction === 'cancel'
+                                            ? '⚠️ This will mark the subscription as cancelled. The user will lose Pro access on their next session.'
+                                            : '⚠️ This will immediately move the user to the Free tier.'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={() => setSubModal(null)}
+                                className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubOverride}
+                                disabled={subLoading}
+                                className={`flex-1 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50 ${subAction === 'activate' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90'
+                                    : subAction === 'downgrade' ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:opacity-90'
+                                        : 'bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90'
+                                    }`}
+                            >
+                                {subLoading ? 'Processing...' : `Confirm ${subAction.charAt(0).toUpperCase() + subAction.slice(1)}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
+
 
 function ReviewsTab() {
     const [reviews, setReviews] = useState([])
