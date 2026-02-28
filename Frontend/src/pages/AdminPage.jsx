@@ -33,6 +33,8 @@ import {
     ToggleLeft,
     ToggleRight,
     Flag,
+    Megaphone,
+    BadgeDollarSign,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import { adminService, toolService, submissionService, blogService, couponService } from '../services'
@@ -108,6 +110,7 @@ export default function AdminPage() {
         { id: 'discovery', label: 'Discovery', icon: Radar },
         { id: 'claims', label: 'Claims', icon: ShieldCheck },
         { id: 'submissions', label: 'Submissions', icon: Plus },
+        { id: 'featured-listings', label: 'Sponsored', icon: Megaphone },
         { id: 'blog', label: 'Blog', icon: TrendingUp },
         { id: 'coupons', label: 'Coupons', icon: DollarSign },
         { id: 'users', label: 'Users', icon: Users },
@@ -193,6 +196,7 @@ export default function AdminPage() {
                     {activeTab === 'discovery' && <DiscoveryTab />}
                     {activeTab === 'claims' && <ClaimsTab />}
                     {activeTab === 'submissions' && <SubmissionsTab />}
+                    {activeTab === 'featured-listings' && <FeaturedListingsAdminTab />}
                     {activeTab === 'blog' && <BlogAdminTab />}
                     {activeTab === 'coupons' && <CouponsAdminTab />}
                     {activeTab === 'users' && <UsersTab />}
@@ -929,7 +933,343 @@ function UsersTab() {
     )
 }
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Admin Tab: Featured Listings (Vendor Sponsorships)
+// ────────────────────────────────────────────────────────────────────────────────
+function FeaturedListingsAdminTab() {
+    const { toast } = useToast()
+    const [listings, setListings] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [creating, setCreating] = useState(false)
+    const [showForm, setShowForm] = useState(false)
+    const [form, setForm] = useState({
+        toolSlug: '',
+        tier: 'standard',
+        durationDays: 30,
+        priceUSD: '',
+        vendorName: '',
+        vendorEmail: '',
+        campaignNotes: '',
+    })
 
+    const TIERS = [
+        { value: 'standard', label: 'Standard', desc: 'Tool card badge + category boost' },
+        { value: 'premium', label: 'Premium', desc: 'Homepage hero slot + category top' },
+        { value: 'exclusive', label: 'Exclusive', desc: 'Full exclusive placement suite' },
+    ]
+
+    const TIER_COLORS = {
+        standard: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+        premium: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+        exclusive: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    }
+
+    useEffect(() => { fetchListings() }, [])
+
+    const fetchListings = async () => {
+        try {
+            setLoading(true)
+            const data = await adminService.getFeaturedListings()
+            setListings(data.listings || [])
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load featured listings', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleCreate = async (e) => {
+        e.preventDefault()
+        if (!form.toolSlug.trim() || !form.priceUSD) return
+        try {
+            setCreating(true)
+            await adminService.createFeaturedListing(form)
+            toast({ title: 'Created', description: `Sponsored listing created for "${form.toolSlug}"` })
+            setShowForm(false)
+            setForm({ toolSlug: '', tier: 'standard', durationDays: 30, priceUSD: '', vendorName: '', vendorEmail: '', campaignNotes: '' })
+            fetchListings()
+        } catch (err) {
+            toast({ title: 'Error', description: err?.response?.data?.message || 'Failed to create listing', variant: 'destructive' })
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    const handleDeactivate = async (id, toolName) => {
+        if (!window.confirm(`Deactivate featured listing for "${toolName}"?`)) return
+        try {
+            await adminService.deactivateFeaturedListing(id)
+            toast({ title: 'Deactivated', description: `Listing for "${toolName}" deactivated` })
+            fetchListings()
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to deactivate listing', variant: 'destructive' })
+        }
+    }
+
+    const handleExpireStale = async () => {
+        try {
+            const data = await adminService.expireStaleFeaturedListings()
+            toast({ title: 'Done', description: `Expired ${data.count ?? 0} stale listings` })
+            fetchListings()
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to expire stale listings', variant: 'destructive' })
+        }
+    }
+
+    const activeListings = listings.filter(l => l.active)
+    const inactiveListings = listings.filter(l => !l.active)
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Megaphone className="h-6 w-6 text-amber-400" />
+                        Sponsored Listings
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">Manage paid vendor placements across the directory</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleExpireStale}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white text-sm transition-colors"
+                    >
+                        <RefreshCw size={13} /> Expire Stale
+                    </button>
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+                    >
+                        <Plus size={14} /> New Listing
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+                    <p className="text-xs text-gray-500 mb-1">Active</p>
+                    <p className="text-2xl font-bold text-emerald-400">{activeListings.length}</p>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+                    <p className="text-xs text-gray-500 mb-1">Total Revenue (est.)</p>
+                    <p className="text-2xl font-bold text-white">
+                        ${listings.reduce((sum, l) => sum + (parseFloat(l.priceUSD) || 0), 0).toFixed(0)}
+                    </p>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+                    <p className="text-xs text-gray-500 mb-1">Expired</p>
+                    <p className="text-2xl font-bold text-gray-400">{inactiveListings.length}</p>
+                </div>
+            </div>
+
+            {/* Create form */}
+            {showForm && (
+                <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-6">
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <BadgeDollarSign size={16} className="text-purple-400" /> Create Sponsored Listing
+                    </h3>
+                    <form onSubmit={handleCreate} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Tool Slug <span className="text-red-400">*</span></label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. chatgpt"
+                                    value={form.toolSlug}
+                                    onChange={e => setForm(f => ({ ...f, toolSlug: e.target.value }))}
+                                    required
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Tier</label>
+                                <select
+                                    value={form.tier}
+                                    onChange={e => setForm(f => ({ ...f, tier: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                >
+                                    {TIERS.map(t => (
+                                        <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Duration (days)</label>
+                                <input
+                                    type="number"
+                                    min={1} max={365}
+                                    value={form.durationDays}
+                                    onChange={e => setForm(f => ({ ...f, durationDays: parseInt(e.target.value) }))}
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Price (USD) <span className="text-red-400">*</span></label>
+                                <input
+                                    type="number"
+                                    min={0} step="0.01"
+                                    placeholder="299.00"
+                                    value={form.priceUSD}
+                                    onChange={e => setForm(f => ({ ...f, priceUSD: e.target.value }))}
+                                    required
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Vendor Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="Acme Corp"
+                                    value={form.vendorName}
+                                    onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1">Vendor Email</label>
+                                <input
+                                    type="email"
+                                    placeholder="billing@acme.com"
+                                    value={form.vendorEmail}
+                                    onChange={e => setForm(f => ({ ...f, vendorEmail: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 transition-colors"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Campaign Notes</label>
+                            <textarea
+                                rows={2}
+                                placeholder="Internal notes about this campaign..."
+                                value={form.campaignNotes}
+                                onChange={e => setForm(f => ({ ...f, campaignNotes: e.target.value }))}
+                                className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 transition-colors resize-none"
+                            />
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                type="submit"
+                                disabled={creating}
+                                className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                            >
+                                {creating ? 'Creating...' : 'Create Listing'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:text-white text-sm transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* Active listings */}
+            {loading ? (
+                <LoadingSpinner text="Loading listings..." />
+            ) : activeListings.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/2 py-16 text-center">
+                    <Megaphone className="mx-auto mb-3 h-10 w-10 text-gray-700" />
+                    <p className="text-gray-500 text-sm">No active sponsored listings.</p>
+                    <button
+                        onClick={() => setShowForm(true)}
+                        className="mt-4 text-sm text-purple-400 hover:text-purple-300"
+                    >
+                        Create your first listing →
+                    </button>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-white">Active Listings ({activeListings.length})</h3>
+                    {activeListings.map(listing => {
+                        const endsAt = listing.endsAt ? new Date(listing.endsAt) : null
+                        const daysLeft = endsAt ? Math.ceil((endsAt - Date.now()) / 86400000) : null
+                        const tool = listing.tool
+                        return (
+                            <div key={listing._id} className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/3 p-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-white text-sm">
+                                            {tool?.name || listing.toolSlug}
+                                        </span>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${TIER_COLORS[listing.tier] || TIER_COLORS.standard}`}>
+                                            {listing.tier}
+                                        </span>
+                                        {daysLeft !== null && (
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${daysLeft <= 3 ? 'bg-red-500/10 text-red-400' :
+                                                    daysLeft <= 7 ? 'bg-amber-500/10 text-amber-400' :
+                                                        'bg-emerald-500/10 text-emerald-400'
+                                                }`}>
+                                                {daysLeft}d left
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        {listing.vendorName || 'Unknown vendor'}
+                                        {listing.priceUSD ? ` · $${listing.priceUSD}` : ''}
+                                        {endsAt ? ` · Expires ${endsAt.toLocaleDateString()}` : ''}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    {tool?.slug && (
+                                        <a
+                                            href={`/tools/${tool.slug}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                                            title="View tool"
+                                        >
+                                            <ExternalLink size={13} />
+                                        </a>
+                                    )}
+                                    <button
+                                        onClick={() => handleDeactivate(listing._id, tool?.name || listing.toolSlug)}
+                                        className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                        title="Deactivate"
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+
+            {/* Expired / inactive listings */}
+            {inactiveListings.length > 0 && (
+                <details className="group">
+                    <summary className="cursor-pointer text-xs text-gray-600 hover:text-gray-400 transition-colors list-none flex items-center gap-1">
+                        <ChevronRight size={12} className="group-open:rotate-90 transition-transform" />
+                        {inactiveListings.length} expired / inactive listing{inactiveListings.length > 1 ? 's' : ''}
+                    </summary>
+                    <div className="mt-3 space-y-2 opacity-50">
+                        {inactiveListings.map(listing => (
+                            <div key={listing._id} className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/2 px-4 py-2.5">
+                                <span className="text-sm text-gray-500 flex-1">{listing.tool?.name || listing.toolSlug}</span>
+                                <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${TIER_COLORS[listing.tier] || TIER_COLORS.standard}`}>{listing.tier}</span>
+                                <span className="text-xs text-gray-600">{listing.priceUSD ? `$${listing.priceUSD}` : ''}</span>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            )}
+
+            {/* Pricing reference */}
+            <div className="rounded-xl border border-white/5 bg-white/2 p-4">
+                <p className="text-xs text-gray-600">
+                    <strong className="text-gray-400">Pricing reference:</strong>{' '}
+                    Standard $99–299/mo · Premium $299–999/mo · Exclusive $999–2,999/mo.
+                    All deals negotiated manually — this panel records the agreed price.
+                </p>
+            </div>
+        </div>
+    )
+}
 function ReviewsTab() {
     const [reviews, setReviews] = useState([])
     const [loading, setLoading] = useState(true)
@@ -2384,8 +2724,8 @@ function FeatureFlagsTab() {
                         <div
                             key={flag.key}
                             className={`flex items-start justify-between rounded-lg border p-4 transition ${flag.enabled
-                                    ? 'border-green-500/30 bg-green-500/5'
-                                    : 'border-white/10 bg-white/5'
+                                ? 'border-green-500/30 bg-green-500/5'
+                                : 'border-white/10 bg-white/5'
                                 }`}
                         >
                             <div className="flex-1 min-w-0 mr-4">
