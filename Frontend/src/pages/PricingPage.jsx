@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     Check, X, Sparkles, Star, Zap, TrendingUp, Users, Shield,
-    CreditCard, Clock, Loader2, Tag, CheckCircle2, ToggleLeft, ToggleRight,
+    CreditCard, Clock, Loader2, Tag, CheckCircle2, ToggleLeft, ToggleRight, Gift,
 } from 'lucide-react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import { paymentService, couponService } from '../services'
 import SEO from '../components/common/SEO'
+import { useFlag } from '../hooks/useFeatureFlags'
 
 // ─── Plan definitions ──────────────────────────────────────────────────────────
 const MONTHLY_PLANS = [
@@ -184,6 +185,7 @@ const FAQS = [
 
 export default function PricingPage() {
     const { user, isSignedIn } = useUser()
+    const annualV2 = useFlag('ANNUAL_PRICING_V2')
     const [billing, setBilling] = useState('annual')
     const [loading, setLoading] = useState(null)
     const [error, setError] = useState(null)
@@ -198,6 +200,11 @@ export default function PricingPage() {
     const [couponLoading, setCouponLoading] = useState(false)
 
     const plans = billing === 'annual' ? ANNUAL_PLANS : MONTHLY_PLANS
+
+    // Annual savings figures (used by V2 framing)
+    // Pro: $9.99 * 12 = $119.88/yr vs $79.99/yr → save $39.89
+    // Team: $39 * 12 = $468/yr vs $390/yr → save $78
+    const ANNUAL_SAVINGS = { pro_yearly: 39.89, business_yearly: 78 }
 
     const applyDiscount = (basePrice) => {
         if (!couponData || basePrice === 0) return basePrice
@@ -309,7 +316,7 @@ export default function PricingPage() {
                 </div>
 
                 {/* ── Billing Toggle ── */}
-                <div className="flex items-center justify-center gap-4 mb-12">
+                <div className="flex items-center justify-center gap-4 mb-8">
                     <span className={`text-sm font-medium transition-colors ${billing === 'monthly' ? 'text-white' : 'text-gray-500'}`}>
                         Monthly
                     </span>
@@ -326,10 +333,47 @@ export default function PricingPage() {
                     <span className={`text-sm font-medium transition-colors ${billing === 'annual' ? 'text-white' : 'text-gray-500'}`}>
                         Annual
                         <span className="ml-2 px-2 py-0.5 bg-accent-emerald/20 text-accent-emerald text-xs font-semibold rounded-full border border-accent-emerald/30">
-                            Save 33%
+                            {annualV2 ? '4 Months FREE' : 'Save 33%'}
                         </span>
                     </span>
                 </div>
+
+                {/* ── Annual V2: Savings Banner (shown only when flag ON + annual tab active) ── */}
+                {annualV2 && billing === 'annual' && (
+                    <div className="mx-auto mb-10 max-w-2xl">
+                        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/8 to-cyan-500/10 p-5 text-center">
+                            {/* Glow blobs */}
+                            <div className="absolute -left-10 -top-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Gift size={18} className="text-emerald-400" />
+                                    <span className="text-sm font-bold text-white">Annual billing = 4 months completely FREE</span>
+                                </div>
+                                <span className="hidden sm:block text-white/20">·</span>
+                                <span className="text-sm text-emerald-300">
+                                    Pro plan saves you <strong className="text-white">$39.89/year</strong> vs monthly
+                                </span>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500 relative z-10">
+                                Billed as one payment · Cancel anytime · 30-day money-back guarantee
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Annual V2: Switch Nudge (shown when monthly tab is active) ── */}
+                {annualV2 && billing === 'monthly' && (
+                    <div className="mx-auto mb-8 max-w-xl">
+                        <button
+                            onClick={() => setBilling('annual')}
+                            className="w-full rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 px-5 py-3 text-sm text-emerald-300 hover:border-emerald-500/70 hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Gift size={14} />
+                            Switch to Annual and save $39.89 — that&apos;s 4 months free on Pro
+                        </button>
+                    </div>
+                )}
 
                 {/* ── Coupon Code ── */}
                 {isSignedIn && (
@@ -453,8 +497,11 @@ export default function PricingPage() {
 
                                 {/* Savings Badge */}
                                 {plan.savings && (
-                                    <div className="absolute -top-3 -right-3 rounded-full bg-gradient-to-r from-accent-emerald to-accent-cyan px-3 py-1 text-xs font-bold text-white shadow-lg">
-                                        {plan.savings}
+                                    <div className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${annualV2
+                                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse shadow-emerald-500/30'
+                                            : 'bg-gradient-to-r from-accent-emerald to-accent-cyan'
+                                        }`}>
+                                        {annualV2 && plan.id === 'pro_yearly' ? '4 Months FREE 🎁' : plan.savings}
                                     </div>
                                 )}
 
@@ -488,6 +535,12 @@ export default function PricingPage() {
                                     {plan.monthlyEquivalent && billing === 'annual' && !discountedPrice && (
                                         <p className="text-sm text-accent-emerald mt-1">
                                             ${plan.monthlyEquivalent}/mo — billed annually
+                                        </p>
+                                    )}
+                                    {/* V2: explicit dollar savings per card */}
+                                    {annualV2 && billing === 'annual' && ANNUAL_SAVINGS[plan.id] && (
+                                        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
+                                            <Gift size={10} /> You save ${ANNUAL_SAVINGS[plan.id].toFixed(2)}/year
                                         </p>
                                     )}
                                 </div>
