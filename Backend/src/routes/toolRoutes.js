@@ -96,11 +96,41 @@ router.get('/slug/:slug/visit', optionalAuth, async (req, res) => {
     }
 })
 
+// ── Programmatic SEO Content ──────────────────────────────────────────────────
+// GET /api/v1/tools/slug/:slug/seo-content
+// Lazy-generates Groq content on first access, then caches in Redis + MongoDB.
+// Returns { seoContent: null } when PROGRAMMATIC_SEO flag is OFF.
+// Must be placed BEFORE /slug/:slug to avoid route shadowing.
+router.get('/slug/:slug/seo-content', async (req, res) => {
+    try {
+        const { getSeoContent } = await import('../services/seoEnrichment.js')
+        const seoContent = await getSeoContent(req.params.slug)
+        res.json({ seoContent })
+    } catch (err) {
+        console.error('[SEO Content] Error:', err.message)
+        res.json({ seoContent: null })
+    }
+})
+
+// POST /api/v1/tools/slug/:slug/seo-content/regenerate  (admin only)
+// Force-regenerates SEO content even if fresh content already exists.
+router.post('/slug/:slug/seo-content/regenerate', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { regenerateSeoContent } = await import('../services/seoEnrichment.js')
+        const seoContent = await regenerateSeoContent(req.params.slug)
+        res.json({ success: true, seoContent })
+    } catch (err) {
+        console.error('[SEO Content] Regenerate error:', err.message)
+        res.status(500).json({ success: false, message: err.message })
+    }
+})
+
 router.get(
     '/slug/:slug',
     cacheMiddleware(600),
     toolController.getToolBySlug
 )
+
 
 router.get(
     '/:id',

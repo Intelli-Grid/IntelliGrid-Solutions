@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Tag, CheckCircle, Layers } from 'lucide-react';
 import ToolReviews from './ToolReviews';
+import ToolFAQSection from './ToolFAQSection';
 
 export default function ToolContent({ tool }) {
     const [activeTab, setActiveTab] = useState('overview');
@@ -80,6 +81,9 @@ export default function ToolContent({ tool }) {
                                 </div>
                             </div>
                         )}
+
+                        {/* ── AI-generated FAQ + Use Cases (PROGRAMMATIC_SEO flag) ── */}
+                        <ToolFAQSection slug={tool.slug} />
                     </div>
                 )}
 
