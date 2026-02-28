@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { userService, collectionService, toolService, gdprService, submissionService } from '../services'
+import { userService, collectionService, toolService, gdprService, submissionService, paymentService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import ToolCard from '../components/tools/ToolCard'
-import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil, Shield, Download, AlertTriangle, Loader2 } from 'lucide-react'
+import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil, Shield, Download, AlertTriangle, Loader2, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import EditToolModal from '../components/tools/EditToolModal'
+import CancellationRescueModal from '../components/common/CancellationRescueModal'
+import { useFlag } from '../hooks/useFeatureFlags'
 
 export default function DashboardPage() {
     const { user, isLoaded } = useUser()
+    const rescueEnabled = useFlag('CANCELLATION_RESCUE')
     const [stats, setStats] = useState(null)
     const [subscription, setSubscription] = useState(null)
     const [favorites, setFavorites] = useState([])
@@ -23,6 +26,9 @@ export default function DashboardPage() {
     const [creatingCollection, setCreatingCollection] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [editingToolId, setEditingToolId] = useState(null)
+    // Cancellation rescue modal state
+    const [rescueOpen, setRescueOpen] = useState(false)
+    const [cancellingSubscription, setCancellingSubscription] = useState(false)
 
     useEffect(() => {
         if (isLoaded && user) {
@@ -130,6 +136,32 @@ export default function DashboardPage() {
         setEditingToolId(null)
         fetchDashboardData() // Refresh data
         toast.success('Tool updated successfully')
+    }
+
+    // ── Cancellation Rescue ──────────────────────────────────────────────────
+    // When flag is ON: show rescue modal first, confirm fires actual cancel
+    // When flag is OFF: cancel immediately on button click
+    const handleCancelClick = () => {
+        if (rescueEnabled) {
+            setRescueOpen(true)
+        } else {
+            executeCancelSubscription()
+        }
+    }
+
+    const executeCancelSubscription = async () => {
+        try {
+            setCancellingSubscription(true)
+            await paymentService.cancelPayPalSubscription()
+            toast.success('Subscription cancelled. Your Pro access continues until the end of the billing period.')
+            setRescueOpen(false)
+            // Refresh subscription state
+            fetchDashboardData()
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to cancel subscription. Please contact support.')
+        } finally {
+            setCancellingSubscription(false)
+        }
     }
 
     if (!isLoaded || loading) {
@@ -288,7 +320,7 @@ export default function DashboardPage() {
                                 )}
                             </div>
 
-                            {/* Subscription Status */}
+                            {/* Current Plan card */}
                             <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                                 <h2 className="mb-4 text-xl font-bold text-white">Current Plan</h2>
                                 <div className="flex items-center justify-between mb-4">
@@ -315,7 +347,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-400">Favorites Limit</span>
+                                        <span className="text-gray-400">Favourites Limit</span>
                                         <span className="text-white">{['Premium', 'Enterprise'].includes(subscription?.tier) ? 'Unlimited' : '10'}</span>
                                     </div>
                                     <div className="w-full bg-gray-700 rounded-full h-1.5">
@@ -325,6 +357,20 @@ export default function DashboardPage() {
                                         ></div>
                                     </div>
                                 </div>
+
+                                {/* Cancel Subscription button — only for active paid subscribers */}
+                                {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' && (
+                                    <div className="mt-5 pt-4 border-t border-white/5">
+                                        <button
+                                            id="cancel-subscription-btn"
+                                            onClick={handleCancelClick}
+                                            className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-red-400 transition-colors"
+                                        >
+                                            <XCircle size={12} />
+                                            Cancel Subscription
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -608,6 +654,17 @@ export default function DashboardPage() {
                 toolId={editingToolId}
                 onSuccess={handleEditSuccess}
             />
+
+            {/* Cancellation Rescue Modal — only mounts when CANCELLATION_RESCUE flag is ON */}
+            {rescueEnabled && (
+                <CancellationRescueModal
+                    isOpen={rescueOpen}
+                    onClose={() => setRescueOpen(false)}
+                    onConfirmCancel={executeCancelSubscription}
+                    planName={subscription?.tier || 'Professional'}
+                    isLoading={cancellingSubscription}
+                />
+            )}
         </div >
     )
 }
