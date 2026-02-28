@@ -960,6 +960,7 @@ router.post('/feature-flags/seed', async (req, res) => {
             { key: 'NEWSLETTER_SIGNUP', enabled: false, description: 'Newsletter opt-in forms and Brevo delivery' },
             { key: 'ONBOARDING_EMAILS', enabled: false, description: '14-day email onboarding sequence post-signup' },
             { key: 'AFFILIATE_TRACKING', enabled: false, description: 'Affiliate click tracking + redirect layer' },
+            { key: 'FEATURED_LISTINGS', enabled: false, description: 'Sponsored tool placements on homepage (paid B2B slots)' },
             { key: 'PROGRAMMATIC_SEO', enabled: false, description: 'Groq-expanded tool pages with FAQ + use case content' },
             { key: 'ANNUAL_PRICING_V2', enabled: false, description: 'Annual pricing with "4 months free" framing' },
             { key: 'CANCELLATION_RESCUE', enabled: false, description: 'Exit-intent interstitial on subscription cancel' },
@@ -979,6 +980,133 @@ router.post('/feature-flags/seed', async (req, res) => {
     } catch (err) {
         console.error('Feature flags seed error:', err)
         res.status(500).json({ success: false, message: 'Failed to seed feature flags' })
+    }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Featured Listings Admin API
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @route  GET /api/v1/admin/featured-listings
+ * @desc   List all featured listings (active + expired)
+ * @access Admin only
+ */
+router.get('/featured-listings', async (req, res) => {
+    try {
+        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
+        const listings = await FeaturedListing.find()
+            .populate('tool', 'name slug logo officialUrl')
+            .sort({ endDate: -1 })
+            .lean()
+        res.json({ success: true, listings })
+    } catch (err) {
+        console.error('Featured listings list error:', err)
+        res.status(500).json({ success: false, message: 'Failed to fetch featured listings' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/featured-listings
+ * @desc   Create a new featured listing
+ * @access Admin only
+ */
+router.post('/featured-listings', async (req, res) => {
+    try {
+        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
+        const { tool, tier, vendorName, vendorEmail, monthlyRate, startDate, endDate, notes } = req.body
+
+        if (!tool || !tier || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: 'tool, tier, startDate and endDate are required' })
+        }
+
+        const listing = await FeaturedListing.create({
+            tool,
+            tier,
+            vendorName,
+            vendorEmail,
+            monthlyRate: monthlyRate || 0,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            notes,
+            isActive: true,
+            createdBy: req.auth?.userId,
+        })
+
+        const populated = await listing.populate('tool', 'name slug logo officialUrl')
+        res.status(201).json({ success: true, listing: populated })
+    } catch (err) {
+        console.error('Featured listing create error:', err)
+        res.status(500).json({ success: false, message: 'Failed to create featured listing' })
+    }
+})
+
+/**
+ * @route  PATCH /api/v1/admin/featured-listings/:id
+ * @desc   Update a featured listing (toggle active, change dates/tier/notes)
+ * @access Admin only
+ */
+router.patch('/featured-listings/:id', async (req, res) => {
+    try {
+        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
+        const allowedFields = ['tier', 'vendorName', 'vendorEmail', 'monthlyRate', 'startDate', 'endDate', 'notes', 'isActive']
+        const updates = {}
+        for (const key of allowedFields) {
+            if (req.body[key] !== undefined) updates[key] = req.body[key]
+        }
+
+        // Coerce date strings
+        if (updates.startDate) updates.startDate = new Date(updates.startDate)
+        if (updates.endDate) updates.endDate = new Date(updates.endDate)
+
+        const listing = await FeaturedListing.findByIdAndUpdate(
+            req.params.id,
+            updates,
+            { new: true, runValidators: true }
+        ).populate('tool', 'name slug logo officialUrl')
+
+        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
+
+        res.json({ success: true, listing })
+    } catch (err) {
+        console.error('Featured listing update error:', err)
+        res.status(500).json({ success: false, message: 'Failed to update featured listing' })
+    }
+})
+
+/**
+ * @route  DELETE /api/v1/admin/featured-listings/:id
+ * @desc   Hard-delete a featured listing
+ * @access Admin only
+ */
+router.delete('/featured-listings/:id', async (req, res) => {
+    try {
+        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
+        const listing = await FeaturedListing.findByIdAndDelete(req.params.id)
+        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
+        res.json({ success: true, message: 'Listing deleted' })
+    } catch (err) {
+        console.error('Featured listing delete error:', err)
+        res.status(500).json({ success: false, message: 'Failed to delete listing' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/featured-listings/expire-stale
+ * @desc   Mark all listings whose endDate has passed as inactive
+ * @access Admin only
+ */
+router.post('/featured-listings/expire-stale', async (req, res) => {
+    try {
+        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
+        const result = await FeaturedListing.updateMany(
+            { isActive: true, endDate: { $lt: new Date() } },
+            { $set: { isActive: false } }
+        )
+        res.json({ success: true, message: `Marked ${result.modifiedCount} listing(s) as expired` })
+    } catch (err) {
+        console.error('Featured listing expire-stale error:', err)
+        res.status(500).json({ success: false, message: 'Failed to expire stale listings' })
     }
 })
 

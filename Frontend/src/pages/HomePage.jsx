@@ -5,6 +5,7 @@ import { toolService, categoryService } from '../services'
 import ToolCard from '../components/tools/ToolCard'
 import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import SEO from '../components/common/SEO'
+import FeaturedSpot from '../components/tools/FeaturedSpot'
 
 // Top categories to feature — slugs must match actual DB slugs from /api/v1/categories
 // Verified against live API: writing-and-content, image-generation, video-generation,
@@ -175,6 +176,9 @@ export default function HomePage() {
                     ))}
                 </div>
             </section>
+
+            {/* ════════════════ FEATURED (SPONSORED) ════════════════ */}
+            <FeaturedSpot />
 
             {/* ════════════════ BROWSE BY CATEGORY ════════════════ */}
             <section className="py-20 bg-gray-950">

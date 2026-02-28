@@ -203,6 +203,47 @@ app.get('/api/v1/config/features', async (req, res) => {
     }
 })
 
+// ── Featured Listings Public Endpoint ────────────────────────────────────────
+// Returns active sponsored listings (FEATURED_LISTINGS flag must be ON).
+// Data is cached in Redis for 5 minutes to avoid hammering MongoDB on every page load.
+app.get('/api/v1/featured', async (req, res) => {
+    try {
+        const { isFeatureEnabled } = await import('./services/featureFlags.js')
+        const flagOn = await isFeatureEnabled('FEATURED_LISTINGS')
+        if (!flagOn) return res.json({ listings: [] })
+
+        const CACHE_KEY = 'featured_listings_public'
+        const CACHE_TTL = 300 // 5 minutes
+
+        // Try Redis cache first
+        if (redisClient?.isOpen) {
+            const cached = await redisClient.get(CACHE_KEY).catch(() => null)
+            if (cached) return res.json({ listings: JSON.parse(cached) })
+        }
+
+        const FeaturedListing = (await import('./models/FeaturedListing.js')).default
+        const listings = await FeaturedListing.find({
+            isActive: true,
+            startDate: { $lte: new Date() },
+            endDate: { $gte: new Date() },
+        })
+            .populate('tool', 'name slug logo shortDescription officialUrl affiliateUrl ratings')
+            .sort({ tier: 1, createdAt: -1 }) // premium first
+            .lean()
+
+        // Cache the result
+        if (redisClient?.isOpen) {
+            redisClient.setEx(CACHE_KEY, CACHE_TTL, JSON.stringify(listings)).catch(() => { })
+        }
+
+        res.json({ listings })
+    } catch (err) {
+        console.error('[Featured] Public endpoint error:', err.message)
+        res.json({ listings: [] })
+    }
+})
+
+
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {
     res.status(404).json({
