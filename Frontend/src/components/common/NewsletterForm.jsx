@@ -3,11 +3,16 @@ import { newsletterService } from '../../services'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from './LoadingSpinner'
 import { Mail } from 'lucide-react'
+import { useFlag } from '../../hooks/useFeatureFlags'
 
 export default function NewsletterForm({ source = 'website', className = '' }) {
+    const newsletterEnabled = useFlag('NEWSLETTER_SIGNUP')
     const [email, setEmail] = useState('')
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)
+
+    // Don't render when flag is OFF — zero UI impact on live site
+    if (!newsletterEnabled) return null
 
     const handleSubmit = async (e) => {
         e.preventDefault()
