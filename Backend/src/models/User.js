@@ -26,7 +26,13 @@ const userSchema = new mongoose.Schema(
         subscription: {
             tier: {
                 type: String,
-                enum: ['Free', 'Basic', 'Premium', 'Enterprise'],
+                // Free       — default. 10 favourites, 2 collections, compare 2 tools
+                // Basic      — paid entry tier
+                // Pro        — full paid tier (also used for reverse trial users)
+                // Premium    — legacy alias for Pro (kept to avoid breaking existing records)
+                // Business   — team tier
+                // Enterprise — enterprise custom tier
+                enum: ['Free', 'Basic', 'Pro', 'Premium', 'Business', 'Enterprise'],
                 default: 'Free',
             },
             status: {
@@ -36,6 +42,7 @@ const userSchema = new mongoose.Schema(
             },
             startDate: Date,
             endDate: Date,
+            cancelledAt: Date,
             autoRenew: {
                 type: Boolean,
                 default: false,
@@ -46,6 +53,16 @@ const userSchema = new mongoose.Schema(
                 default: null,
                 index: true,
                 sparse: true,
+            },
+            // Reverse-trial metadata — only populated during the 14-day free trial
+            reverseTrial: {
+                active: { type: Boolean, default: false },
+                startDate: { type: Date, default: null },
+                endDate: { type: Date, default: null },
+                // true once the user pays — cron skips converted users
+                converted: { type: Boolean, default: false },
+                // Date the trial was downgraded back to Free
+                downgradedAt: { type: Date, default: null },
             },
         },
         role: {
@@ -97,6 +114,22 @@ const userSchema = new mongoose.Schema(
             default: true,
         },
         lastLoginAt: Date,
+        // AI Stack Advisor — stores the 10 most recent recommendation sets
+        savedStacks: {
+            type: [
+                {
+                    createdAt: { type: Date, default: Date.now },
+                    input: { type: mongoose.Schema.Types.Mixed },
+                    recommendations: { type: [mongoose.Schema.Types.Mixed] },
+                },
+            ],
+            default: [],
+        },
+        // Win-back and cancellation tracking
+        winBackSent: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

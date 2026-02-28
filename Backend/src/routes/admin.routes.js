@@ -5,6 +5,7 @@ import Review from '../models/Review.js'
 import User from '../models/User.js'
 import Order from '../models/Order.js'
 import ClaimRequest from '../models/ClaimRequest.js'
+import FeaturedListing from '../models/FeaturedListing.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import emailService from '../services/emailService.js'
 import toolService from '../services/toolService.js'
@@ -719,4 +720,267 @@ router.post('/link-health/restore/:id', async (req, res) => {
     }
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Featured Listings (Vendor Sponsorships) — IMPL-13
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @route  GET /api/v1/admin/featured-listings
+ * @desc   Get all featured listings (active + expired) with pagination
+ */
+router.get('/featured-listings', async (req, res) => {
+    try {
+        const { page = 1, limit = 20, activeOnly = 'false' } = req.query
+        const query = activeOnly === 'true' ? { isActive: true } : {}
+
+        const [listings, total] = await Promise.all([
+            FeaturedListing.find(query)
+                .populate('tool', 'name slug logo isFeatured featuredTier')
+                .populate('createdBy', 'firstName lastName email')
+                .sort({ createdAt: -1 })
+                .skip((parseInt(page) - 1) * parseInt(limit))
+                .limit(parseInt(limit))
+                .lean(),
+            FeaturedListing.countDocuments(query),
+        ])
+
+        res.json({
+            success: true,
+            listings,
+            pagination: { total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) },
+        })
+    } catch (error) {
+        console.error('Featured listings fetch error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch featured listings' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/featured-listings
+ * @desc   Create a new featured vendor listing
+ * @body   { toolId, tier, startDate, endDate, vendorName, vendorEmail, monthlyRate, notes }
+ */
+router.post('/featured-listings', async (req, res) => {
+    try {
+        const { toolId, tier, startDate, endDate, vendorName, vendorEmail, monthlyRate = 0, notes } = req.body
+
+        if (!toolId || !tier || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: 'toolId, tier, startDate, endDate are required' })
+        }
+        if (!['standard', 'premium'].includes(tier)) {
+            return res.status(400).json({ success: false, message: "tier must be 'standard' or 'premium'" })
+        }
+
+        const tool = await Tool.findById(toolId)
+        if (!tool) return res.status(404).json({ success: false, message: 'Tool not found' })
+
+        const listing = await FeaturedListing.create({
+            tool: toolId,
+            tier,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            vendorName,
+            vendorEmail,
+            monthlyRate,
+            notes,
+            createdBy: req.user._id,
+            isActive: true,
+        })
+
+        // Mark the tool as featured at the specified tier
+        await Tool.findByIdAndUpdate(toolId, {
+            isFeatured: true,
+            featuredTier: tier,
+        })
+
+        console.log(`[Featured] Admin ${req.user.email} created ${tier} listing for "${tool.name}"`)
+
+        res.status(201).json({ success: true, listing })
+    } catch (error) {
+        console.error('Featured listing create error:', error)
+        res.status(500).json({ success: false, message: 'Failed to create featured listing' })
+    }
+})
+
+/**
+ * @route  PATCH /api/v1/admin/featured-listings/:id
+ * @desc   Update an existing listing (tier, dates, notes, vendor info)
+ */
+router.patch('/featured-listings/:id', async (req, res) => {
+    try {
+        const allowed = ['tier', 'startDate', 'endDate', 'vendorName', 'vendorEmail', 'monthlyRate', 'notes']
+        const update = {}
+        for (const key of allowed) {
+            if (req.body[key] !== undefined) update[key] = req.body[key]
+        }
+
+        const listing = await FeaturedListing.findByIdAndUpdate(
+            req.params.id,
+            { $set: update },
+            { new: true }
+        ).populate('tool', 'name slug')
+
+        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
+
+        // If tier changed, sync to the tool
+        if (update.tier && listing.isActive) {
+            await Tool.findByIdAndUpdate(listing.tool._id, { featuredTier: update.tier })
+        }
+
+        res.json({ success: true, listing })
+    } catch (error) {
+        console.error('Featured listing update error:', error)
+        res.status(500).json({ success: false, message: 'Failed to update listing' })
+    }
+})
+
+/**
+ * @route  DELETE /api/v1/admin/featured-listings/:id
+ * @desc   Deactivate (soft-delete) a featured listing + un-feature the tool
+ */
+router.delete('/featured-listings/:id', async (req, res) => {
+    try {
+        const listing = await FeaturedListing.findByIdAndUpdate(
+            req.params.id,
+            { isActive: false },
+            { new: true }
+        )
+        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
+
+        // Check if the tool has any other active listings before un-featuring
+        const otherActive = await FeaturedListing.countDocuments({
+            tool: listing.tool,
+            isActive: true,
+            _id: { $ne: listing._id },
+        })
+        if (otherActive === 0) {
+            await Tool.findByIdAndUpdate(listing.tool, { isFeatured: false, featuredTier: null })
+        }
+
+        res.json({ success: true, message: 'Listing deactivated and tool un-featured' })
+    } catch (error) {
+        console.error('Featured listing deactivate error:', error)
+        res.status(500).json({ success: false, message: 'Failed to deactivate listing' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/featured-listings/expire-stale
+ * @desc   Manually expire all listings past their endDate (cron also handles this)
+ */
+router.post('/featured-listings/expire-stale', async (req, res) => {
+    try {
+        const now = new Date()
+        const expired = await FeaturedListing.find({ isActive: true, endDate: { $lt: now } })
+
+        let count = 0
+        for (const listing of expired) {
+            listing.isActive = false
+            await listing.save()
+
+            const otherActive = await FeaturedListing.countDocuments({
+                tool: listing.tool,
+                isActive: true,
+                _id: { $ne: listing._id },
+            })
+            if (otherActive === 0) {
+                await Tool.findByIdAndUpdate(listing.tool, { isFeatured: false, featuredTier: null })
+            }
+            count++
+        }
+
+        res.json({ success: true, message: `Expired ${count} stale listing(s)` })
+    } catch (error) {
+        console.error('Expire stale listings error:', error)
+        res.status(500).json({ success: false, message: 'Failed to expire stale listings' })
+    }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature Flags Admin API
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @route  GET /api/v1/admin/feature-flags
+ * @desc   List all feature flags with current enabled state
+ * @access Admin only
+ */
+router.get('/feature-flags', async (req, res) => {
+    try {
+        const { getAllFlags } = await import('../services/featureFlags.js')
+        const flags = await getAllFlags()
+        res.json({ success: true, flags })
+    } catch (err) {
+        console.error('Feature flags list error:', err)
+        res.status(500).json({ success: false, message: 'Failed to fetch feature flags' })
+    }
+})
+
+/**
+ * @route  PATCH /api/v1/admin/feature-flags/:key
+ * @desc   Enable/disable a feature flag (and optionally set role-based access)
+ * @body   { enabled: boolean, enabledForRoles?: string[], description?: string }
+ * @access Admin only
+ */
+router.patch('/feature-flags/:key', async (req, res) => {
+    try {
+        const { updateFlag } = await import('../services/featureFlags.js')
+        const flagKey = req.params.key.toUpperCase()
+        const updates = req.body
+
+        if (typeof updates.enabled !== 'boolean' && updates.enabledForRoles === undefined && updates.description === undefined) {
+            return res.status(400).json({ success: false, message: 'No valid fields to update. Provide enabled, enabledForRoles, or description.' })
+        }
+
+        const flag = await updateFlag(flagKey, updates)
+
+        console.log(`[FeatureFlag] Admin ${req.user.email} set "${flagKey}" enabled=${flag.enabled}`)
+        res.json({ success: true, flag })
+    } catch (err) {
+        console.error('Feature flag update error:', err)
+        res.status(500).json({ success: false, message: 'Failed to update feature flag' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/feature-flags/seed
+ * @desc   Idempotent seed — inserts all standard flags if they don't exist.
+ *         Safe to call multiple times. Existing flags are NOT overwritten.
+ * @access Admin only (SUPERADMIN recommended)
+ */
+router.post('/feature-flags/seed', async (req, res) => {
+    try {
+        const FeatureFlag = (await import('../models/FeatureFlag.js')).default
+        const DEFAULT_FLAGS = [
+            { key: 'REVERSE_TRIAL', enabled: false, description: '14-day Pro trial on signup' },
+            { key: 'NEW_PRICING_TIERS', enabled: false, description: '3-tier pricing page rebuild with annual toggle' },
+            { key: 'AI_STACK_ADVISOR', enabled: false, description: 'Groq AI tool recommendations (with hallucination guard)' },
+            { key: 'CONTEXTUAL_NUDGES', enabled: false, description: 'Upgrade nudge panels triggered by user actions' },
+            { key: 'VENDOR_LISTINGS', enabled: false, description: 'B2B vendor featured listing programme' },
+            { key: 'NEWSLETTER_SIGNUP', enabled: false, description: 'Newsletter opt-in forms and Brevo delivery' },
+            { key: 'ONBOARDING_EMAILS', enabled: false, description: '14-day email onboarding sequence post-signup' },
+            { key: 'AFFILIATE_TRACKING', enabled: false, description: 'Affiliate click tracking + redirect layer' },
+            { key: 'PROGRAMMATIC_SEO', enabled: false, description: 'Groq-expanded tool pages with FAQ + use case content' },
+            { key: 'ANNUAL_PRICING_V2', enabled: false, description: 'Annual pricing with "4 months free" framing' },
+            { key: 'CANCELLATION_RESCUE', enabled: false, description: 'Exit-intent interstitial on subscription cancel' },
+        ]
+
+        const results = []
+        for (const flag of DEFAULT_FLAGS) {
+            const result = await FeatureFlag.findOneAndUpdate(
+                { key: flag.key },
+                { $setOnInsert: flag },
+                { upsert: true, new: true }
+            )
+            results.push({ key: result.key, wasInserted: result.createdAt > new Date(Date.now() - 5000) })
+        }
+
+        res.json({ success: true, message: `Seeded ${DEFAULT_FLAGS.length} feature flags`, results })
+    } catch (err) {
+        console.error('Feature flags seed error:', err)
+        res.status(500).json({ success: false, message: 'Failed to seed feature flags' })
+    }
+})
+
 export default router
+

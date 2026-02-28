@@ -76,6 +76,12 @@ const toolSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // Vendor listing tier — only set when isFeatured is true
+        featuredTier: {
+            type: String,
+            enum: ['standard', 'premium', null],
+            default: null,
+        },
         isToolOfTheDay: {
             type: Boolean,
             default: false,

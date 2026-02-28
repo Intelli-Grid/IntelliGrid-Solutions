@@ -1,8 +1,11 @@
 import express from 'express'
 import toolController from '../controllers/toolController.js'
-import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js'
 import { validationRules, validate } from '../middleware/validate.js'
 import cacheMiddleware from '../middleware/cache.js'
+import Tool from '../models/Tool.js'
+import ClickEvent from '../models/ClickEvent.js'
+import { isFeatureEnabled } from '../services/featureFlags.js'
 
 const router = express.Router()
 
@@ -37,12 +40,61 @@ router.get(
     toolController.searchTools
 )
 
-
 router.get(
     '/managed',
     requireAuth,
     toolController.getManagedTools
 )
+
+// ── Affiliate Visit Redirect ──────────────────────────────────────────────────
+// GET /api/v1/tools/slug/:slug/visit
+// Tracks the outbound click and redirects to affiliate URL (or direct URL).
+// MUST be registered BEFORE /:id routes to avoid slug being treated as an ObjectId.
+// Safe when AFFILIATE_TRACKING flag is disabled — still redirects, skips logging.
+router.get('/slug/:slug/visit', optionalAuth, async (req, res) => {
+    try {
+        const tool = await Tool.findOne({ slug: req.params.slug, isActive: true })
+            .select('slug officialUrl affiliateUrl name')
+            .lean()
+
+        if (!tool) {
+            return res.status(404).json({ error: 'Tool not found' })
+        }
+
+        const trackingEnabled = await isFeatureEnabled('AFFILIATE_TRACKING')
+
+        // Determine destination: affiliate URL if flag is enabled and URL exists, else direct
+        const isAffiliate = trackingEnabled && Boolean(tool.affiliateUrl)
+        const destination = isAffiliate ? tool.affiliateUrl : tool.officialUrl
+
+        if (!destination) {
+            return res.status(422).json({ error: 'Tool has no website URL configured' })
+        }
+
+        // Increment click count on the tool document (fire-and-forget)
+        Tool.updateOne({ _id: tool._id }, { $inc: { views: 1 } })
+            .catch(err => console.error('[Visit] View increment failed:', err.message))
+
+        // Log the click event only when tracking is enabled
+        if (trackingEnabled) {
+            ClickEvent.create({
+                toolId: tool._id,
+                userId: req.user?._id || null,
+                source: req.query.source || 'tool_page',
+                ip: req.ip,
+                userAgent: req.headers['user-agent'] || null,
+                referrer: req.headers['referer'] || null,
+                destination,
+                wasAffiliate: isAffiliate,
+            }).catch(err => console.error('[Visit] ClickEvent log failed:', err.message))
+        }
+
+        return res.redirect(302, destination)
+    } catch (err) {
+        console.error('[Visit] Error:', err.message)
+        return res.status(500).json({ error: 'Failed to process visit redirect' })
+    }
+})
 
 router.get(
     '/slug/:slug',
@@ -109,3 +161,4 @@ router.delete(
 )
 
 export default router
+

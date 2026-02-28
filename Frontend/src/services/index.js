@@ -129,6 +129,12 @@ export const adminService = {
     getDiscoveryPending: (params = {}) => apiClient.get('/admin/discovery/pending', { params }),
     triggerDiscovery: (daysBack = 1) => apiClient.post('/admin/discovery/trigger', { daysBack }),
     discardDiscoveredTool: (id) => apiClient.delete(`/admin/discovery/discard/${id}`),
+    // Featured Listings (Vendor Sponsorships) — IMPL-13
+    getFeaturedListings: (params = {}) => apiClient.get('/admin/featured-listings', { params }),
+    createFeaturedListing: (data) => apiClient.post('/admin/featured-listings', data),
+    updateFeaturedListing: (id, data) => apiClient.patch(`/admin/featured-listings/${id}`, data),
+    deactivateFeaturedListing: (id) => apiClient.delete(`/admin/featured-listings/${id}`),
+    expireStaleFeaturedListings: () => apiClient.post('/admin/featured-listings/expire-stale'),
 }
 
 /**
@@ -193,4 +199,31 @@ export const gdprService = {
     getSummary: () => apiClient.get('/gdpr/summary'),
     exportData: () => apiClient.get('/gdpr/export', { responseType: 'blob' }),
     deleteData: () => apiClient.delete('/gdpr/delete'),
+}
+
+/**
+ * Stack Advisor Service
+ * NOTE: uses /api/stack-advisor (no /v1/) so we build the full path explicitly.
+ */
+const STACK_BASE = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1')
+    .replace('/api/v1', '/api/stack-advisor')
+
+import axios from 'axios'
+import { getAuthToken } from './tokenStore'
+
+const stackClient = axios.create({ baseURL: STACK_BASE, headers: { 'Content-Type': 'application/json' } })
+stackClient.interceptors.request.use(async (config) => {
+    const token = await getAuthToken()
+    if (token) config.headers.Authorization = `Bearer ${token}`
+    return config
+}, (error) => Promise.reject(error))
+stackClient.interceptors.response.use(
+    (response) => response.data,
+    (error) => Promise.reject(error)
+)
+
+export const stackAdvisorService = {
+    getRecommendations: (data) => stackClient.post('/recommend', data),
+    getHistory: () => stackClient.get('/history'),
+    deleteStack: (stackId) => stackClient.delete(`/history/${stackId}`),
 }

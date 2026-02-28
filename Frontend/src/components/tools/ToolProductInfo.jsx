@@ -1,22 +1,54 @@
-import { ExternalLink, Heart, Share2, Check, TrendingUp, Star } from 'lucide-react';
+import { ExternalLink, Heart, Share2, Check, TrendingUp, Star, Loader2 } from 'lucide-react';
 import { getPricingDisplay, formatNumber, formatDate, getInitials } from '../../utils/helpers';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useUser } from '@clerk/clerk-react';
+import { userService } from '../../services';
+import { useNudge } from '../common/NudgeContext';
 
 export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
+    const { isSignedIn } = useUser();
+    const { fireNudgeFromError } = useNudge();
     const [isFavorite, setIsFavorite] = useState(false);
+    const [favoriteLoading, setFavoriteLoading] = useState(false);
 
     if (!tool) return null;
 
     const handleShare = () => {
         if (navigator.share) {
-            navigator.share({
-                title: tool.name,
-                url: window.location.href,
-            });
+            navigator.share({ title: tool.name, url: window.location.href });
         } else {
             navigator.clipboard.writeText(window.location.href);
             toast.success('Link copied to clipboard!');
+        }
+    };
+
+    const handleFavoriteToggle = async () => {
+        if (!isSignedIn) {
+            toast.error('Sign in to save favourites');
+            return;
+        }
+        setFavoriteLoading(true);
+        try {
+            if (isFavorite) {
+                await userService.removeFavorite(tool._id);
+                setIsFavorite(false);
+                toast.success('Removed from favourites');
+            } else {
+                await userService.addFavorite(tool._id);
+                setIsFavorite(true);
+                toast.success('Saved to favourites ❤️');
+            }
+        } catch (err) {
+            // Check for limit error — fire the upgrade nudge
+            const msg = err?.response?.data?.message || err?.message || '';
+            if (msg.includes('FAVORITES_LIMIT_REACHED')) {
+                fireNudgeFromError(err);
+            } else {
+                toast.error(msg || 'Something went wrong');
+            }
+        } finally {
+            setFavoriteLoading(false);
         }
     };
 
@@ -121,13 +153,18 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
 
                 <div className="flex gap-3">
                     <button
-                        onClick={() => setIsFavorite(!isFavorite)}
-                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 font-medium transition-all hover:bg-white/5 ${isFavorite
+                        id="favorite-btn"
+                        onClick={handleFavoriteToggle}
+                        disabled={favoriteLoading}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 font-medium transition-all hover:bg-white/5 disabled:opacity-60 disabled:cursor-not-allowed ${isFavorite
                             ? 'border-red-500/50 text-red-400 bg-red-500/10'
                             : 'border-white/10 text-gray-300'
                             }`}
                     >
-                        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+                        {favoriteLoading
+                            ? <Loader2 className="h-5 w-5 animate-spin" />
+                            : <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+                        }
                         {isFavorite ? 'Saved' : 'Save'}
                     </button>
                     <button

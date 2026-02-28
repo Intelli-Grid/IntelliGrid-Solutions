@@ -69,17 +69,38 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 })
 
 /**
- * Require premium subscription
+ * Require premium subscription — updated to include new tiers
  */
 export const requirePremium = asyncHandler(async (req, res, next) => {
     if (!req.user) {
         throw ApiError.unauthorized('Authentication required')
     }
 
-    const premiumTiers = ['Basic', 'Premium', 'Enterprise']
+    const premiumTiers = ['Basic', 'Pro', 'Premium', 'Business', 'Enterprise']
 
-    if (!premiumTiers.includes(req.user.subscription.tier)) {
+    if (!premiumTiers.includes(req.user.subscription?.tier)) {
         throw ApiError.forbidden('Premium subscription required')
+    }
+
+    next()
+})
+
+/**
+ * Require Pro-level access (paid or active trial)
+ * Used for gating features like AI Stack Advisor.
+ * Returns machine-readable code so the frontend nudge can fire.
+ */
+export const requireProOrTrial = asyncHandler(async (req, res, next) => {
+    if (!req.user) {
+        throw ApiError.unauthorized('Authentication required')
+    }
+
+    const PRO_TIERS = ['Basic', 'Pro', 'Premium', 'Business', 'Enterprise']
+    const tier = req.user.subscription?.tier
+    const status = req.user.subscription?.status
+
+    if (!PRO_TIERS.includes(tier) || status !== 'active') {
+        throw ApiError.forbidden('PRO_FEATURE_REQUIRED')
     }
 
     next()

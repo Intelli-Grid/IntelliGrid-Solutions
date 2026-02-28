@@ -7,6 +7,20 @@ class CollectionService {
      * Create a new collection
      */
     async createCollection(data, userId) {
+        // Enforce 2-collection cap for free users
+        const PAID_TIERS = ['Basic', 'Pro', 'Premium', 'Business', 'Enterprise']
+        const User = (await import('../models/User.js')).default
+        const user = await User.findById(userId).select('subscription').lean()
+        const isPaid = PAID_TIERS.includes(user?.subscription?.tier) && user?.subscription?.status === 'active'
+
+        if (!isPaid) {
+            const count = await Collection.countDocuments({ owner: userId })
+            if (count >= 2) {
+                // Machine-readable code — frontend uses this to trigger the upgrade nudge
+                throw ApiError.forbidden('COLLECTIONS_LIMIT_REACHED')
+            }
+        }
+
         // Generate unique slug
         const baseSlug = slugify(data.name, { lower: true, strict: true })
         let slug = baseSlug

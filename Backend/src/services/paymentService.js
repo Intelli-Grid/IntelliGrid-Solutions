@@ -344,8 +344,10 @@ class PaymentService {
             basic_yearly: process.env.PAYPAL_PLAN_BASIC_YEARLY,
             pro_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,
             pro_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,
-            premium_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,   // alias
-            premium_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,    // alias
+            premium_monthly: process.env.PAYPAL_PLAN_PRO_MONTHLY,    // legacy alias
+            premium_yearly: process.env.PAYPAL_PLAN_PRO_YEARLY,     // legacy alias
+            business_monthly: process.env.PAYPAL_PLAN_BUSINESS_MONTHLY,
+            business_yearly: process.env.PAYPAL_PLAN_BUSINESS_YEARLY,
             enterprise_monthly: process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY,
             enterprise_yearly: process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY,
         }
@@ -395,8 +397,12 @@ class PaymentService {
             await cancelPayPalSubscription(subscriptionId, 'User requested cancellation via IntelliGrid dashboard')
 
             // Mark autoRenew off immediately in DB — user retains access until period ends
+            // cancelledAt enables the win-back cron to target this user in 3 days
             await User.findByIdAndUpdate(userId, {
                 'subscription.autoRenew': false,
+                'subscription.cancelledAt': new Date(),
+                'subscription.status': 'cancelled',
+                winBackSent: false,   // reset so they can receive a future win-back if needed
             })
 
             console.log(`✅ PayPal subscription ${subscriptionId} cancel requested for user ${user.email}`)
@@ -412,15 +418,16 @@ class PaymentService {
     async activateSubscription(userId, subscriptionData, paypalSubscriptionId = null) {
         const { tier, duration } = subscriptionData
 
-        // Map payment plan names → User model enum values
-        // User.subscription.tier only accepts: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
+        // Map payment plan names → User model tier enum values
         const TIER_MAP = {
-            'pro': 'Premium', 'Pro': 'Premium', 'premium': 'Premium',
+            'pro': 'Pro', 'Pro': 'Pro',
+            'premium': 'Pro', 'Premium': 'Pro',     // 'Premium' is legacy alias — map to 'Pro'
             'basic': 'Basic', 'Basic': 'Basic',
+            'business': 'Business', 'Business': 'Business',
             'enterprise': 'Enterprise', 'Enterprise': 'Enterprise',
             'free': 'Free', 'Free': 'Free',
         }
-        const normalizedTier = TIER_MAP[tier] || 'Premium'
+        const normalizedTier = TIER_MAP[tier] || 'Pro'
 
         const startDate = new Date()
         const endDate = new Date()
@@ -450,6 +457,15 @@ class PaymentService {
             { new: true }
         )
 
+        // If the user was on a reverse trial, mark it as converted so the cron
+        // job does NOT downgrade them at trial end.
+        await User.findByIdAndUpdate(userId, {
+            $set: {
+                'subscription.reverseTrial.active': false,
+                'subscription.reverseTrial.converted': true,
+            },
+        })
+
         // Sync tier to Clerk publicMetadata so the JWT reflects the correct tier.
         // This powers any frontend logic that reads from the Clerk session.
         // Failure is non-fatal — MongoDB remains the authoritative source.
@@ -475,15 +491,17 @@ class PaymentService {
     getSubscriptionPricing(tier, duration, currency = 'USD') {
         const pricingUSD = {
             free: { monthly: 0, yearly: 0 },
-            pro: { monthly: 9.99, yearly: 99.99 },
+            pro: { monthly: 9.99, yearly: 79.99 },       // yearly saves 33% (4 months free)
             basic: { monthly: 4.99, yearly: 49.99 },
+            business: { monthly: 39.00, yearly: 390.00 },
             enterprise: { monthly: 24.99, yearly: 249.99 },
         }
 
         const pricingINR = {
             free: { monthly: 0, yearly: 0 },
-            pro: { monthly: 999, yearly: 8999 },
+            pro: { monthly: 999, yearly: 7999 },
             basic: { monthly: 499, yearly: 4999 },
+            business: { monthly: 3299, yearly: 32999 },
             enterprise: { monthly: 2499, yearly: 24999 },
         }
 
