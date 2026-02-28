@@ -5,10 +5,12 @@ import { toast } from 'react-hot-toast';
 import { useUser } from '@clerk/clerk-react';
 import { userService } from '../../services';
 import { useNudge } from '../common/NudgeContext';
+import { useFlag } from '../../hooks/useFeatureFlags';
 
 export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
     const { isSignedIn } = useUser();
     const { fireNudgeFromError } = useNudge();
+    const affiliateTrackingEnabled = useFlag('AFFILIATE_TRACKING');
     const [isFavorite, setIsFavorite] = useState(false);
     const [favoriteLoading, setFavoriteLoading] = useState(false);
 
@@ -60,6 +62,15 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
     })()
 
     const logoSrc = tool.logo || tool.metadata?.logo || ''
+
+    // Determine visit href:
+    // - When AFFILIATE_TRACKING flag is ON → use the tracked redirect route
+    //   The backend will log the click and redirect to affiliateUrl (if set) or officialUrl
+    // - When flag is OFF → direct link to officialUrl (no tracking overhead)
+    const apiBase = import.meta.env.VITE_API_URL || ''
+    const visitHref = affiliateTrackingEnabled
+        ? `${apiBase}/api/v1/tools/slug/${tool.slug}/visit?source=tool_page`
+        : tool.officialUrl
 
     return (
         <div className="space-y-6">
@@ -143,7 +154,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 pt-4">
                 <a
-                    href={tool.officialUrl}
+                    href={visitHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 px-8 py-4 text-base font-bold text-white transition-all hover:from-purple-500 hover:to-violet-500 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.01] active:scale-[0.99]"

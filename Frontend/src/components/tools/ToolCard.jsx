@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight } from 'lucide-react'
 import { getPricingDisplay, formatToolName, getInitials } from '../../utils/helpers'
 import AddToCollectionModal from './AddToCollectionModal'
+import { useFlag } from '../../hooks/useFeatureFlags'
 
 const PRICING_COLORS = {
     Free: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
@@ -21,6 +22,12 @@ function nameToGradient(name = '') {
 export default function ToolCard({ tool }) {
     const [showCollectionModal, setShowCollectionModal] = useState(false)
     const [bannerError, setBannerError] = useState(false)
+    const affiliateTrackingEnabled = useFlag('AFFILIATE_TRACKING')
+
+    const apiBase = import.meta.env.VITE_API_URL || ''
+    const visitHref = affiliateTrackingEnabled
+        ? `${apiBase}/api/v1/tools/slug/${tool.slug}/visit?source=tool_card`
+        : tool.officialUrl
 
     const formattedName = formatToolName(tool.name)
     const pricingDisplay = getPricingDisplay(tool.pricing)
@@ -135,7 +142,7 @@ export default function ToolCard({ tool }) {
 
                             {/* Visit */}
                             <a
-                                href={tool.officialUrl}
+                                href={visitHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
