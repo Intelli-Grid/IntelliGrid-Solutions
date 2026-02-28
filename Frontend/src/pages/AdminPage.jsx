@@ -30,6 +30,9 @@ import {
     RotateCcw,
     AlertTriangle,
     Zap,
+    ToggleLeft,
+    ToggleRight,
+    Flag,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import { adminService, toolService, submissionService, blogService, couponService } from '../services'
@@ -111,6 +114,7 @@ export default function AdminPage() {
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'payments', label: 'Payments', icon: DollarSign },
         { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+        { id: 'feature-flags', label: 'Feature Flags', icon: Flag },
         { id: 'settings', label: 'Settings', icon: Settings },
     ]
 
@@ -195,6 +199,7 @@ export default function AdminPage() {
                     {activeTab === 'reviews' && <ReviewsTab />}
                     {activeTab === 'payments' && <PaymentsTab />}
                     {activeTab === 'analytics' && <AnalyticsTab />}
+                    {activeTab === 'feature-flags' && <FeatureFlagsTab />}
                     {activeTab === 'settings' && <SettingsTab />}
                 </div>
             </div>
@@ -2222,7 +2227,6 @@ function DiscoveryTab() {
                                     </div>
                                 </div>
 
-                                {/* Actions */}
                                 <div className="flex flex-col gap-2 flex-shrink-0">
                                     <button
                                         onClick={() => handleApprove(tool._id)}
@@ -2245,3 +2249,199 @@ function DiscoveryTab() {
         </div>
     )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature Flags Tab — deployment control panel
+// ─────────────────────────────────────────────────────────────────────────────
+function FeatureFlagsTab() {
+    const [flags, setFlags] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [toggling, setToggling] = useState(null) // key of flag being toggled
+    const [seeding, setSeeding] = useState(false)
+    const { toast } = useToast()
+
+    const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
+
+    const fetchFlags = async () => {
+        setLoading(true)
+        try {
+            const res = await adminService.request?.('GET', '/admin/feature-flags') ||
+                await fetch(`${apiBase}/api/v1/admin/feature-flags`, {
+                    headers: { Authorization: `Bearer ${await window.__getClerkToken?.()}` },
+                }).then(r => r.json())
+            if (res.success) setFlags(res.flags || [])
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load feature flags', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchFlags() }, [])
+
+    const handleToggle = async (flag) => {
+        setToggling(flag.key)
+        try {
+            const res = await fetch(`${apiBase}/api/v1/admin/feature-flags/${flag.key}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${await window.__getClerkToken?.()}`,
+                },
+                body: JSON.stringify({ enabled: !flag.enabled }),
+            }).then(r => r.json())
+
+            if (res.success) {
+                setFlags(prev => prev.map(f => f.key === flag.key ? res.flag : f))
+                toast({
+                    title: res.flag.enabled ? '✅ Flag Enabled' : '⏸ Flag Disabled',
+                    description: `${flag.key} is now ${res.flag.enabled ? 'ON' : 'OFF'}. Takes effect within 60 seconds.`,
+                })
+            } else {
+                throw new Error(res.message || 'Update failed')
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: err.message, variant: 'destructive' })
+        } finally {
+            setToggling(null)
+        }
+    }
+
+    const handleSeed = async () => {
+        if (!window.confirm('This will insert any missing default flags. Existing flags will NOT be changed. Continue?')) return
+        setSeeding(true)
+        try {
+            const res = await fetch(`${apiBase}/api/v1/admin/feature-flags/seed`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${await window.__getClerkToken?.()}` },
+            }).then(r => r.json())
+            if (res.success) {
+                toast({ title: '✅ Seeded', description: res.message })
+                fetchFlags()
+            } else {
+                throw new Error(res.message)
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: err.message, variant: 'destructive' })
+        } finally {
+            setSeeding(false)
+        }
+    }
+
+    const enabledCount = flags.filter(f => f.enabled).length
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Flag className="h-6 w-6 text-purple-400" />
+                        Feature Flags
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                        Deployment control panel — toggle features on/off without a code deploy.
+                        Changes propagate within 60 seconds.
+                    </p>
+                </div>
+                <button
+                    onClick={handleSeed}
+                    disabled={seeding}
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
+                >
+                    <RefreshCw className={`h-4 w-4 ${seeding ? 'animate-spin' : ''}`} />
+                    Seed Defaults
+                </button>
+            </div>
+
+            {/* Status banner */}
+            <div className="flex items-center gap-3 rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3">
+                <Zap className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                <p className="text-sm text-gray-300">
+                    <span className="font-semibold text-white">{enabledCount} of {flags.length}</span> flags currently enabled.
+                    {' '}All flags default to <span className="text-red-400 font-medium">OFF</span> for safe production deploys.
+                    Enable only after verifying on staging.
+                </p>
+            </div>
+
+            {/* Flags list */}
+            {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+            ) : flags.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 py-12 text-center">
+                    <Flag className="mx-auto mb-4 h-12 w-12 text-gray-600" />
+                    <p className="text-gray-400 mb-4">No feature flags found.</p>
+                    <button
+                        onClick={handleSeed}
+                        className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 transition"
+                    >
+                        Seed Default Flags
+                    </button>
+                </div>
+            ) : (
+                <div className="grid gap-3">
+                    {flags.map(flag => (
+                        <div
+                            key={flag.key}
+                            className={`flex items-start justify-between rounded-lg border p-4 transition ${flag.enabled
+                                    ? 'border-green-500/30 bg-green-500/5'
+                                    : 'border-white/10 bg-white/5'
+                                }`}
+                        >
+                            <div className="flex-1 min-w-0 mr-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <code className="text-sm font-mono font-bold text-white">{flag.key}</code>
+                                    {flag.enabled ? (
+                                        <span className="text-[10px] rounded-full bg-green-500/20 px-2 py-0.5 text-green-400 font-medium">
+                                            ENABLED
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] rounded-full bg-white/10 px-2 py-0.5 text-gray-500 font-medium">
+                                            DISABLED
+                                        </span>
+                                    )}
+                                    {flag.enabledForRoles?.length > 0 && (
+                                        <span className="text-[10px] rounded-full bg-purple-500/20 px-2 py-0.5 text-purple-400">
+                                            roles: {flag.enabledForRoles.join(', ')}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-gray-400">{flag.description || 'No description'}</p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Last updated: {flag.updatedAt ? new Date(flag.updatedAt).toLocaleString() : 'Never'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => handleToggle(flag)}
+                                disabled={toggling === flag.key}
+                                title={flag.enabled ? 'Disable this flag' : 'Enable this flag'}
+                                className={`flex-shrink-0 rounded-lg p-1 transition ${toggling === flag.key ? 'opacity-50 cursor-wait' : 'hover:opacity-80 cursor-pointer'
+                                    }`}
+                            >
+                                {flag.enabled ? (
+                                    <ToggleRight className="h-8 w-8 text-green-400" />
+                                ) : (
+                                    <ToggleLeft className="h-8 w-8 text-gray-500" />
+                                )}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Rollback reference */}
+            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                    <h3 className="text-sm font-semibold text-yellow-400">60-Second Rollback Reference</h3>
+                </div>
+                <p className="text-xs text-gray-400">
+                    If any feature causes issues, <strong className="text-white">toggle it off here.</strong> The change takes effect within
+                    60 seconds as the Redis cache expires. No deployment or downtime required. For database rollbacks,
+                    run <code className="text-purple-300">npm run migrate:down</code> on the backend (after taking a MongoDB Atlas snapshot).
+                </p>
+            </div>
+        </div>
+    )
+}
+

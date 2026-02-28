@@ -29,13 +29,17 @@ import newsletterRoutes from './routes/newsletterRoutes.js'
 import submissionRoutes from './routes/submissionRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import blogRoutes from './routes/blogRoutes.js'
+import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
+import { startTrialCron } from './jobs/trialCron.js'
+import { startWinBackCron } from './jobs/winBackCron.js'
+import { getEnabledFlagKeys } from './services/featureFlags.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App bootstrap
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express()
 
-console.log(`🚀 INTELLIGRID BACKEND v2.3.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
+console.log(`🚀 INTELLIGRID BACKEND v2.4.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
 console.log(`   PayPal mode: ${process.env.PAYPAL_MODE || 'sandbox'} | Cashfree env: ${process.env.CASHFREE_ENV || 'TEST'}`)
 
 // Trust proxy (Railway sits behind a proxy layer)
@@ -52,6 +56,10 @@ if (process.env.SENTRY_DSN) {
 // ── Database connections ──────────────────────────────────────────────────────
 connectDB()
 connectRedis()
+
+// ── Background jobs ────────────────────────────────────────────────────────
+startTrialCron()
+startWinBackCron()
 
 // ── Security & general middleware ─────────────────────────────────────────────
 app.use(helmet({
@@ -180,6 +188,20 @@ app.use('/api/v1/newsletter', newsletterRoutes)
 app.use('/api/v1/submissions', submissionRoutes)
 app.use('/api/v1/coupons', couponRoutes)
 app.use('/api/v1/blog', blogRoutes)
+app.use('/api/stack-advisor', stackAdvisorRoutes)
+
+// ── Feature Flags Public Endpoint ────────────────────────────────────────────
+// Returns only the list of enabled flag keys — no auth required, no sensitive data.
+// Used by the frontend FeatureFlagProvider to conditionally render features.
+app.get('/api/v1/config/features', async (req, res) => {
+    try {
+        const features = await getEnabledFlagKeys()
+        res.json({ features })
+    } catch (err) {
+        console.error('[FeatureFlags] Public endpoint error:', err.message)
+        res.json({ features: [] }) // Always succeed — features just default to off
+    }
+})
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {

@@ -43,10 +43,27 @@ class UserService {
                 referralCode: nanoid(10),
             })
 
-            // Send welcome email (async, don't block response) - only for new users
-            emailService.sendWelcomeEmail(user).catch((error) =>
-                console.error('Failed to send welcome email:', error)
+            // Assign 14-day reverse trial — sets tier to 'Pro' immediately
+            const trialEndDate = new Date()
+            trialEndDate.setDate(trialEndDate.getDate() + 14)
+
+            await User.findByIdAndUpdate(user._id, {
+                'subscription.tier': 'Pro',
+                'subscription.status': 'active',
+                'subscription.startDate': new Date(),
+                'subscription.endDate': trialEndDate,
+                'subscription.reverseTrial.active': true,
+                'subscription.reverseTrial.startDate': new Date(),
+                'subscription.reverseTrial.endDate': trialEndDate,
+                'subscription.reverseTrial.converted': false,
+            })
+
+            // Send trial welcome email (async — don't block response)
+            emailService.sendTrialWelcomeEmail(user, trialEndDate).catch((error) =>
+                console.error('Failed to send trial welcome email:', error)
             )
+
+            console.log(`✅ Reverse trial activated for new user: ${email} (ends ${trialEndDate.toISOString()})`)
         }
 
         return user
@@ -176,15 +193,16 @@ class UserService {
             throw ApiError.notFound('User not found')
         }
 
-        // Limit for free users: 10 favorites
-        // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
-        const PAID_TIERS = ['Premium', 'Enterprise', 'Basic']
+        // Limit for free users: 10 favorites max
+        // Includes 'Pro' (trial users) so they have unlimited access during trial
+        const PAID_TIERS = ['Basic', 'Pro', 'Premium', 'Business', 'Enterprise']
         const isPaidSubscriber = PAID_TIERS.includes(user.subscription?.tier) && user.subscription?.status === 'active'
 
         if (!isPaidSubscriber) {
             const count = await Favorite.countDocuments({ user: userId })
             if (count >= 10) {
-                throw ApiError.forbidden('Free plan limit reached. Upgrade to a paid plan to save unlimited favorites.')
+                // Machine-readable code — frontend uses this to trigger the upgrade nudge
+                throw ApiError.forbidden('FAVORITES_LIMIT_REACHED')
             }
         }
 

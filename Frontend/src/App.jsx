@@ -38,6 +38,7 @@ const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const AIStackAdvisorPage = lazy(() => import('./pages/AIStackAdvisorPage'))
 
 // Lazy Load Pages — Protected (Admin: MODERATOR+)
 const AdminPage = lazy(() => import('./pages/AdminPage'))
@@ -107,6 +108,14 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <DashboardPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/ai-stack-advisor"
+                                element={
+                                    <ProtectedRoute>
+                                        <AIStackAdvisorPage />
                                     </ProtectedRoute>
                                 }
                             />

@@ -275,6 +275,148 @@ class EmailService {
     }
 
     /**
+     * Trial Welcome — Day 0 — sent when new user is created
+     * Replaces the generic sendWelcomeEmail for all new signups.
+     */
+    async sendTrialWelcomeEmail(user, trialEndDate) {
+        const endDateStr = new Date(trialEndDate).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        })
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Welcome to IntelliGrid, ${user.firstName || 'there'}! 🎉</h2>
+            <div style="background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(79,70,229,0.08));border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:20px;margin:20px 0;">
+                <p style="color:#7c3aed;font-weight:700;margin:0 0 8px;font-size:16px;">Your 14-day Pro trial is now active.</p>
+                <p style="color:#374151;margin:0;font-size:14px;">No credit card needed. Trial ends on <strong>${endDateStr}</strong>.</p>
+            </div>
+            <p style="color:#374151;line-height:1.6;">You have full Pro access right now. Here's the single most useful thing to do in the next 5 minutes:</p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:20px 0;">
+                <p style="margin:0;color:#374151;font-size:15px;">→ Search for a tool you've been curious about, then <strong>save it to your favourites</strong>. You can save unlimited tools during your trial.</p>
+            </div>
+            <p style="color:#374151;line-height:1.6;">Over the next 14 days, you'll have access to:</p>
+            <ul style="color:#374151;line-height:1.8;">
+                <li><strong>Unlimited favourites</strong> — save your entire AI stack</li>
+                <li><strong>Advanced filters</strong> — find the right tool in one search</li>
+                <li><strong>Unlimited collections</strong> — organise tools by project or use case</li>
+                <li><strong>Priority search</strong> — featured tools surface to the top</li>
+                <li><strong>Ad-free experience</strong> throughout</li>
+            </ul>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/tools" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Explore IntelliGrid Now →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">After 14 days, you can upgrade to keep Pro access ($9.99/month or $79.99/year), or stay on our free plan. No pressure, no surprises.</p>`
+        return sendEmail(user.email, user.firstName, "You're in — 14-day Pro trial active (no card needed)", emailWrapper(content, user.email))
+    }
+
+    /**
+     * Trial Midpoint Nudge — Day 7 — highlights a key Pro feature
+     */
+    async sendTrialMidpointEmail(user) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">7 days in — have you tried this yet?</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">You're halfway through your Pro trial. Here's the one feature most users say they can't go back to using the free plan without:</p>
+            <div style="background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(79,70,229,0.06));border:1px solid rgba(124,58,237,0.15);border-radius:12px;padding:20px;margin:20px 0;">
+                <p style="color:#7c3aed;font-weight:700;margin:0 0 8px;font-size:16px;">Advanced Collections</p>
+                <p style="color:#374151;margin:0;font-size:14px;">Organise your saved tools into unlimited collections by project, client, or use case — then share them publicly or keep them private. Free plan users are limited to 2 collections.</p>
+            </div>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/dashboard" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Try Collections Now →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">You have 7 days left on your trial. Upgrade anytime at $9.99/month or $79.99/year (that's just $6.67/mo — 4 months free).</p>`
+        return sendEmail(user.email, user.firstName, '7 days in — have you tried this yet?', emailWrapper(content, user.email))
+    }
+
+    /**
+     * Trial 3-Day Reminder — Day 11 — first urgency reminder
+     */
+    async sendTrialReminderEmail(user, daysLeft) {
+        const urgency = daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Your Pro trial ends ${urgency}</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">Just a heads-up — your IntelliGrid Pro trial ends ${urgency}. After that, your account moves to the free plan and you'll lose access to:</p>
+            <div style="background:#fef3c7;border:1px solid rgba(245,158,11,0.2);border-radius:8px;padding:16px;margin:20px 0;">
+                <ul style="color:#92400e;font-size:14px;line-height:1.8;margin:0;padding-left:16px;">
+                    <li>Unlimited favourites (free plan: 10 max)</li>
+                    <li>Advanced filters and sorting</li>
+                    <li>Unlimited collections (free plan: 2 max)</li>
+                    <li>Ad-free experience</li>
+                </ul>
+            </div>
+            <p style="color:#374151;line-height:1.6;">To keep everything: upgrade now for <strong>$9.99/month</strong>, or save 33% with the annual plan at <strong>$79.99/year</strong> (just $6.67/month — 4 months free).</p>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Keep Pro — Upgrade Now →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;text-align:center;">Or do nothing — you'll stay on the free plan automatically. No charge, ever.</p>`
+        return sendEmail(user.email, user.firstName, `Your Pro trial ends ${urgency} — keep access?`, emailWrapper(content, user.email))
+    }
+
+    /**
+     * Trial Urgency — Day 12 — 2 days left, hard deadline with pricing table
+     */
+    async sendTrialUrgencyEmail(user) {
+        const content = `
+            <h2 style="color:#dc2626;margin-top:0;">2 days left on your Pro trial</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">Your IntelliGrid Pro trial ends in 2 days. To keep everything working the way it does now, upgrade before your trial ends.</p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:20px;margin:20px 0;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <tr>
+                        <td style="color:#6b7280;padding:8px 0;font-size:14px;">Pro Monthly</td>
+                        <td style="color:#111827;font-weight:700;text-align:right;font-size:14px;">$9.99/month</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#6b7280;padding:8px 0;font-size:14px;">Pro Annual <span style="color:#7c3aed;font-size:12px;font-weight:600;">★ Best value</span></td>
+                        <td style="color:#111827;font-weight:700;text-align:right;font-size:14px;">$79.99/year <span style="color:#6b7280;font-size:12px;">($6.67/mo)</span></td>
+                    </tr>
+                    <tr>
+                        <td style="color:#059669;padding:8px 0;font-size:13px;" colspan="2">✓ Annual plan — pay for 8 months, use for 12</td>
+                    </tr>
+                </table>
+            </div>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Upgrade Now — Keep Pro Access →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:12px;text-align:center;">No commitment. Cancel anytime. 30-day money-back guarantee.</p>`
+        return sendEmail(user.email, user.firstName, '⚠️ 2 days left on your Pro trial', emailWrapper(content, user.email))
+    }
+
+    /**
+     * Trial Expired — Day 14 — sent when cron downgrades user to Free
+     */
+    async sendTrialExpiredEmail(user) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Your Pro trial has ended</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">Your 14-day IntelliGrid Pro trial has ended and your account has been moved to the free plan. Your data is safe — all favourites and collections you created are still there.</p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:20px 0;">
+                <p style="margin:0 0 8px;color:#374151;font-size:14px;font-weight:600;">What's changed on the free plan:</p>
+                <ul style="color:#6b7280;font-size:14px;line-height:1.8;margin:0;padding-left:16px;">
+                    <li>Favourites limited to 10 (you can keep what you have, but can't add more)</li>
+                    <li>Collections limited to 2</li>
+                    <li>Advanced filters are Pro-only</li>
+                    <li>Ads may appear on tool pages</li>
+                </ul>
+            </div>
+            <p style="color:#374151;line-height:1.6;">Upgrade anytime to instantly restore full Pro access.</p>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Upgrade to Pro — Keep Everything →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">No pressure. IntelliGrid's free plan has everything you need to browse and discover tools. We hope to see you back as a Pro user when the time is right.</p>`
+        return sendEmail(user.email, user.firstName, 'Your IntelliGrid Pro trial has ended', emailWrapper(content, user.email))
+    }
+
+    /**
      * Public sendEmail() — used by routes that need to send ad-hoc transactional
      * emails without a pre-built template (e.g. submissionRoutes.js).
      *
@@ -323,6 +465,55 @@ class EmailService {
             console.error('Failed to add subscriber to Brevo:', email, '|', detail)
             return false
         }
+    }
+
+    /**
+     * Subscription Expired — sent when a paid sub's endDate passes
+     */
+    async sendSubscriptionExpiredEmail(user) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Your IntelliGrid plan has expired</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">Your Pro subscription has ended and your account has been moved to the free plan. You won't lose any saved data — your favourites and collections are still there.</p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:20px 0;">
+                <p style="margin:0 0 8px;font-weight:600;color:#111827;">What you still have:</p>
+                <ul style="margin:0;color:#374151;line-height:1.8;">
+                    <li>Access to 3,500+ tool listings</li>
+                    <li>Up to 10 saved favourites</li>
+                    <li>Up to 2 collections</li>
+                    <li>Compare 2 tools at once</li>
+                </ul>
+            </div>
+            <p style="color:#374151;line-height:1.6;">Ready to get back your full Pro access?</p>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Renew Plan — From $6.67/mo →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">Questions? Reply to this email and we'll help you out.</p>`
+        return sendEmail(user.email, user.firstName, 'Your IntelliGrid Pro plan has expired', emailWrapper(content, user.email))
+    }
+
+    /**
+     * Win-Back — sent 3 days after cancellation
+     */
+    async sendWinBackEmail(user) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">We noticed you cancelled — here's 20% off</h2>
+            <p style="color:#374151;line-height:1.6;">Hi ${user.firstName || 'there'},</p>
+            <p style="color:#374151;line-height:1.6;">We noticed you cancelled your IntelliGrid Pro plan. We'd love to know why — and we'd also love to have you back.</p>
+            <div style="background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(79,70,229,0.08));border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:20px;margin:20px 0;text-align:center;">
+                <p style="color:#7c3aed;font-weight:700;font-size:18px;margin:0 0 4px;">Use code <strong>COMEBACK20</strong></p>
+                <p style="color:#374151;font-size:14px;margin:0;">for 20% off your first month or year back</p>
+            </div>
+            <p style="color:#374151;line-height:1.6;">This offer is valid for 7 days. After that, normal pricing applies.</p>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/pricing" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Rejoin with 20% Off →
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">If you cancelled by mistake or have questions, just reply to this email.</p>`
+        return sendEmail(user.email, user.firstName, 'Come back — here\'s 20% off your IntelliGrid plan', emailWrapper(content, user.email))
     }
 }
 
