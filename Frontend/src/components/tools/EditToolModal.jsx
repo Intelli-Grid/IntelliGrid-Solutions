@@ -15,6 +15,7 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
         category: '',
         pricing: 'Unknown',
         officialUrl: '',
+        affiliateUrl: '',
         sourceUrl: '',
         tags: '',
         isVerified: false
@@ -54,6 +55,7 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
                 category: typeof tool.category === 'object' ? tool.category._id : tool.category || '',
                 pricing: typeof tool.pricing === 'object' ? tool.pricing.type : tool.pricing || 'Unknown',
                 officialUrl: tool.officialUrl || '',
+                affiliateUrl: tool.affiliateUrl || '',
                 sourceUrl: tool.sourceUrl || '',
                 tags: tool.tags ? tool.tags.join(', ') : '',
                 isVerified: tool.isVerified || false,
@@ -249,6 +251,25 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
                                 className="w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
                             />
                         </div>
+                    </div>
+
+                    {/* ── Affiliate URL (Monetisation) ─────────────────── */}
+                    <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                        <label className="text-sm font-medium text-amber-400 flex items-center gap-2">
+                            💰 Affiliate URL
+                            <span className="text-xs font-normal text-gray-500">(optional — overrides Visit button when AFFILIATE_TRACKING flag is ON)</span>
+                        </label>
+                        <input
+                            name="affiliateUrl"
+                            value={formData.affiliateUrl || ''}
+                            onChange={handleChange}
+                            placeholder="https://shareasale.com/r.cfm?b=...&u=...&m=..."
+                            className="w-full rounded-lg border border-amber-500/30 bg-black/50 px-4 py-2 text-white placeholder-gray-600 focus:border-amber-500 focus:outline-none"
+                        />
+                        <p className="text-xs text-gray-600">
+                            When set + flag enabled: users who click &quot;Visit&quot; are redirected through this URL.
+                            Leave blank to always send users to the Official Website URL.
+                        </p>
                     </div>
 
                     <div className="space-y-2">

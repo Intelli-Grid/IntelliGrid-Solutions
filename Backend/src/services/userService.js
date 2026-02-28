@@ -7,8 +7,8 @@ import Submission from '../models/Submission.js'
 import ClaimRequest from '../models/ClaimRequest.js'
 import ApiError from '../utils/ApiError.js'
 import { nanoid } from 'nanoid'
-
 import emailService from './emailService.js'
+import { isFeatureEnabled } from './featureFlags.js'
 
 /**
  * User Service - Business logic for users
@@ -43,27 +43,35 @@ class UserService {
                 referralCode: nanoid(10),
             })
 
-            // Assign 14-day reverse trial — sets tier to 'Pro' immediately
-            const trialEndDate = new Date()
-            trialEndDate.setDate(trialEndDate.getDate() + 14)
+            // ── REVERSE TRIAL (feature-flag gated) ──────────────────────────────────────
+            // When REVERSE_TRIAL flag is ON: new users start on Pro for 14 days.
+            // When OFF: new users start on Free tier (zero disruption).
+            const reverseTrialEnabled = await isFeatureEnabled('REVERSE_TRIAL')
 
-            await User.findByIdAndUpdate(user._id, {
-                'subscription.tier': 'Pro',
-                'subscription.status': 'active',
-                'subscription.startDate': new Date(),
-                'subscription.endDate': trialEndDate,
-                'subscription.reverseTrial.active': true,
-                'subscription.reverseTrial.startDate': new Date(),
-                'subscription.reverseTrial.endDate': trialEndDate,
-                'subscription.reverseTrial.converted': false,
-            })
+            if (reverseTrialEnabled) {
+                const trialEndDate = new Date()
+                trialEndDate.setDate(trialEndDate.getDate() + 14)
 
-            // Send trial welcome email (async — don't block response)
-            emailService.sendTrialWelcomeEmail(user, trialEndDate).catch((error) =>
-                console.error('Failed to send trial welcome email:', error)
-            )
+                await User.findByIdAndUpdate(user._id, {
+                    'subscription.tier': 'Pro',
+                    'subscription.status': 'active',
+                    'subscription.startDate': new Date(),
+                    'subscription.endDate': trialEndDate,
+                    'subscription.reverseTrial.active': true,
+                    'subscription.reverseTrial.startDate': new Date(),
+                    'subscription.reverseTrial.endDate': trialEndDate,
+                    'subscription.reverseTrial.converted': false,
+                })
 
-            console.log(`✅ Reverse trial activated for new user: ${email} (ends ${trialEndDate.toISOString()})`)
+                // Send trial welcome email (async — don't block response)
+                emailService.sendTrialWelcomeEmail(user, trialEndDate).catch((error) =>
+                    console.error('Failed to send trial welcome email:', error)
+                )
+
+                console.log(`✅ Reverse trial activated for new user: ${email} (ends ${trialEndDate.toISOString()})`)
+            } else {
+                console.log(`ℹ️  New user created on Free tier (REVERSE_TRIAL flag is OFF): ${email}`)
+            }
         }
 
         return user
