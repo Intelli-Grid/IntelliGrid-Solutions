@@ -173,18 +173,49 @@ Rules:
         throw new Error('AI returned invalid JSON. Please try again.')
     }
 
-    // ── Enrich recommendations with tool slugs for linking ────────────────────
+    // ── Hallucination guard ───────────────────────────────────────────────────
+    // The AI may hallucinate tool names not in our candidate list.
+    // Only keep recommendations whose name exactly matches a tool we sent.
+    const toolNameSet = new Set(candidateTools.map(t => t.name.toLowerCase()))
     const toolMap = new Map(candidateTools.map(t => [t.name.toLowerCase(), t]))
-    const enriched = (parsed.recommendations || []).map(rec => {
-        const tool = toolMap.get(rec.name?.toLowerCase())
+
+    const validatedRecs = (parsed.recommendations || []).filter(rec => {
+        const normalised = rec.name?.toLowerCase()?.trim()
+        if (!normalised) return false
+        // Accept exact match OR partial match against known names
+        return toolNameSet.has(normalised) ||
+            candidateTools.some(t => t.name.toLowerCase().includes(normalised) || normalised.includes(t.name.toLowerCase()))
+    })
+
+    // If hallucination wiped out most results, augment with top-rated candidates
+    let finalRecs = validatedRecs
+    if (finalRecs.length < 2) {
+        console.warn(`[StackAdvisor] Hallucination guard: ${parsed.recommendations?.length || 0} raw → ${validatedRecs.length} valid. Using top-rated fallback.`)
+        finalRecs = candidateTools.slice(0, 5).map(t => ({
+            name: t.name,
+            category: t.category?.name || 'General',
+            reason: `Top-rated tool for ${role}s in the ${t.category?.name || 'general'} category.`,
+            priority: 'nice-to-have',
+            replaces: null,
+            pricingNote: t.pricing?.model || 'Check website for pricing',
+        }))
+    }
+
+    // ── Enrich recommendations with tool slugs for linking ────────────────────
+    const enriched = finalRecs.map(rec => {
+        const tool = toolMap.get(rec.name?.toLowerCase()) ||
+            candidateTools.find(t => t.name.toLowerCase().includes(rec.name?.toLowerCase() || '') ||
+                (rec.name?.toLowerCase() || '').includes(t.name.toLowerCase()))
         return {
             ...rec,
+            name: tool?.name || rec.name, // normalise to DB name
             slug: tool?.slug || null,
             logo: tool?.logo || null,
             pricing: tool?.pricing || null,
             rating: tool?.ratings?.average || null,
         }
     })
+
 
     const result = {
         ...parsed,
