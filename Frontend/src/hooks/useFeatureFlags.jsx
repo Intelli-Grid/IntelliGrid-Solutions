@@ -25,7 +25,10 @@ export function FeatureFlagProvider({ children }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const apiUrl = import.meta.env.VITE_API_URL || ''
+        // VITE_API_URL is already the full base URL including /api/v1
+        // e.g. https://api.intelligrid.online/api/v1
+        // So we fetch /config/features (NOT /api/v1/config/features)
+        const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
 
         fetch(`${apiUrl}/api/v1/config/features`, {
             method: 'GET',

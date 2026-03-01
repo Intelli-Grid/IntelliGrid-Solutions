@@ -88,17 +88,31 @@ const ALLOWED_ORIGINS = [
     'https://www.intelligrid.online',
 ].filter(Boolean)
 
+// Pattern-based origins — Vercel preview deployments + Railway internal services
+const ALLOWED_ORIGIN_PATTERNS = [
+    /^https:\/\/intelli-grid-solutions[a-z0-9-]*\.vercel\.app$/,  // all Vercel preview URLs
+    /^https:\/\/[a-z0-9-]+\.railway\.app$/,                       // Railway internal services
+    /^https:\/\/[a-z0-9-]+\.vercel\.app$/,                        // any other Vercel preview
+]
+
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (mobile apps, Postman, curl, health checkers)
         if (!origin) return callback(null, true)
 
-        if (ALLOWED_ORIGINS.includes(origin) || process.env.NODE_ENV === 'development') {
-            callback(null, true)
-        } else {
-            console.warn(`🚫 CORS blocked origin: ${origin}`)
-            callback(new Error(`Origin ${origin} not allowed by CORS`))
+        // Exact match check
+        if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true)
+
+        // Pattern match check (Vercel previews + Railway)
+        if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+            return callback(null, true)
         }
+
+        // Allow all origins in development
+        if (process.env.NODE_ENV === 'development') return callback(null, true)
+
+        console.warn(`🚫 CORS blocked origin: ${origin}`)
+        callback(new Error(`Origin ${origin} not allowed by CORS`))
     },
     credentials: true,
     optionsSuccessStatus: 200,
