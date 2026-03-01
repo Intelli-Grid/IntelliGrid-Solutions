@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Sparkles, TrendingUp, ArrowRight, Star, Users, Zap, ChevronDown, ArrowUpRight } from 'lucide-react'
 import { toolService, categoryService } from '../services'
@@ -21,13 +21,60 @@ const CATEGORY_SHOWCASE = [
     { emoji: '⚡', label: 'Productivity', slug: 'productivity' },
 ]
 
+// Animated counter card component
+function AnimatedStat({ stat, started, delay }) {
+    const [count, setCount] = useState(0)
+    const startedRef = useRef(false)
+
+    useEffect(() => {
+        if (!started || startedRef.current) return
+        startedRef.current = true
+        const timer = setTimeout(() => {
+            const duration = 1200
+            const steps = 40
+            const increment = stat.value / steps
+            let step = 0
+            const interval = setInterval(() => {
+                step++
+                setCount(Math.min(Math.round(increment * step), stat.value))
+                if (step >= steps) clearInterval(interval)
+            }, duration / steps)
+        }, delay)
+        return () => clearTimeout(timer)
+    }, [started, stat.value, delay])
+
+    return (
+        <div className="group relative text-center p-6 rounded-2xl bg-white/3 border border-white/8 hover:border-white/15 hover:bg-white/5 transition-all duration-300">
+            <div className="text-2xl mb-3">{stat.icon}</div>
+            <div className={`text-4xl font-black bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent mb-1 tabular-nums`}>
+                {count.toLocaleString()}{stat.suffix}
+            </div>
+            <div className="text-sm text-gray-500 font-medium">{stat.label}</div>
+        </div>
+    )
+}
+
 export default function HomePage() {
+
     const [trendingTools, setTrendingTools] = useState([])
     const [recentTools, setRecentTools] = useState([])
     const [categories, setCategories] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const navigate = useNavigate()
+
+    // Animated counter — counts from 0 to target over ~1.2s
+    const [countersStarted, setCountersStarted] = useState(false)
+    const statsRef = useRef(null)
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => { if (entry.isIntersecting) setCountersStarted(true) },
+            { threshold: 0.3 }
+        )
+        if (statsRef.current) observer.observe(statsRef.current)
+        return () => observer.disconnect()
+    }, [])
 
     useEffect(() => {
         const fetchData = async () => {
@@ -160,19 +207,14 @@ export default function HomePage() {
             </section>
 
             {/* ════════════════ STATS ════════════════ */}
-            <section className="py-16 border-y border-white/5 bg-[#08081a]">
+            <section ref={statsRef} className="py-16 border-y border-white/5 bg-[#08081a]">
                 <div className="max-w-5xl mx-auto px-6 grid gap-6 grid-cols-3">
                     {[
-                        { value: '4,000+', label: 'AI Tools Indexed', gradient: 'from-violet-400 to-purple-400' },
-                        { value: '50+', label: 'Categories', gradient: 'from-cyan-400 to-blue-400' },
-                        { value: 'Daily', label: 'New Tools Added', gradient: 'from-amber-400 to-orange-400' },
-                    ].map(stat => (
-                        <div key={stat.label} className="text-center p-6">
-                            <div className={`text-4xl font-black bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent mb-1`}>
-                                {stat.value}
-                            </div>
-                            <div className="text-sm text-gray-500">{stat.label}</div>
-                        </div>
+                        { value: 4125, suffix: '+', label: 'AI Tools Indexed', gradient: 'from-violet-400 to-purple-400', icon: '🛠️' },
+                        { value: 50, suffix: '+', label: 'Categories', gradient: 'from-cyan-400 to-blue-400', icon: '📂' },
+                        { value: 99, suffix: '%', label: 'Uptime Reliability', gradient: 'from-amber-400 to-orange-400', icon: '⚡' },
+                    ].map((stat, i) => (
+                        <AnimatedStat key={stat.label} stat={stat} started={countersStarted} delay={i * 120} />
                     ))}
                 </div>
             </section>

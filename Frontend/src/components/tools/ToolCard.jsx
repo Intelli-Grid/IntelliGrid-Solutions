@@ -24,7 +24,8 @@ export default function ToolCard({ tool }) {
     const [bannerError, setBannerError] = useState(false)
     const affiliateTrackingEnabled = useFlag('AFFILIATE_TRACKING')
 
-    const apiBase = import.meta.env.VITE_API_URL || ''
+    // VITE_API_URL already contains /api/v1 — strip it to get the root origin
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
     const visitHref = affiliateTrackingEnabled
         ? `${apiBase}/api/v1/tools/slug/${tool.slug}/visit?source=tool_card`
         : tool.officialUrl

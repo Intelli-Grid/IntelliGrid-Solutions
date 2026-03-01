@@ -18,7 +18,8 @@ import { Link } from 'react-router-dom'
 import { ExternalLink, Star, Zap } from 'lucide-react'
 import { useFlag } from '../../hooks/useFeatureFlags'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+// VITE_API_URL = https://api.intelligrid.online/api/v1 — strip /api/v1 to get root origin
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
 
 export default function FeaturedSpot() {
     const featuredEnabled = useFlag('FEATURED_LISTINGS')
