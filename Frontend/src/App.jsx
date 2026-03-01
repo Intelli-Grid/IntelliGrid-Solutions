@@ -35,6 +35,9 @@ const UnsubscribePage = lazy(() => import('./pages/UnsubscribePage'))
 const SubmitToolPage = lazy(() => import('./pages/SubmitToolPage'))
 const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
+const AlternativesPage = lazy(() => import('./pages/AlternativesPage'))
+const BestToolsForPage = lazy(() => import('./pages/BestToolsForPage'))
+const NewsletterPage = lazy(() => import('./pages/NewsletterPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -89,6 +92,9 @@ function App() {
                             <Route path="/submit" element={<SubmitToolPage />} />
                             <Route path="/blog" element={<BlogPage />} />
                             <Route path="/blog/:slug" element={<BlogPostPage />} />
+                            <Route path="/newsletter" element={<NewsletterPage />} />
+                            <Route path="/alternatives/:toolSlug" element={<AlternativesPage />} />
+                            <Route path="/best-tools/:role" element={<BestToolsForPage />} />
 
                             {/* ── Payment Routes ────────────────────────────── */}
                             <Route
