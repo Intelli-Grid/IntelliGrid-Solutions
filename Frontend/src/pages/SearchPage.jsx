@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
     InstantSearch, SearchBox, Hits, Pagination,
     RefinementList, Configure, useInstantSearch
@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom'
 import { Star, ExternalLink, Sparkles, SlidersHorizontal, X, ArrowUpRight } from 'lucide-react'
 import { getPricingDisplay, getInitials } from '../utils/helpers'
 import SEO from '../components/common/SEO'
+import { useNudge } from '../components/common/NudgeContext'
+import { useFlag } from '../hooks/useFeatureFlags'
 
 // Initialize Algolia client
 const searchClient = algoliasearch(
@@ -124,6 +126,35 @@ function SearchResults() {
     )
 }
 
+/**
+ * SearchNudgeWatcher — sits inside <InstantSearch> so it can read the live query.
+ * Fires SEARCH_REPEAT after 3 distinct non-empty searches in a session.
+ * Checks the CONTEXTUAL_NUDGES flag via fireNudge (UpgradeNudge gates rendering).
+ */
+function SearchNudgeWatcher() {
+    const { indexUiState } = useInstantSearch()
+    const { fireNudge } = useNudge()
+    const countRef = useRef(0)
+    const lastQueryRef = useRef('')
+    const firedRef = useRef(
+        sessionStorage.getItem('nudge_search_repeat_fired') === '1'
+    )
+
+    useEffect(() => {
+        const q = (indexUiState?.query || '').trim()
+        if (!q || q === lastQueryRef.current || firedRef.current) return
+        lastQueryRef.current = q
+        countRef.current += 1
+        if (countRef.current >= 3) {
+            fireNudge('SEARCH_REPEAT')
+            firedRef.current = true
+            sessionStorage.setItem('nudge_search_repeat_fired', '1')
+        }
+    }, [indexUiState?.query, fireNudge])
+
+    return null
+}
+
 export default function SearchPage() {
     const [showFilters, setShowFilters] = useState(false)
 
@@ -146,6 +177,7 @@ export default function SearchPage() {
 
             <InstantSearch searchClient={searchClient} indexName="intelligrid_tools">
                 <Configure hitsPerPage={20} />
+                <SearchNudgeWatcher />
 
                 {/* Search Box */}
                 <div className="bg-[#0c0c14] border-b border-white/5 px-4 pb-4">

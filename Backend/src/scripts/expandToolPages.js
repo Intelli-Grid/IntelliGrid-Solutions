@@ -165,3 +165,72 @@ run().catch((err) => {
     console.error('Fatal error:', err)
     process.exit(1)
 })
+
+// ── Named exports for use by importEnrichmentData.js ─────────────────────────
+// These functions are NOT part of the main CLI run() — they are imported by the
+// CSV import pipeline to leverage the same Groq client and helpers.
+
+/**
+ * Normalise a raw Futurepedia description string into structured IntelliGrid format.
+ * Returns { shortDescription, fullDescription, primaryUseCase, targetUser, pricingTier }
+ * Returns null if Groq fails or rawDescription is empty.
+ *
+ * @param {string} rawDescription - Raw text from Browse AI export
+ * @param {string} toolName - Tool name for prompt context
+ */
+export async function normalizeImportedDescription(rawDescription, toolName) {
+    if (!rawDescription?.trim()) return null
+
+    const prompt = `You are an editor for IntelliGrid, an AI tools discovery platform.
+Given this raw description of an AI tool called "${toolName}", rewrite it into clean structured data.
+
+Return ONLY valid JSON with no markdown, no preamble:
+{
+  "shortDescription": "One sentence, max 25 words, what the tool does",
+  "fullDescription": "2-3 sentences, neutral tone, includes primary use case and key benefit",
+  "primaryUseCase": "Main task this tool accomplishes",
+  "targetUser": "Who benefits most (e.g. content marketers, developers, designers)",
+  "pricingTier": "free|freemium|paid|contact_for_pricing"
+}
+
+Rules:
+- shortDescription must be factual, not marketing language
+- fullDescription must not repeat shortDescription word-for-word
+- Do not invent features not mentioned in the raw description
+
+Raw description: ${rawDescription.slice(0, 800)}`
+
+    try {
+        const response = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+            max_tokens: 400,
+        })
+        const text = response.choices[0]?.message?.content?.trim() || ''
+        return parseJSON(text)
+    } catch (err) {
+        console.error(`[normalizeImportedDescription] Groq failed for "${toolName}":`, err.message)
+        return null
+    }
+}
+
+/**
+ * Process an array of scraped tool records through normalizeImportedDescription(),
+ * respecting Groq rate limits with a 600ms inter-request delay.
+ *
+ * @param {Array<{ name: string, rawDescription: string }>} tools
+ * @returns {Array<{ name, normalized }>}
+ */
+export async function enrichImportedBatch(tools) {
+    const results = []
+    for (const tool of tools) {
+        const normalized = await normalizeImportedDescription(tool.rawDescription, tool.name)
+        results.push({ name: tool.name, normalized })
+        if (results.length < tools.length) {
+            await sleep(600)   // 600ms delay keeps us under free-tier Groq rate limit
+        }
+    }
+    return results
+}
+

@@ -54,7 +54,7 @@ router.get(
 router.get('/slug/:slug/visit', optionalAuth, async (req, res) => {
     try {
         const tool = await Tool.findOne({ slug: req.params.slug, isActive: true })
-            .select('slug officialUrl affiliateUrl name')
+            .select('slug officialUrl affiliateUrl affiliateNetwork affiliateStatus commissionType name')
             .lean()
 
         if (!tool) {
@@ -71,11 +71,11 @@ router.get('/slug/:slug/visit', optionalAuth, async (req, res) => {
             return res.status(422).json({ error: 'Tool has no website URL configured' })
         }
 
-        // Increment click count on the tool document (fire-and-forget)
+        // Increment view count on the tool document (fire-and-forget)
         Tool.updateOne({ _id: tool._id }, { $inc: { views: 1 } })
             .catch(err => console.error('[Visit] View increment failed:', err.message))
 
-        // Log the click event only when tracking is enabled
+        // Log the click event with affiliate metadata when tracking is enabled
         if (trackingEnabled) {
             ClickEvent.create({
                 toolId: tool._id,
@@ -86,6 +86,10 @@ router.get('/slug/:slug/visit', optionalAuth, async (req, res) => {
                 referrer: req.headers['referer'] || null,
                 destination,
                 wasAffiliate: isAffiliate,
+                // Affiliate metadata — enables Revenue Dashboard breakdown by network
+                affiliateNetwork: tool.affiliateNetwork || 'none',
+                affiliateStatus: tool.affiliateStatus || 'not_started',
+                commissionType: tool.commissionType || 'none',
             }).catch(err => console.error('[Visit] ClickEvent log failed:', err.message))
         }
 

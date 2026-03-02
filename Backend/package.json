@@ -28,6 +28,9 @@
         "migrate:up": "migrate-mongo up",
         "migrate:down": "migrate-mongo down",
         "migrate:status": "migrate-mongo status",
+        "seed:flags": "node src/scripts/seedFeatureFlags.js",
+        "enrich:import": "node src/scripts/importEnrichmentData.js",
+        "enrich:cron:run": "node -e \"import('./src/jobs/enrichmentCron.js').then(m => m.runEnrichmentCheck ? m.runEnrichmentCheck() : console.log('No export found'))\"",
         "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
     },
     "keywords": [

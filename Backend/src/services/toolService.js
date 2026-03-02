@@ -22,6 +22,8 @@ class ToolService {
             pricing,
             isFeatured,
             isTrending,
+            isNew,
+            affiliateStatus,
             status = 'active',
             sort = '-createdAt',
         } = options
@@ -55,8 +57,10 @@ class ToolService {
             }
         }
         if (pricing) query.pricing = pricing
-        if (isFeatured !== undefined) query.isFeatured = isFeatured
-        if (isTrending !== undefined) query.isTrending = isTrending
+        if (isFeatured !== undefined) query.isFeatured = isFeatured === 'true' || isFeatured === true
+        if (isTrending !== undefined) query.isTrending = isTrending === 'true' || isTrending === true
+        if (isNew !== undefined) query.isNew = isNew === 'true' || isNew === true
+        if (affiliateStatus) query.affiliateStatus = affiliateStatus
 
         // Execute query
         const [tools, total] = await Promise.all([

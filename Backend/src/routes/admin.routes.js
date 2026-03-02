@@ -100,6 +100,93 @@ router.get('/tools/pending', async (req, res) => {
 })
 
 /**
+ * @route   PATCH /api/v1/admin/tools/bulk-affiliate-status
+ * @desc    Batch-update affiliate fields on multiple tools at once.
+ *          Used by admin to work through 20-tool batches from the affiliate status filter.
+ * @body    { toolIds: string[], affiliateStatus, affiliateNetwork?, commissionType?, commissionRate? }
+ * @access  Admin only
+ */
+router.patch('/tools/bulk-affiliate-status', async (req, res) => {
+    try {
+        const { toolIds, affiliateStatus, affiliateNetwork, commissionType, commissionRate } = req.body
+
+        if (!toolIds?.length) {
+            return res.status(400).json({ success: false, message: 'toolIds array is required' })
+        }
+
+        const VALID_STATUSES = ['not_started', 'pending', 'approved', 'rejected', 'not_available']
+        if (!VALID_STATUSES.includes(affiliateStatus)) {
+            return res.status(400).json({
+                success: false,
+                message: `affiliateStatus must be one of: ${VALID_STATUSES.join(', ')}`
+            })
+        }
+
+        const update = { affiliateStatus, affiliateLastVerified: new Date() }
+        if (affiliateNetwork) update.affiliateNetwork = affiliateNetwork
+        if (commissionType) update.commissionType = commissionType
+        if (commissionRate) update.commissionRate = commissionRate
+
+        const result = await Tool.updateMany(
+            { _id: { $in: toolIds } },
+            { $set: update }
+        )
+
+        console.log(`[Admin] Bulk affiliate status update: ${result.modifiedCount} tools set to "${affiliateStatus}" by ${req.user?.email}`)
+
+        res.json({
+            success: true,
+            updated: result.modifiedCount,
+            message: `Updated ${result.modifiedCount} tool(s) to affiliate status: ${affiliateStatus}`
+        })
+    } catch (error) {
+        console.error('Bulk affiliate status error:', error)
+        res.status(500).json({ success: false, message: 'Failed to update affiliate statuses' })
+    }
+})
+
+/**
+ * @route   GET /api/v1/admin/tools/enrichment-stats
+ * @desc    Get enrichment score distribution + stale + needsEnrichment counts for the Enrichment tab
+ * @access  Admin only
+ */
+router.get('/tools/enrichment-stats', async (req, res) => {
+    try {
+        const staleDate = new Date()
+        staleDate.setDate(staleDate.getDate() - 90)
+
+        const [fullyEnriched, partial, notEnriched, stale, needsEnrichmentCount, staleTools] = await Promise.all([
+            Tool.countDocuments({ enrichmentScore: { $gte: 80 }, isActive: true }),
+            Tool.countDocuments({ enrichmentScore: { $gte: 30, $lt: 80 }, isActive: true }),
+            Tool.countDocuments({ enrichmentScore: { $lt: 30 }, isActive: true }),
+            Tool.countDocuments({
+                $or: [
+                    { lastEnriched: { $lt: staleDate } },
+                    { lastEnriched: null },
+                ],
+                isActive: true,
+            }),
+            Tool.countDocuments({ needsEnrichment: true, isActive: true }),
+            // Top 20 stale tools sorted by views (most traffic = most urgent)
+            Tool.find({ needsEnrichment: true, isActive: true })
+                .sort({ views: -1 })
+                .limit(20)
+                .select('name slug views enrichmentScore lastEnriched')
+                .lean(),
+        ])
+
+        res.json({
+            success: true,
+            stats: { fullyEnriched, partial, notEnriched, stale, needsEnrichmentCount },
+            staleTools,
+        })
+    } catch (error) {
+        console.error('Enrichment stats error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch enrichment stats' })
+    }
+})
+
+/**
  * @route   PUT /api/v1/admin/tools/:id/approve
  * @desc    Approve a pending tool — syncs to Algolia via toolService
  * @access  Admin only
@@ -983,132 +1070,5 @@ router.post('/feature-flags/seed', async (req, res) => {
     }
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Featured Listings Admin API
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * @route  GET /api/v1/admin/featured-listings
- * @desc   List all featured listings (active + expired)
- * @access Admin only
- */
-router.get('/featured-listings', async (req, res) => {
-    try {
-        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
-        const listings = await FeaturedListing.find()
-            .populate('tool', 'name slug logo officialUrl')
-            .sort({ endDate: -1 })
-            .lean()
-        res.json({ success: true, listings })
-    } catch (err) {
-        console.error('Featured listings list error:', err)
-        res.status(500).json({ success: false, message: 'Failed to fetch featured listings' })
-    }
-})
-
-/**
- * @route  POST /api/v1/admin/featured-listings
- * @desc   Create a new featured listing
- * @access Admin only
- */
-router.post('/featured-listings', async (req, res) => {
-    try {
-        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
-        const { tool, tier, vendorName, vendorEmail, monthlyRate, startDate, endDate, notes } = req.body
-
-        if (!tool || !tier || !startDate || !endDate) {
-            return res.status(400).json({ success: false, message: 'tool, tier, startDate and endDate are required' })
-        }
-
-        const listing = await FeaturedListing.create({
-            tool,
-            tier,
-            vendorName,
-            vendorEmail,
-            monthlyRate: monthlyRate || 0,
-            startDate: new Date(startDate),
-            endDate: new Date(endDate),
-            notes,
-            isActive: true,
-            createdBy: req.auth?.userId,
-        })
-
-        const populated = await listing.populate('tool', 'name slug logo officialUrl')
-        res.status(201).json({ success: true, listing: populated })
-    } catch (err) {
-        console.error('Featured listing create error:', err)
-        res.status(500).json({ success: false, message: 'Failed to create featured listing' })
-    }
-})
-
-/**
- * @route  PATCH /api/v1/admin/featured-listings/:id
- * @desc   Update a featured listing (toggle active, change dates/tier/notes)
- * @access Admin only
- */
-router.patch('/featured-listings/:id', async (req, res) => {
-    try {
-        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
-        const allowedFields = ['tier', 'vendorName', 'vendorEmail', 'monthlyRate', 'startDate', 'endDate', 'notes', 'isActive']
-        const updates = {}
-        for (const key of allowedFields) {
-            if (req.body[key] !== undefined) updates[key] = req.body[key]
-        }
-
-        // Coerce date strings
-        if (updates.startDate) updates.startDate = new Date(updates.startDate)
-        if (updates.endDate) updates.endDate = new Date(updates.endDate)
-
-        const listing = await FeaturedListing.findByIdAndUpdate(
-            req.params.id,
-            updates,
-            { new: true, runValidators: true }
-        ).populate('tool', 'name slug logo officialUrl')
-
-        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
-
-        res.json({ success: true, listing })
-    } catch (err) {
-        console.error('Featured listing update error:', err)
-        res.status(500).json({ success: false, message: 'Failed to update featured listing' })
-    }
-})
-
-/**
- * @route  DELETE /api/v1/admin/featured-listings/:id
- * @desc   Hard-delete a featured listing
- * @access Admin only
- */
-router.delete('/featured-listings/:id', async (req, res) => {
-    try {
-        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
-        const listing = await FeaturedListing.findByIdAndDelete(req.params.id)
-        if (!listing) return res.status(404).json({ success: false, message: 'Listing not found' })
-        res.json({ success: true, message: 'Listing deleted' })
-    } catch (err) {
-        console.error('Featured listing delete error:', err)
-        res.status(500).json({ success: false, message: 'Failed to delete listing' })
-    }
-})
-
-/**
- * @route  POST /api/v1/admin/featured-listings/expire-stale
- * @desc   Mark all listings whose endDate has passed as inactive
- * @access Admin only
- */
-router.post('/featured-listings/expire-stale', async (req, res) => {
-    try {
-        const FeaturedListing = (await import('../models/FeaturedListing.js')).default
-        const result = await FeaturedListing.updateMany(
-            { isActive: true, endDate: { $lt: new Date() } },
-            { $set: { isActive: false } }
-        )
-        res.json({ success: true, message: `Marked ${result.modifiedCount} listing(s) as expired` })
-    } catch (err) {
-        console.error('Featured listing expire-stale error:', err)
-        res.status(500).json({ success: false, message: 'Failed to expire stale listings' })
-    }
-})
 
 export default router
-

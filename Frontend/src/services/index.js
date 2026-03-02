@@ -135,6 +135,15 @@ export const adminService = {
     updateFeaturedListing: (id, data) => apiClient.patch(`/admin/featured-listings/${id}`, data),
     deactivateFeaturedListing: (id) => apiClient.delete(`/admin/featured-listings/${id}`),
     expireStaleFeaturedListings: () => apiClient.post('/admin/featured-listings/expire-stale'),
+    // Affiliate Analytics — IMPL GROUP 2
+    getAffiliateClickAnalytics: (queryString = '') => apiClient.get(`/analytics/affiliate-clicks${queryString ? '?' + queryString : ''}`),
+    bulkUpdateAffiliateStatus: (data) => apiClient.patch('/admin/tools/bulk-affiliate-status', data),
+    // Enrichment Stats — IMPL GROUP 2
+    getEnrichmentStats: () => apiClient.get('/admin/tools/enrichment-stats'),
+    // Feature Flags
+    getFeatureFlags: () => apiClient.get('/admin/feature-flags'),
+    toggleFeatureFlag: (key, enabled) => apiClient.patch(`/admin/feature-flags/${key}`, { enabled }),
+    seedFeatureFlags: () => apiClient.post('/admin/feature-flags/seed'),
 }
 
 /**

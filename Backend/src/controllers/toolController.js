@@ -20,6 +20,8 @@ class ToolController {
             pricing: req.query.pricing,
             isFeatured: req.query.isFeatured,
             isTrending: req.query.isTrending,
+            isNew: req.query.isNew,                       // "New This Week" homepage filter
+            affiliateStatus: req.query.affiliateStatus,  // Admin batch affiliate filter
             sort: req.query.sort || '-createdAt',
         }
 

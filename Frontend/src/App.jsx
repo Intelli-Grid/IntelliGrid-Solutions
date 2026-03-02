@@ -12,8 +12,9 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import CookieConsent from './components/CookieConsent'
 
 // Auth Pages — Dedicated Clerk sign-in/sign-up (required by Clerk Dashboard "application domain" path setting)
-import SignInPage from './pages/SignInPage'
-import SignUpPage from './pages/SignUpPage'
+// Lazy-loaded like all other pages to keep the initial bundle lean
+const SignInPage = lazy(() => import('./pages/SignInPage'))
+const SignUpPage = lazy(() => import('./pages/SignUpPage'))
 
 // Lazy Load Pages — Public
 const HomePage = lazy(() => import('./pages/HomePage'))

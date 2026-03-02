@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
-import { X, Save, Loader2 } from 'lucide-react'
+import { X, Save, Loader2, Link2, DollarSign, BadgePercent } from 'lucide-react'
 import { adminService, categoryService, toolService } from '../../services'
 import { useToast } from '../../context/ToastContext'
+
+const INPUT_CLS = 'w-full rounded-lg border border-white/10 bg-black/50 px-4 py-2 text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none text-sm'
+const LABEL_CLS = 'text-xs font-semibold text-gray-400 uppercase tracking-wider'
 
 export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [categories, setCategories] = useState([])
     const [formData, setFormData] = useState({
+        // Core fields
         name: '',
         slug: '',
         shortDescription: '',
@@ -18,7 +22,16 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
         affiliateUrl: '',
         sourceUrl: '',
         tags: '',
-        isVerified: false
+        isVerified: false,
+        contactEmail: '',
+        // Affiliate management fields
+        affiliateNetwork: 'none',
+        affiliateStatus: 'not_started',
+        commissionType: 'none',
+        commissionRate: '',
+        cookieDuration: '',
+        affiliateProgramUrl: '',
+        affiliateNotes: '',
     })
 
     useEffect(() => {
@@ -45,7 +58,7 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
         try {
             setLoading(true)
             const data = await toolService.getToolById(toolId)
-            const tool = data.data || data // Handle different response structures if any
+            const tool = data.data || data
 
             setFormData({
                 name: tool.name || '',
@@ -59,7 +72,15 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
                 sourceUrl: tool.sourceUrl || '',
                 tags: tool.tags ? tool.tags.join(', ') : '',
                 isVerified: tool.isVerified || false,
-                contactEmail: tool.contactEmail || ''
+                contactEmail: tool.contactEmail || '',
+                // Affiliate management fields
+                affiliateNetwork: tool.affiliateNetwork || 'none',
+                affiliateStatus: tool.affiliateStatus || 'not_started',
+                commissionType: tool.commissionType || 'none',
+                commissionRate: tool.commissionRate || '',
+                cookieDuration: tool.cookieDuration || '',
+                affiliateProgramUrl: tool.affiliateProgramUrl || '',
+                affiliateNotes: tool.affiliateNotes || '',
             })
         } catch (error) {
             console.error('Failed to fetch tool:', error)
@@ -264,12 +285,110 @@ export default function EditToolModal({ isOpen, onClose, toolId, onUpdate }) {
                             value={formData.affiliateUrl || ''}
                             onChange={handleChange}
                             placeholder="https://shareasale.com/r.cfm?b=...&u=...&m=..."
-                            className="w-full rounded-lg border border-amber-500/30 bg-black/50 px-4 py-2 text-white placeholder-gray-600 focus:border-amber-500 focus:outline-none"
+                            className="w-full rounded-lg border border-amber-500/30 bg-black/50 px-4 py-2 text-white placeholder-gray-600 focus:border-amber-500 focus:outline-none text-sm"
                         />
                         <p className="text-xs text-gray-600">
                             When set + flag enabled: users who click &quot;Visit&quot; are redirected through this URL.
                             Leave blank to always send users to the Official Website URL.
                         </p>
+                    </div>
+
+                    {/* ── Affiliate Program Details ──────────────────────── */}
+                    <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4 space-y-4">
+                        <h3 className="text-sm font-semibold text-green-400 flex items-center gap-2">
+                            <BadgePercent size={14} /> Affiliate Program Details
+                        </h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Affiliate Network */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Network</label>
+                                <select name="affiliateNetwork" value={formData.affiliateNetwork} onChange={handleChange} className={INPUT_CLS}>
+                                    <option value="none">None</option>
+                                    <option value="partnerstack">PartnerStack</option>
+                                    <option value="impact">Impact</option>
+                                    <option value="shareasale">ShareASale</option>
+                                    <option value="cj">CJ Affiliate</option>
+                                    <option value="appsumo">AppSumo</option>
+                                    <option value="direct">Direct Program</option>
+                                </select>
+                            </div>
+
+                            {/* Affiliate Status */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Application Status</label>
+                                <select name="affiliateStatus" value={formData.affiliateStatus} onChange={handleChange} className={INPUT_CLS}>
+                                    <option value="not_started">Not Started</option>
+                                    <option value="pending">Applied — Pending</option>
+                                    <option value="approved">Approved ✅</option>
+                                    <option value="rejected">Rejected ❌</option>
+                                    <option value="not_available">Not Available</option>
+                                </select>
+                            </div>
+
+                            {/* Commission Type */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Commission Type</label>
+                                <select name="commissionType" value={formData.commissionType} onChange={handleChange} className={INPUT_CLS}>
+                                    <option value="none">None</option>
+                                    <option value="recurring">Recurring</option>
+                                    <option value="one_time">One-time</option>
+                                    <option value="hybrid">Hybrid</option>
+                                    <option value="tiered">Tiered</option>
+                                </select>
+                            </div>
+
+                            {/* Commission Rate */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Commission Rate</label>
+                                <input
+                                    name="commissionRate"
+                                    value={formData.commissionRate}
+                                    onChange={handleChange}
+                                    placeholder="e.g. 30%, $25 flat, 20% recurring"
+                                    className={INPUT_CLS}
+                                />
+                            </div>
+
+                            {/* Cookie Duration */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Cookie Duration (days)</label>
+                                <input
+                                    name="cookieDuration"
+                                    type="number"
+                                    min={1}
+                                    value={formData.cookieDuration}
+                                    onChange={handleChange}
+                                    placeholder="e.g. 30, 60, 90"
+                                    className={INPUT_CLS}
+                                />
+                            </div>
+
+                            {/* Affiliate Program URL */}
+                            <div className="space-y-1">
+                                <label className={LABEL_CLS}>Program Dashboard URL</label>
+                                <input
+                                    name="affiliateProgramUrl"
+                                    value={formData.affiliateProgramUrl}
+                                    onChange={handleChange}
+                                    placeholder="https://app.partnerstack.com/..."
+                                    className={INPUT_CLS}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Affiliate Notes */}
+                        <div className="space-y-1">
+                            <label className={LABEL_CLS}>Notes / Special Terms</label>
+                            <textarea
+                                name="affiliateNotes"
+                                value={formData.affiliateNotes}
+                                onChange={handleChange}
+                                rows={2}
+                                placeholder="e.g. No paid traffic. 90-day cookie. Requires $500 min payout."
+                                className={`${INPUT_CLS} resize-none`}
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-2">

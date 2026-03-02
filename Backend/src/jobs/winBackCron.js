@@ -41,7 +41,12 @@ async function handleExpiredSubscriptions() {
             'subscription.tier': { $nin: ['Free'] },
             'subscription.endDate': { $lt: now },
             // Don't touch users on active reverse trial
-            'reverseTrial.active': { $ne: true },
+            'subscription.reverseTrial.active': { $ne: true },
+            // Exclude PayPal recurring subscribers — PayPal manages their lifecycle via webhooks
+            // (BILLING.SUBSCRIPTION.EXPIRED / BILLING.SUBSCRIPTION.CANCELLED).
+            // Downgrading them here would race with PayPal's renewal webhook and could
+            // incorrectly remove access mid-cycle if endDate is stale before the renewal webhook arrives.
+            'subscription.paypalSubscriptionId': { $in: [null, undefined, ''] },
         })
 
         let expiredCount = 0

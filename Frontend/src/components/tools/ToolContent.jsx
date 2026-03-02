@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { Tag, CheckCircle, Layers } from 'lucide-react';
+import { Tag, CheckCircle, Layers, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import ToolReviews from './ToolReviews';
 import ToolFAQSection from './ToolFAQSection';
 
@@ -14,7 +13,7 @@ export default function ToolContent({ tool }) {
 
             {/* Tabs Header */}
             <div className="flex border-b border-white/10 overflow-x-auto gap-8 mb-8">
-                {['overview', 'features', 'reviews', 'alternatives'].map((tab) => (
+                {['overview', 'features', 'pros-cons', 'reviews', 'alternatives'].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -23,7 +22,7 @@ export default function ToolContent({ tool }) {
                             : 'text-gray-400 hover:text-white'
                             }`}
                     >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        {tab === 'pros-cons' ? 'Pros & Cons' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                         {/* Tab Indicator */}
                         {activeTab === tab && (
                             <span className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-500 rounded-t-full" />
@@ -82,8 +81,29 @@ export default function ToolContent({ tool }) {
                             </div>
                         )}
 
+                        {/* Task Tags (enrichment data) */}
+                        {tool.taskTags && tool.taskTags.length > 0 && (
+                            <div className="pt-2">
+                                <h4 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Use Cases</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {tool.taskTags.map((tag) => (
+                                        <span
+                                            key={tag}
+                                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300"
+                                        >
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* ── AI-generated FAQ + Use Cases (PROGRAMMATIC_SEO flag) ── */}
-                        <ToolFAQSection slug={tool.slug} />
+                        <ToolFAQSection
+                            slug={tool.slug}
+                            staticPros={tool.pros || []}
+                            staticCons={tool.cons || []}
+                        />
                     </div>
                 )}
 
@@ -110,6 +130,65 @@ export default function ToolContent({ tool }) {
                         )}
                     </div>
                 )}
+
+                {/* ── 3. PROS & CONS TAB ───────────────────────────────────── */}
+                {activeTab === 'pros-cons' && (() => {
+                    const pros = tool.pros || []
+                    const cons = tool.cons || []
+                    const hasData = pros.length > 0 || cons.length > 0
+                    return (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h3 className="text-xl font-semibold text-white mb-6">Pros &amp; Cons</h3>
+                            {hasData ? (
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {/* Pros */}
+                                    <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-5">
+                                        <h4 className="flex items-center gap-2 text-sm font-semibold text-green-400 mb-4">
+                                            <ThumbsUp size={14} /> Pros
+                                        </h4>
+                                        {pros.length > 0 ? (
+                                            <ul className="space-y-3">
+                                                {pros.map((pro, i) => (
+                                                    <li key={i} className="flex items-start gap-2.5 text-sm text-gray-300">
+                                                        <CheckCircle size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
+                                                        {pro}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-xs text-gray-600 italic">No pros listed yet.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Cons */}
+                                    <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+                                        <h4 className="flex items-center gap-2 text-sm font-semibold text-red-400 mb-4">
+                                            <ThumbsDown size={14} /> Cons
+                                        </h4>
+                                        {cons.length > 0 ? (
+                                            <ul className="space-y-3">
+                                                {cons.map((con, i) => (
+                                                    <li key={i} className="flex items-start gap-2.5 text-sm text-gray-300">
+                                                        <XCircle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                                                        {con}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-xs text-gray-600 italic">No cons listed yet.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-40 text-gray-500 gap-3">
+                                    <Layers className="h-10 w-10 opacity-30" />
+                                    <p className="text-sm">No pros &amp; cons data yet for this tool.</p>
+                                    <p className="text-xs text-gray-600">Enrichment data is sourced via Browse AI imports — check the Admin → Enrichment tab.</p>
+                                </div>
+                            )}
+                        </div>
+                    )
+                })()}
 
                 {/* 3. REVIEWS TAB */}
                 {activeTab === 'reviews' && (

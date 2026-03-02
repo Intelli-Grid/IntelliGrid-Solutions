@@ -1,4 +1,4 @@
-import { ExternalLink, Heart, Share2, Check, TrendingUp, Star, Loader2, ArrowRight } from 'lucide-react';
+import { ExternalLink, Heart, Share2, Check, TrendingUp, Star, Loader2, ArrowRight, Sparkles, BadgePercent } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getPricingDisplay, formatNumber, formatDate, getInitials } from '../../utils/helpers';
 import { useState } from 'react';
@@ -113,6 +113,11 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                                 <TrendingUp className="h-3 w-3" /> Trending
                             </span>
                         )}
+                        {tool.isNew && !tool.isTrending && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400 border border-emerald-500/20">
+                                <Sparkles className="h-3 w-3" /> New
+                            </span>
+                        )}
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-gray-400 border border-white/10">
                             {typeof tool.category === 'object' ? tool.category.name : tool.category}
                         </span>
@@ -163,6 +168,18 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                 >
                     Visit Website <ExternalLink className="h-4.5 w-4.5" />
                 </a>
+
+                {/* Affiliate commission hint — only shown when tracking is active + approved */}
+                {affiliateTrackingEnabled && tool.affiliateStatus === 'approved' && tool.affiliateNetwork && tool.affiliateNetwork !== 'none' && (
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-600">
+                        <BadgePercent size={11} className="text-green-600" />
+                        <span>
+                            We may earn a{tool.commissionType === 'recurring' ? ' recurring' : ''} commission via{' '}
+                            <span className="capitalize text-gray-500">{tool.affiliateNetwork}</span>
+                            {tool.commissionRate ? ` (${tool.commissionRate})` : ''} — at no extra cost to you.
+                        </span>
+                    </div>
+                )}
 
                 <div className="flex gap-3">
                     <button

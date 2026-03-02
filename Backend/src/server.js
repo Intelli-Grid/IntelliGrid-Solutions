@@ -2,6 +2,9 @@ import app from './app.js'
 import renewalService from './services/renewalService.js'
 import linkValidationService from './services/linkValidationService.js'
 import discoveryScheduler from './services/discoveryScheduler.js'
+import { startTrialCron } from './jobs/trialCron.js'
+import { startWinBackCron } from './jobs/winBackCron.js'
+import { startEnrichmentCron } from './jobs/enrichmentCron.js'
 
 // Start Server
 const PORT = process.env.PORT || 10000
@@ -20,8 +23,13 @@ app.listen(PORT, () => {
     console.log(`   - Analytics: /api/v1/analytics`)
     console.log(`   - Admin: /api/v1/admin`)
 
-    // Start Schedulers
+    // Start legacy schedulers
     renewalService.startScheduler()
     linkValidationService.startScheduler()
     discoveryScheduler.startScheduler()
+
+    // Start cron jobs
+    startTrialCron()       // Daily 08:00 UTC — trial lifecycle (expire, urgency, reminder, midpoint)
+    startWinBackCron()     // Daily 09:00 UTC — win-back emails for cancelled/expired users
+    startEnrichmentCron()  // Weekly Sun 02:00 UTC — flag stale tools for re-enrichment
 })

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Check, Loader2, FolderPlus } from 'lucide-react'
 import { collectionService } from '../../services'
 import { toast } from 'react-hot-toast'
+import { useNudge } from '../common/NudgeContext'
 
 export default function AddToCollectionModal({ isOpen, onClose, toolId }) {
     const [collections, setCollections] = useState([])
@@ -9,6 +10,7 @@ export default function AddToCollectionModal({ isOpen, onClose, toolId }) {
     const [creating, setCreating] = useState(false)
     const [newCollectionName, setNewCollectionName] = useState('')
     const [processingId, setProcessingId] = useState(null)
+    const { fireNudgeFromError } = useNudge()
 
     useEffect(() => {
         if (isOpen) {
@@ -46,7 +48,13 @@ export default function AddToCollectionModal({ isOpen, onClose, toolId }) {
             fetchCollections() // Refresh list
         } catch (error) {
             console.error('Failed to create collection', error)
-            toast.error('Failed to create collection')
+            const msg = error?.response?.data?.message || error?.message || ''
+            if (msg.includes('COLLECTIONS_LIMIT_REACHED')) {
+                fireNudgeFromError(error)
+                onClose() // Close modal so nudge panel is visible
+            } else {
+                toast.error('Failed to create collection')
+            }
         } finally {
             setCreating(false)
         }

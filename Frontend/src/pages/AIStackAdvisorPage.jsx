@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { stackAdvisorService } from '../services'
 import SEO from '../components/common/SEO'
+import { useNudge } from '../components/common/NudgeContext'
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 const ROLES = [
@@ -193,6 +194,8 @@ export default function AIStackAdvisorPage() {
     const [historyLoading, setHistoryLoading] = useState(false)
     const [showHistory, setShowHistory] = useState(false)
 
+    const { fireNudge } = useNudge()
+
     const isPro = ['Basic', 'Pro', 'Premium', 'Business', 'Enterprise'].includes(
         user?.publicMetadata?.subscriptionTier || 'Free'
     )
@@ -202,6 +205,16 @@ export default function AIStackAdvisorPage() {
             loadHistory()
         }
     }, [isLoaded, user])
+
+    // Fire PRO_FEATURE_REQUIRED nudge when non-Pro user hits the gate
+    useEffect(() => {
+        if (isLoaded && user && !isPro) {
+            if (!sessionStorage.getItem('nudge_pro_feature_fired')) {
+                fireNudge('PRO_FEATURE_REQUIRED')
+                sessionStorage.setItem('nudge_pro_feature_fired', '1')
+            }
+        }
+    }, [isLoaded, user, isPro, fireNudge])
 
     const loadHistory = async () => {
         setHistoryLoading(true)

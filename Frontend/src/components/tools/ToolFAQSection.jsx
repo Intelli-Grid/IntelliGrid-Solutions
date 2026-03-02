@@ -14,9 +14,11 @@ import { useState, useEffect } from 'react'
 import { HelpCircle, Lightbulb, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react'
 import { useFlag } from '../../hooks/useFeatureFlags'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+// VITE_API_URL already includes /api/v1 — strip it to get the root origin,
+// then we append the full path to avoid doubled /api/v1/api/v1 requests.
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
 
-export default function ToolFAQSection({ slug }) {
+export default function ToolFAQSection({ slug, staticPros = [], staticCons = [] }) {
     const seoEnabled = useFlag('PROGRAMMATIC_SEO')
     const [seoContent, setSeoContent] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -81,8 +83,9 @@ export default function ToolFAQSection({ slug }) {
                 </div>
             )}
 
-            {/* ── Pros & Cons ───────────────────────────────────────────────── */}
-            {(pros.length > 0 || cons.length > 0) && (
+            {/* ── Pros & Cons ─────────────────────────────────────────────── */}
+            {/* Only show AI-generated pros/cons if the tool has no static scraped data */}
+            {(pros.length > 0 || cons.length > 0) && staticPros.length === 0 && staticCons.length === 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Pros */}
                     {pros.length > 0 && (

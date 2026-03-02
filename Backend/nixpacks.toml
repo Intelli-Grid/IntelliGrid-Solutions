@@ -1,0 +1,11 @@
+# nixpacks.toml — Railway build configuration for IntelliGrid backend
+#
+# Explicitly pins the build and start commands so Railway's auto-detection
+# cannot silently change behaviour if its heuristics are updated.
+# Node version follows the engines field in package.json.
+
+[phases.build]
+cmds = ["npm install --production=false"]
+
+[start]
+cmd = "node src/server.js"

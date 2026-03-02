@@ -9,11 +9,14 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import EditToolModal from '../components/tools/EditToolModal'
 import CancellationRescueModal from '../components/common/CancellationRescueModal'
+import TrialBanner from '../components/common/TrialBanner'
 import { useFlag } from '../hooks/useFeatureFlags'
+import { useNudge } from '../components/common/NudgeContext'
 
 export default function DashboardPage() {
     const { user, isLoaded } = useUser()
     const rescueEnabled = useFlag('CANCELLATION_RESCUE')
+    const { fireNudgeFromError } = useNudge()
     const [stats, setStats] = useState(null)
     const [subscription, setSubscription] = useState(null)
     const [favorites, setFavorites] = useState([])
@@ -107,7 +110,12 @@ export default function DashboardPage() {
             toast.success('Collection created successfully!')
         } catch (err) {
             console.error('Error creating collection:', err)
-            toast.error('Failed to create collection')
+            const msg = err?.response?.data?.message || err?.message || ''
+            if (msg.includes('COLLECTIONS_LIMIT_REACHED')) {
+                fireNudgeFromError(err)
+            } else {
+                toast.error('Failed to create collection')
+            }
         } finally {
             setCreatingCollection(false)
         }
@@ -187,6 +195,13 @@ export default function DashboardPage() {
                 <h1 className="mb-2 text-4xl font-bold text-white">Dashboard</h1>
                 <p className="text-gray-400">Welcome back, {user?.firstName || 'User'}!</p>
             </div>
+
+            {/* Trial Banner — only visible when user is on an active reverse trial */}
+            {subscription?.reverseTrial?.active && (
+                <div className="mb-6">
+                    <TrialBanner subscription={subscription} />
+                </div>
+            )}
 
             {/* Stats Grid */}
             <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -335,7 +350,7 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                     {/* isPaidSubscriber: match User model enum 'Free'|'Basic'|'Premium'|'Enterprise' */}
-                                    {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' ? (
+                                    {['Pro', 'Premium', 'Business', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' ? (
                                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-500">
                                             <TrendingUp size={24} />
                                         </div>
@@ -359,7 +374,7 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Cancel Subscription button — only for active paid subscribers */}
-                                {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' && (
+                                {['Pro', 'Premium', 'Business', 'Enterprise', 'Basic'].includes(subscription?.tier) && subscription?.status === 'active' && (
                                     <div className="mt-5 pt-4 border-t border-white/5">
                                         <button
                                             id="cancel-subscription-btn"
@@ -872,6 +887,15 @@ function MySubmissionsTab() {
                     ))}
                 </div>
             )}
+
+            {/* Cancellation Rescue Modal — intercepts cancel intent when CANCELLATION_RESCUE flag is ON */}
+            <CancellationRescueModal
+                isOpen={rescueOpen}
+                onClose={() => setRescueOpen(false)}
+                onConfirmCancel={executeCancelSubscription}
+                planName={subscription?.tier || 'Pro'}
+                isLoading={cancellingSubscription}
+            />
         </div>
     )
 }

@@ -2608,15 +2608,10 @@ function FeatureFlagsTab() {
     const [seeding, setSeeding] = useState(false)
     const { toast } = useToast()
 
-    const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
-
     const fetchFlags = async () => {
         setLoading(true)
         try {
-            const res = await adminService.request?.('GET', '/admin/feature-flags') ||
-                await fetch(`${apiBase}/api/v1/admin/feature-flags`, {
-                    headers: { Authorization: `Bearer ${await window.__getClerkToken?.()}` },
-                }).then(r => r.json())
+            const res = await adminService.getFeatureFlags()
             if (res.success) setFlags(res.flags || [])
         } catch (err) {
             toast({ title: 'Error', description: 'Failed to load feature flags', variant: 'destructive' })
@@ -2630,15 +2625,7 @@ function FeatureFlagsTab() {
     const handleToggle = async (flag) => {
         setToggling(flag.key)
         try {
-            const res = await fetch(`${apiBase}/api/v1/admin/feature-flags/${flag.key}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${await window.__getClerkToken?.()}`,
-                },
-                body: JSON.stringify({ enabled: !flag.enabled }),
-            }).then(r => r.json())
-
+            const res = await adminService.toggleFeatureFlag(flag.key, !flag.enabled)
             if (res.success) {
                 setFlags(prev => prev.map(f => f.key === flag.key ? res.flag : f))
                 toast({
@@ -2659,10 +2646,7 @@ function FeatureFlagsTab() {
         if (!window.confirm('This will insert any missing default flags. Existing flags will NOT be changed. Continue?')) return
         setSeeding(true)
         try {
-            const res = await fetch(`${apiBase}/api/v1/admin/feature-flags/seed`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${await window.__getClerkToken?.()}` },
-            }).then(r => r.json())
+            const res = await adminService.seedFeatureFlags()
             if (res.success) {
                 toast({ title: '✅ Seeded', description: res.message })
                 fetchFlags()
@@ -2677,6 +2661,7 @@ function FeatureFlagsTab() {
     }
 
     const enabledCount = flags.filter(f => f.enabled).length
+
 
     return (
         <div className="space-y-6">

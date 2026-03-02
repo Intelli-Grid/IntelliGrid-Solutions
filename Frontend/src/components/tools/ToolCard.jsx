@@ -34,7 +34,7 @@ export default function ToolCard({ tool }) {
     const pricingDisplay = getPricingDisplay(tool.pricing)
     const pricingClass = PRICING_COLORS[pricingDisplay] || 'text-gray-400 bg-gray-400/10 border-gray-400/20'
     const rating = tool.ratings?.average || 0
-    const isNew = !tool.createdAt || (new Date() - new Date(tool.createdAt) < 14 * 24 * 60 * 60 * 1000)
+    const isNew = tool.isNew ?? (!tool.createdAt || (new Date() - new Date(tool.createdAt) < 30 * 24 * 60 * 60 * 1000))
     const logoSrc = tool.logo || tool.metadata?.logo || ''
     const showBanner = logoSrc && !bannerError
 

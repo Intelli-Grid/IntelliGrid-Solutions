@@ -7,10 +7,12 @@ import LoadingSpinner from '../components/common/LoadingSpinner'
 import SEO from '../components/common/SEO'
 import { Check, X, ArrowLeft, Star } from 'lucide-react'
 import { formatNumber } from '../utils/helpers'
+import { useNudge } from '../components/common/NudgeContext'
 
 export default function ComparisonPage() {
     const { slugs } = useParams()
     const { user, isLoaded } = useUser()
+    const { fireNudge } = useNudge()
     const [tools, setTools] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -88,9 +90,18 @@ export default function ComparisonPage() {
     const ratingWinner = getRatingWinner()
     const popularityWinner = getPopularityWinner()
 
-    // Match User model enum: 'Free' | 'Basic' | 'Premium' | 'Enterprise'
-    const PAID_TIERS = ['Premium', 'Enterprise', 'Basic']
+    const PAID_TIERS = ['Premium', 'Enterprise', 'Basic', 'Pro']
     const isPro = PAID_TIERS.includes(subscription?.tier) && subscription?.status === 'active'
+
+    // Fire COMPARE_LIMIT nudge once for free users when comparison loads
+    useEffect(() => {
+        if (!loading && tools.length >= 2 && !isPro) {
+            if (!sessionStorage.getItem('nudge_compare_limit_fired')) {
+                fireNudge('COMPARE_LIMIT')
+                sessionStorage.setItem('nudge_compare_limit_fired', '1')
+            }
+        }
+    }, [loading, tools.length, isPro, fireNudge])
 
     return (
         <div className="min-h-screen bg-gray-950 text-white py-16 px-4">

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { X, ArrowRight, Zap } from 'lucide-react'
 import { useNudge } from './NudgeContext'
+import { useFlag } from '../../hooks/useFeatureFlags'
 
 /**
  * UpgradeNudge
@@ -14,6 +15,7 @@ import { useNudge } from './NudgeContext'
  */
 export default function UpgradeNudge() {
     const { activeNudge, dismissNudge } = useNudge()
+    const nudgesEnabled = useFlag('CONTEXTUAL_NUDGES')
 
     // Auto-dismiss low-urgency nudges after 8s
     useEffect(() => {
@@ -22,6 +24,7 @@ export default function UpgradeNudge() {
         return () => clearTimeout(timer)
     }, [activeNudge, dismissNudge])
 
+    if (!nudgesEnabled) return null
     if (!activeNudge) return null
 
     const urgencyStyles = {

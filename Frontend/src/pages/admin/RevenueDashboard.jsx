@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, TrendingUp, Users, CreditCard, Calendar, Download, RefreshCw, BarChart3 } from 'lucide-react'
+import { DollarSign, TrendingUp, Users, CreditCard, Calendar, Download, RefreshCw, BarChart3, Link2, BadgePercent } from 'lucide-react'
 import api from '../../utils/api'
 
 export default function RevenueDashboard() {
     const [loading, setLoading] = useState(true)
     const [dateRange, setDateRange] = useState('30') // days
+    const [affiliateStats, setAffiliateStats] = useState(null)
+    const [affiliateLoading, setAffiliateLoading] = useState(true)
     const [stats, setStats] = useState({
         mrr: 0,
         arr: 0,
@@ -27,6 +29,7 @@ export default function RevenueDashboard() {
 
     useEffect(() => {
         fetchRevenueData()
+        fetchAffiliateData()
     }, [dateRange])
 
     const fetchRevenueData = async () => {
@@ -40,6 +43,22 @@ export default function RevenueDashboard() {
             console.error('Error fetching revenue data:', error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const fetchAffiliateData = async () => {
+        try {
+            setAffiliateLoading(true)
+            const endDate = new Date().toISOString().split('T')[0]
+            const startDate = new Date(Date.now() - Number(dateRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const response = await api.get(`/analytics/affiliate-clicks?startDate=${startDate}&endDate=${endDate}`)
+            if (response.data.success) {
+                setAffiliateStats(response.data.data)
+            }
+        } catch (error) {
+            console.error('Error fetching affiliate analytics:', error)
+        } finally {
+            setAffiliateLoading(false)
         }
     }
 
@@ -355,7 +374,7 @@ export default function RevenueDashboard() {
                         <div className="text-center p-4 bg-accent-cyan/10 border border-accent-cyan/30 rounded-xl">
                             <p className="text-gray-400 text-sm mb-2">Success Rate</p>
                             <p className={`text-3xl font-bold ${stats.paymentStats.successRate > 95 ? 'text-accent-emerald' :
-                                    stats.paymentStats.successRate > 90 ? 'text-accent-amber' : 'text-error'
+                                stats.paymentStats.successRate > 90 ? 'text-accent-amber' : 'text-error'
                                 }`}>
                                 {stats.paymentStats.successRate}%
                             </p>
@@ -396,8 +415,8 @@ export default function RevenueDashboard() {
                                             <td className="py-3 px-4 text-gray-400 capitalize">{transaction.gateway}</td>
                                             <td className="py-3 px-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${transaction.status === 'completed'
-                                                        ? 'bg-accent-emerald/20 text-accent-emerald'
-                                                        : 'bg-error/20 text-error'
+                                                    ? 'bg-accent-emerald/20 text-accent-emerald'
+                                                    : 'bg-error/20 text-error'
                                                     }`}>
                                                     {transaction.status}
                                                 </span>
@@ -414,6 +433,99 @@ export default function RevenueDashboard() {
                         </div>
                     )}
                 </div>
+                {/* Affiliate Click Analytics */}
+                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mt-8">
+                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                        <Link2 className="w-5 h-5 text-accent-amber" />
+                        Affiliate Click Analytics
+                    </h2>
+
+                    {affiliateLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <RefreshCw className="w-8 h-8 text-accent-cyan animate-spin" />
+                        </div>
+                    ) : !affiliateStats || affiliateStats.totalClicks === 0 ? (
+                        <div className="text-center py-12">
+                            <BadgePercent className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                            <p className="text-gray-400 font-medium">No affiliate clicks recorded yet</p>
+                            <p className="text-gray-600 text-sm mt-1">Enable the <span className="text-gray-400 font-mono">AFFILIATE_TRACKING</span> flag and link tools to affiliate URLs to start tracking.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Summary row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-white/5 rounded-xl text-center">
+                                    <p className="text-gray-400 text-sm mb-1">Total Clicks</p>
+                                    <p className="text-3xl font-bold text-white">{affiliateStats.totalClicks}</p>
+                                </div>
+                                <div className="p-4 bg-white/5 rounded-xl text-center">
+                                    <p className="text-gray-400 text-sm mb-1">Top Network</p>
+                                    <p className="text-2xl font-bold text-accent-cyan capitalize">{affiliateStats.topNetwork || '—'}</p>
+                                </div>
+                                <div className="p-4 bg-white/5 rounded-xl text-center">
+                                    <p className="text-gray-400 text-sm mb-1">Approved Links</p>
+                                    <p className="text-3xl font-bold text-accent-emerald">{affiliateStats.approvedLinksCount}</p>
+                                </div>
+                            </div>
+
+                            {/* By network breakdown */}
+                            {affiliateStats.byNetwork?.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">By Network</h3>
+                                    <div className="space-y-2">
+                                        {affiliateStats.byNetwork.map((n) => {
+                                            const pct = Math.round((n.clicks / affiliateStats.totalClicks) * 100)
+                                            return (
+                                                <div key={n._id} className="flex items-center gap-3">
+                                                    <span className="text-gray-300 capitalize w-28 shrink-0">{n._id || 'unknown'}</span>
+                                                    <div className="flex-1 bg-white/10 rounded-full h-2">
+                                                        <div
+                                                            className="bg-gradient-to-r from-accent-amber to-accent-rose h-2 rounded-full transition-all duration-500"
+                                                            style={{ width: `${pct}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-gray-400 text-sm w-12 text-right">{n.clicks}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Top tools */}
+                            {affiliateStats.byTool?.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Top Tools by Clicks</h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="border-b border-white/10">
+                                                    <th className="text-left py-2 px-3 text-gray-400 text-xs font-semibold">Tool</th>
+                                                    <th className="text-left py-2 px-3 text-gray-400 text-xs font-semibold">Network</th>
+                                                    <th className="text-left py-2 px-3 text-gray-400 text-xs font-semibold">Type</th>
+                                                    <th className="text-left py-2 px-3 text-gray-400 text-xs font-semibold">Rate</th>
+                                                    <th className="text-right py-2 px-3 text-gray-400 text-xs font-semibold">Clicks</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {affiliateStats.byTool.slice(0, 10).map((t, i) => (
+                                                    <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                                        <td className="py-2 px-3 text-white text-sm">{t.toolName || t._id}</td>
+                                                        <td className="py-2 px-3 text-gray-400 text-sm capitalize">{t.network || '—'}</td>
+                                                        <td className="py-2 px-3 text-gray-400 text-sm capitalize">{t.commissionType || '—'}</td>
+                                                        <td className="py-2 px-3 text-accent-emerald text-sm">{t.commissionRate || '—'}</td>
+                                                        <td className="py-2 px-3 text-white font-semibold text-sm text-right">{t.clicks}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
             </div>
         </div>
     )

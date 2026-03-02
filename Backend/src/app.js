@@ -30,8 +30,6 @@ import submissionRoutes from './routes/submissionRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import blogRoutes from './routes/blogRoutes.js'
 import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
-import { startTrialCron } from './jobs/trialCron.js'
-import { startWinBackCron } from './jobs/winBackCron.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,9 +55,6 @@ if (process.env.SENTRY_DSN) {
 connectDB()
 connectRedis()
 
-// ── Background jobs ────────────────────────────────────────────────────────
-startTrialCron()
-startWinBackCron()
 
 // ── Security & general middleware ─────────────────────────────────────────────
 app.use(helmet({

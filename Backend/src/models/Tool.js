@@ -158,6 +158,114 @@ const toolSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+
+        // ── Batch 3 — Affiliate management fields ──────────────────────────────
+        affiliateNetwork: {
+            // Which affiliate network the link is registered through
+            type: String,
+            enum: ['partnerstack', 'impact', 'shareasale', 'cj', 'appsumo', 'direct', 'none'],
+            default: 'none',
+        },
+        commissionType: {
+            // Revenue model for this affiliate program
+            type: String,
+            enum: ['recurring', 'one_time', 'hybrid', 'tiered', 'none'],
+            default: 'none',
+        },
+        commissionRate: {
+            // Human-readable rate e.g. "30%", "$25 flat", "20% recurring"
+            type: String,
+            default: null,
+        },
+        cookieDuration: {
+            // Days the affiliate cookie lasts — 30, 60, 90, 365
+            type: Number,
+            default: null,
+        },
+        affiliateStatus: {
+            // Current registration status for this tool's affiliate program
+            type: String,
+            enum: ['not_started', 'pending', 'approved', 'rejected', 'not_available'],
+            default: 'not_started',
+        },
+        affiliateProgramUrl: {
+            // URL to the affiliate dashboard login for this specific program
+            type: String,
+            default: null,
+        },
+        affiliateLastVerified: {
+            // Last time the affiliate link was confirmed working
+            type: Date,
+            default: null,
+        },
+        affiliateNotes: {
+            // Special terms, restrictions, or application reminders
+            type: String,
+            default: null,
+        },
+
+        // ── Batch 4 — Enrichment source fields ─────────────────────────────────
+        isNew: {
+            // True when tool was added to IntelliGrid within the last 30 days
+            type: Boolean,
+            default: false,
+        },
+        futurepediaUrl: {
+            // Source page URL on futurepedia.io
+            type: String,
+            default: null,
+        },
+        taaftUrl: {
+            // Source page URL on theresanaiforthat.com
+            type: String,
+            default: null,
+        },
+        taaftSavesCount: {
+            // Community save count from TAAFT — social proof signal
+            type: Number,
+            default: 0,
+        },
+        futurepediaRating: {
+            // Numeric rating from Futurepedia (e.g. 4.2)
+            type: Number,
+            default: null,
+        },
+        pros: {
+            // Scraped from Futurepedia — distinct from seoContent.pros (Groq-generated)
+            type: [String],
+            default: [],
+        },
+        cons: {
+            // Scraped from Futurepedia — distinct from seoContent.cons (Groq-generated)
+            type: [String],
+            default: [],
+        },
+        taskTags: {
+            // TAAFT task-based tags — SEO gold (e.g. "remove background from image")
+            type: [String],
+            default: [],
+        },
+        lastEnriched: {
+            // Timestamp of last enrichment run (Browse AI import or Groq pass)
+            type: Date,
+            default: null,
+        },
+        enrichmentScore: {
+            // 0-100 completeness score: shortDesc + fullDesc + pros + cons + useCases + logo + pricing + affiliateUrl
+            type: Number,
+            default: 0,
+        },
+        dataSource: {
+            // Primary data origin for this tool record
+            type: String,
+            enum: ['manual', 'futurepedia', 'taaft', 'groq', 'mixed'],
+            default: 'manual',
+        },
+        needsEnrichment: {
+            // Flagged by enrichmentCron when data is stale (90+ days without update)
+            type: Boolean,
+            default: false,
+        },
         pricingPageUrl: {
             type: String,
             trim: true,
@@ -251,6 +359,12 @@ toolSchema.index({ status: 1, createdAt: -1 })          // latest active tools
 toolSchema.index({ isActive: 1, status: 1, createdAt: -1 }) // primary list query
 toolSchema.index({ linkStatus: 1, lastLinkCheck: 1 })        // stale-link cron query
 toolSchema.index({ isActive: 1, linkStatus: 1 })             // purge-dead-tools query
+// Batch 3 — affiliate management indexes
+toolSchema.index({ affiliateStatus: 1, affiliateNetwork: 1 }) // admin affiliate batch filter
+// Batch 4 — enrichment indexes
+toolSchema.index({ isNew: 1, status: 1 })                     // "New This Week" homepage query
+toolSchema.index({ enrichmentScore: 1 })                      // enrichment queue sort
+toolSchema.index({ needsEnrichment: 1, views: -1 })           // re-enrichment cron priority
 
 /**
  * ✅ Cascade Delete Hook
