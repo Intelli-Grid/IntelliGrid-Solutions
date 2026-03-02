@@ -272,7 +272,11 @@ class PaymentController {
         try {
             switch (event_type) {
 
-                // ── One-time payment (legacy / Cashfree fallback) ──────────────────────
+                // ── One-time / subscription payment ──────────────────────────────────
+                // PayPal v1 API fires PAYMENT.SALE.COMPLETED
+                // PayPal v2 API fires PAYMENT.CAPTURE.COMPLETED
+                // Both are handled identically — v2 falls through to v1 handler.
+                case 'PAYMENT.CAPTURE.COMPLETED':
                 case 'PAYMENT.SALE.COMPLETED': {
                     // For SUBSCRIPTION payments this fires too — resource.billing_agreement_id
                     // is set. For one-time payments resource.billing_agreement_id is absent.
@@ -349,12 +353,16 @@ class PaymentController {
                     break
                 }
 
+                // PayPal v1 fires BILLING.SUBSCRIPTION.RENEWED after each successful charge.
+                // PayPal v2 / dashboard fires BILLING.SUBSCRIPTION.UPDATED for the same event.
+                // Both extend the subscription end date — v2 name falls through to v1 handler.
+                case 'BILLING.SUBSCRIPTION.UPDATED':
                 case 'BILLING.SUBSCRIPTION.RENEWED': {
                     // PayPal auto-renewed — extend the user's endDate using plan_id reverse map
                     const subscriptionId = resource.id
                     const userId = resource.custom_id
 
-                    console.log(`🔄 PayPal subscription renewed: ${subscriptionId}`)
+                    console.log(`🔄 PayPal subscription renewed/updated: ${subscriptionId}`)
 
                     if (userId) {
                         const PLAN_ID_MAP = getPlanIdMap()
@@ -420,15 +428,20 @@ class PaymentController {
                     break
                 }
 
-                case 'PAYMENT.SALE.REFUNDED':
-                    console.log('⚠️  PayPal payment refunded:', resource.id)
-                    if (resource.sale_id) {
+                // PayPal v1 fires PAYMENT.SALE.REFUNDED, v2 fires PAYMENT.CAPTURE.REFUNDED.
+                // resource.sale_id (v1) or resource.id (v2) both hold the transaction ref.
+                case 'PAYMENT.CAPTURE.REFUNDED':
+                case 'PAYMENT.SALE.REFUNDED': {
+                    const refundRef = resource.sale_id || resource.id
+                    console.log('⚠️  PayPal payment refunded:', refundRef)
+                    if (refundRef) {
                         await Order.findOneAndUpdate(
-                            { 'paymentDetails.transactionId': resource.sale_id },
+                            { 'paymentDetails.transactionId': refundRef },
                             { status: 'refunded' }
                         )
                     }
                     break
+                }
 
                 default:
                     console.log(`ℹ️  Unhandled PayPal webhook: ${event_type}`)
