@@ -35,6 +35,10 @@ import {
     Flag,
     Megaphone,
     BadgeDollarSign,
+    Link2,
+    BadgePercent,
+    Flame,
+    Database,
 } from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import { adminService, toolService, submissionService, blogService, couponService } from '../services'
@@ -87,7 +91,7 @@ export default function AdminPage() {
     }
 
     // Role check — support all admin-tier roles (legacy + new RBAC)
-    const ADMIN_ROLES = ['admin', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
+    const ADMIN_ROLES = ['admin', 'ADMIN', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
     const userRole = user?.publicMetadata?.role
     const isAdmin = ADMIN_ROLES.includes(userRole)
 
@@ -106,6 +110,8 @@ export default function AdminPage() {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'tools', label: 'Tools', icon: Package },
+        { id: 'affiliate', label: 'Affiliate', icon: Link2 },
+        { id: 'enrichment', label: 'Enrichment', icon: Database },
         { id: 'link-health', label: 'Link Health', icon: Wifi },
         { id: 'discovery', label: 'Discovery', icon: Radar },
         { id: 'claims', label: 'Claims', icon: ShieldCheck },
@@ -192,6 +198,8 @@ export default function AdminPage() {
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                     {activeTab === 'overview' && <OverviewTab setActiveTab={setActiveTab} stats={stats} />}
                     {activeTab === 'tools' && <ToolsTab />}
+                    {activeTab === 'affiliate' && <AffiliateTab />}
+                    {activeTab === 'enrichment' && <EnrichmentTab />}
                     {activeTab === 'link-health' && <LinkHealthTab />}
                     {activeTab === 'discovery' && <DiscoveryTab />}
                     {activeTab === 'claims' && <ClaimsTab />}
@@ -1201,8 +1209,8 @@ function FeaturedListingsAdminTab() {
                                         </span>
                                         {daysLeft !== null && (
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${daysLeft <= 3 ? 'bg-red-500/10 text-red-400' :
-                                                    daysLeft <= 7 ? 'bg-amber-500/10 text-amber-400' :
-                                                        'bg-emerald-500/10 text-emerald-400'
+                                                daysLeft <= 7 ? 'bg-amber-500/10 text-amber-400' :
+                                                    'bg-emerald-500/10 text-emerald-400'
                                                 }`}>
                                                 {daysLeft}d left
                                             </span>
@@ -2785,3 +2793,343 @@ function FeatureFlagsTab() {
     )
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Affiliate Analytics Tab
+// GET /api/v1/analytics/affiliate-clicks → byNetwork, byTool, timeline, totals
+// ─────────────────────────────────────────────────────────────────────────────
+function AffiliateTab() {
+    const { toast } = useToast()
+    const [loading, setLoading] = useState(true)
+    const [dateRange, setDateRange] = useState('30')
+    const [networkFilter, setNetworkFilter] = useState('')
+    const [data, setData] = useState({ totalClicks: 0, approvedLinksCount: 0, topNetwork: 'none', byNetwork: [], byTool: [], timeline: [] })
+
+    const NETWORK_COLORS = {
+        partnerstack: 'text-blue-400',
+        impact: 'text-purple-400',
+        shareasale: 'text-orange-400',
+        cj: 'text-green-400',
+        appsumo: 'text-amber-400',
+        direct: 'text-cyan-400',
+        none: 'text-gray-400',
+    }
+
+    const fetchData = async () => {
+        setLoading(true)
+        try {
+            const params = new URLSearchParams()
+            const end = new Date()
+            const start = new Date()
+            start.setDate(start.getDate() - parseInt(dateRange))
+            params.set('startDate', start.toISOString())
+            params.set('endDate', end.toISOString())
+            if (networkFilter) params.set('network', networkFilter)
+
+            const res = await adminService.getAffiliateClickAnalytics(params.toString())
+            if (res.success) setData(res.data)
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load affiliate analytics', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchData() }, [dateRange, networkFilter])
+
+    const maxTimeline = Math.max(...(data.timeline?.map(d => d.clicks) || [0])) || 1
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Link2 className="h-6 w-6 text-green-400" /> Affiliate Analytics
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">Click tracking, network breakdown, and top-earning tools</p>
+                </div>
+                <div className="flex gap-2 items-center">
+                    <select value={networkFilter} onChange={e => setNetworkFilter(e.target.value)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-500">
+                        <option value="">All Networks</option>
+                        <option value="partnerstack">PartnerStack</option>
+                        <option value="impact">Impact</option>
+                        <option value="shareasale">ShareASale</option>
+                        <option value="cj">CJ Affiliate</option>
+                        <option value="appsumo">AppSumo</option>
+                        <option value="direct">Direct</option>
+                    </select>
+                    <select value={dateRange} onChange={e => setDateRange(e.target.value)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-500">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                    <button onClick={fetchData} className="rounded-lg border border-white/10 bg-white/5 p-2 text-gray-400 hover:text-white transition-colors">
+                        <RefreshCw size={14} />
+                    </button>
+                </div>
+            </div>
+
+            {loading ? <div className="flex justify-center py-16"><LoadingSpinner /></div> : (
+                <>
+                    {/* KPI cards */}
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Clicks</p>
+                            <p className="text-3xl font-bold text-white">{data.totalClicks.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Approved Links</p>
+                            <p className="text-3xl font-bold text-green-400">{data.approvedLinksCount}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Top Network</p>
+                            <p className={`text-2xl font-bold capitalize ${NETWORK_COLORS[data.topNetwork] || 'text-white'}`}>
+                                {data.topNetwork === 'none' ? '—' : data.topNetwork}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        {/* By Network breakdown */}
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                                <BadgePercent size={14} className="text-green-400" /> Clicks by Network
+                            </h3>
+                            {data.byNetwork.length === 0 ? (
+                                <p className="text-center text-sm text-gray-500 py-8">No affiliate clicks yet</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {data.byNetwork.map(n => {
+                                        const pct = Math.round((n.clicks / data.totalClicks) * 100) || 0
+                                        return (
+                                            <div key={n._id}>
+                                                <div className="flex justify-between mb-1">
+                                                    <span className={`text-sm capitalize ${NETWORK_COLORS[n._id] || 'text-gray-300'}`}>{n._id}</span>
+                                                    <span className="text-sm text-white font-semibold">{n.clicks} <span className="text-xs text-gray-500">({pct}%)</span></span>
+                                                </div>
+                                                <div className="h-1.5 w-full rounded-full bg-white/10">
+                                                    <div className="h-1.5 rounded-full bg-green-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Daily timeline bar chart */}
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                                <TrendingUp size={14} className="text-green-400" /> Daily Timeline
+                            </h3>
+                            {data.timeline.length === 0 ? (
+                                <p className="text-center text-sm text-gray-500 py-8">No data for selected range</p>
+                            ) : (
+                                <div className="flex items-end gap-1 h-32">
+                                    {data.timeline.map(day => (
+                                        <div key={day._id} className="group relative flex-1 flex flex-col items-center gap-1">
+                                            <div
+                                                className="w-full rounded-t bg-green-500/60 hover:bg-green-500 transition-colors cursor-default"
+                                                style={{ height: `${(day.clicks / maxTimeline) * 100}%`, minHeight: '3px' }}
+                                            />
+                                            {/* Tooltip */}
+                                            <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 border border-white/10 px-2 py-1 rounded text-xs whitespace-nowrap z-10 pointer-events-none">
+                                                {day._id}: {day.clicks}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Top tools by affiliate clicks */}
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                            <Flame size={14} className="text-amber-400" /> Top Tools by Affiliate Clicks
+                        </h3>
+                        {data.byTool.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-6">No affiliate clicks tracked yet.<br />
+                                <span className="text-xs">Enable the AFFILIATE_TRACKING feature flag and add affiliate URLs to tools.</span>
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-xs uppercase text-gray-500 border-b border-white/5">
+                                            <th className="text-left py-2 px-3">#</th>
+                                            <th className="text-left py-2 px-3">Tool</th>
+                                            <th className="text-left py-2 px-3">Network</th>
+                                            <th className="text-left py-2 px-3">Commission</th>
+                                            <th className="text-right py-2 px-3">Clicks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {data.byTool.map((t, i) => (
+                                            <tr key={t._id} className="hover:bg-white/5 transition-colors">
+                                                <td className="py-2.5 px-3 text-gray-600 font-mono text-xs">{i + 1}</td>
+                                                <td className="py-2.5 px-3 font-medium text-white">{t.toolName || 'Unknown'}</td>
+                                                <td className="py-2.5 px-3">
+                                                    <span className={`capitalize text-xs ${NETWORK_COLORS[t.network] || 'text-gray-400'}`}>{t.network}</span>
+                                                </td>
+                                                <td className="py-2.5 px-3 text-xs text-gray-400 capitalize">{t.commissionType} {t.commissionRate ? `· ${t.commissionRate}` : ''}</td>
+                                                <td className="py-2.5 px-3 text-right font-bold text-green-400">{t.clicks}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enrichment Tab
+// GET /api/v1/admin/tools/enrichment-stats → stats, staleTools
+// ─────────────────────────────────────────────────────────────────────────────
+function EnrichmentTab() {
+    const { toast } = useToast()
+    const [loading, setLoading] = useState(true)
+    const [stats, setStats] = useState({ fullyEnriched: 0, partial: 0, notEnriched: 0, stale: 0, needsEnrichmentCount: 0 })
+    const [staleTools, setStaleTools] = useState([])
+
+    const fetchStats = async () => {
+        setLoading(true)
+        try {
+            const res = await adminService.getEnrichmentStats()
+            if (res.success) {
+                setStats(res.stats)
+                setStaleTools(res.staleTools || [])
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load enrichment stats', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchStats() }, [])
+
+    const totalTools = stats.fullyEnriched + stats.partial + stats.notEnriched
+    const pct = (n) => totalTools > 0 ? Math.round((n / totalTools) * 100) : 0
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Database className="h-6 w-6 text-blue-400" /> Database Enrichment
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">Tool data completeness scores and re-enrichment queue</p>
+                </div>
+                <button onClick={fetchStats} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+                    <RefreshCw size={13} /> Refresh
+                </button>
+            </div>
+
+            {loading ? <div className="flex justify-center py-16"><LoadingSpinner /></div> : (
+                <>
+                    {/* Score distribution */}
+                    <div className="grid gap-4 md:grid-cols-4">
+                        <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Fully Enriched</p>
+                            <p className="text-3xl font-bold text-green-400">{stats.fullyEnriched}</p>
+                            <p className="text-xs text-gray-600 mt-1">Score ≥ 80 · {pct(stats.fullyEnriched)}% of total</p>
+                        </div>
+                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Partial</p>
+                            <p className="text-3xl font-bold text-blue-400">{stats.partial}</p>
+                            <p className="text-xs text-gray-600 mt-1">Score 30–79 · {pct(stats.partial)}% of total</p>
+                        </div>
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Not Enriched</p>
+                            <p className="text-3xl font-bold text-red-400">{stats.notEnriched}</p>
+                            <p className="text-xs text-gray-600 mt-1">Score &lt; 30 · {pct(stats.notEnriched)}% of total</p>
+                        </div>
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Stale / Flagged</p>
+                            <p className="text-3xl font-bold text-amber-400">{stats.needsEnrichmentCount}</p>
+                            <p className="text-xs text-gray-600 mt-1">No update in 90+ days</p>
+                        </div>
+                    </div>
+
+                    {/* Completeness bar */}
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-sm font-semibold text-white mb-3">Enrichment Score Distribution</h3>
+                        <div className="flex h-4 w-full overflow-hidden rounded-full">
+                            <div className="bg-green-500 transition-all" style={{ width: `${pct(stats.fullyEnriched)}%` }} title={`Fully enriched: ${pct(stats.fullyEnriched)}%`} />
+                            <div className="bg-blue-500 transition-all" style={{ width: `${pct(stats.partial)}%` }} title={`Partial: ${pct(stats.partial)}%`} />
+                            <div className="bg-red-500/70 transition-all" style={{ width: `${pct(stats.notEnriched)}%` }} title={`Not enriched: ${pct(stats.notEnriched)}%`} />
+                        </div>
+                        <div className="flex gap-4 mt-2">
+                            <span className="flex items-center gap-1 text-xs text-gray-400"><span className="h-2 w-2 rounded-full bg-green-500 inline-block" />Fully enriched ({pct(stats.fullyEnriched)}%)</span>
+                            <span className="flex items-center gap-1 text-xs text-gray-400"><span className="h-2 w-2 rounded-full bg-blue-500 inline-block" />Partial ({pct(stats.partial)}%)</span>
+                            <span className="flex items-center gap-1 text-xs text-gray-400"><span className="h-2 w-2 rounded-full bg-red-500 inline-block" />Not enriched ({pct(stats.notEnriched)}%)</span>
+                        </div>
+                    </div>
+
+                    {/* Stale tools queue */}
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                            <Flame size={14} className="text-amber-400" />
+                            Re-Enrichment Priority Queue
+                            <span className="ml-auto text-xs text-gray-500 font-normal">Sorted by traffic (most visits first)</span>
+                        </h3>
+
+                        {staleTools.length === 0 ? (
+                            <div className="text-center py-10 text-gray-500">
+                                <Database className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                                <p className="text-sm">No stale tools — all data is fresh! 🎉</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
+                                    💡 To re-enrich: run Browse AI robot → export CSV → then run{' '}
+                                    <code className="text-purple-300">node src/scripts/importEnrichmentData.js ./exports/browse_ai_export.csv</code>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-xs uppercase text-gray-500 border-b border-white/5">
+                                                <th className="text-left py-2 px-3">Tool</th>
+                                                <th className="text-left py-2 px-3">Slug</th>
+                                                <th className="text-right py-2 px-3">Views</th>
+                                                <th className="text-right py-2 px-3">Score</th>
+                                                <th className="text-right py-2 px-3">Last Enriched</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {staleTools.map(tool => (
+                                                <tr key={tool._id} className="hover:bg-white/5 transition-colors">
+                                                    <td className="py-2.5 px-3 font-medium text-white">{tool.name}</td>
+                                                    <td className="py-2.5 px-3 text-xs text-gray-500 font-mono">{tool.slug}</td>
+                                                    <td className="py-2.5 px-3 text-right text-gray-300">{(tool.views || 0).toLocaleString()}</td>
+                                                    <td className="py-2.5 px-3 text-right">
+                                                        <span className={`text-xs font-bold ${tool.enrichmentScore >= 80 ? 'text-green-400' : tool.enrichmentScore >= 30 ? 'text-blue-400' : 'text-red-400'}`}>
+                                                            {tool.enrichmentScore ?? 0}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right text-xs text-gray-500">
+                                                        {tool.lastEnriched ? new Date(tool.lastEnriched).toLocaleDateString() : 'Never'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
