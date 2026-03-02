@@ -20,7 +20,7 @@ const MONTHLY_PLANS = [
         priceNote: 'Free forever',
         description: 'Discover AI tools at your own pace',
         features: [
-            'Browse all 3,500+ AI tools',
+            'Browse all 4,000+ AI tools',
             'Save up to 10 favourites',
             'Create up to 2 collections',
             'Basic search filters',
@@ -35,7 +35,7 @@ const MONTHLY_PLANS = [
         savings: null,
     },
     {
-        id: 'pro_monthly',
+        id: 'pro_monthly',            // matches backend PLAN_MAP key
         name: 'Professional',
         price: 9.99,
         priceDisplay: '$9.99',
@@ -43,8 +43,7 @@ const MONTHLY_PLANS = [
         description: 'For professionals building their AI stack',
         features: [
             'Everything in Explorer',
-            'Unlimited favourites — save your entire stack',
-            'Unlimited collections — organise by project',
+            'Unlimited favourites & collections',
             'Advanced search filters',
             'Ad-free experience',
             'Priority in search results',
@@ -59,10 +58,10 @@ const MONTHLY_PLANS = [
         savings: null,
     },
     {
-        id: 'business_monthly',
+        id: 'enterprise_monthly',     // matches backend PLAN_MAP key + PAYPAL_PLAN_ENTERPRISE_MONTHLY
         name: 'Team',
-        price: 39.00,
-        priceDisplay: '$39',
+        price: 24.99,
+        priceDisplay: '$24.99',
         priceNote: 'per month',
         description: 'For teams evaluating AI tools together',
         features: [
@@ -93,7 +92,7 @@ const ANNUAL_PLANS = [
         priceNote: 'Free forever',
         description: 'Discover AI tools at your own pace',
         features: [
-            'Browse all 3,500+ AI tools',
+            'Browse all 4,000+ AI tools',
             'Save up to 10 favourites',
             'Create up to 2 collections',
             'Basic search filters',
@@ -108,7 +107,7 @@ const ANNUAL_PLANS = [
         savings: null,
     },
     {
-        id: 'pro_yearly',
+        id: 'pro_yearly',              // matches backend PLAN_MAP key + PAYPAL_PLAN_PRO_YEARLY
         name: 'Professional',
         price: 79.99,
         monthlyEquivalent: 6.67,
@@ -117,8 +116,7 @@ const ANNUAL_PLANS = [
         description: 'For professionals building their AI stack',
         features: [
             'Everything in Explorer',
-            'Unlimited favourites — save your entire stack',
-            'Unlimited collections — organise by project',
+            'Unlimited favourites & collections',
             'Advanced search filters',
             'Ad-free experience',
             'Priority in search results',
@@ -133,12 +131,12 @@ const ANNUAL_PLANS = [
         savings: '4 months free',
     },
     {
-        id: 'business_yearly',
+        id: 'enterprise_yearly',       // matches backend PLAN_MAP key + PAYPAL_PLAN_ENTERPRISE_YEARLY
         name: 'Team',
-        price: 390.00,
-        monthlyEquivalent: 32.50,
-        priceDisplay: '$390',
-        priceNote: 'per year — $32.50/mo',
+        price: 249.99,
+        monthlyEquivalent: 20.83,
+        priceDisplay: '$249.99',
+        priceNote: 'per year — $20.83/mo',
         description: 'For teams evaluating AI tools together',
         features: [
             'Everything in Professional',
@@ -201,10 +199,10 @@ export default function PricingPage() {
 
     const plans = billing === 'annual' ? ANNUAL_PLANS : MONTHLY_PLANS
 
-    // Annual savings figures (used by V2 framing)
+    // Annual savings figures
     // Pro: $9.99 * 12 = $119.88/yr vs $79.99/yr → save $39.89
-    // Team: $39 * 12 = $468/yr vs $390/yr → save $78
-    const ANNUAL_SAVINGS = { pro_yearly: 39.89, business_yearly: 78 }
+    // Enterprise: $24.99 * 12 = $299.88/yr vs $249.99/yr → save $49.89
+    const ANNUAL_SAVINGS = { pro_yearly: 39.89, enterprise_yearly: 49.89 }
 
     const applyDiscount = (basePrice) => {
         if (!couponData || basePrice === 0) return basePrice
@@ -498,8 +496,8 @@ export default function PricingPage() {
                                 {/* Savings Badge */}
                                 {plan.savings && (
                                     <div className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${annualV2
-                                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse shadow-emerald-500/30'
-                                            : 'bg-gradient-to-r from-accent-emerald to-accent-cyan'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse shadow-emerald-500/30'
+                                        : 'bg-gradient-to-r from-accent-emerald to-accent-cyan'
                                         }`}>
                                         {annualV2 && plan.id === 'pro_yearly' ? '4 Months FREE 🎁' : plan.savings}
                                     </div>

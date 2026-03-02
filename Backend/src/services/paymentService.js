@@ -213,7 +213,14 @@ class PaymentService {
                 { headers: getCashfreeHeaders() }
             )
 
-            // No debug logging of payment_session_id — sensitive credential
+            // Extract the key fields from Cashfree's response
+            // payment_session_id is required for the checkout SDK / redirect URL
+            const paymentSessionId = response.data.payment_session_id
+            const orderId = response.data.order_id
+
+            if (!paymentSessionId) {
+                throw ApiError.internal('Cashfree did not return a payment_session_id. Check Cashfree API credentials.')
+            }
 
             const order = await Order.create({
                 orderId: response.data.order_id,
@@ -335,6 +342,27 @@ class PaymentService {
      */
     async createPayPalSubscription(userId, subscriptionData) {
         const { tier, duration } = subscriptionData
+
+        // ── Plan ID format guard ────────────────────────────────────────────────
+        // PayPal Billing Plan IDs must start with 'P-'.
+        // Product IDs start with 'PROD-' and CANNOT be used here.
+        // If you see PROD- values in env vars, go to PayPal dashboard →
+        // Products & Plans → click the product → create a Plan under it.
+        // Copy the Plan ID (P-XXXX...) not the Product ID (PROD-XXXX...).
+        const warnIfProductId = (envKey, value) => {
+            if (value && !value.startsWith('P-')) {
+                console.error(
+                    `🚨 [PayPal] ${envKey}="${value}" looks like a PRODUCT ID (should start with P-). ` +
+                    `Go to PayPal dashboard → Products & Plans → open the product → copy the PLAN ID.`
+                )
+            }
+        }
+        warnIfProductId('PAYPAL_PLAN_PRO_MONTHLY', process.env.PAYPAL_PLAN_PRO_MONTHLY)
+        warnIfProductId('PAYPAL_PLAN_PRO_YEARLY', process.env.PAYPAL_PLAN_PRO_YEARLY)
+        warnIfProductId('PAYPAL_PLAN_BASIC_MONTHLY', process.env.PAYPAL_PLAN_BASIC_MONTHLY)
+        warnIfProductId('PAYPAL_PLAN_BASIC_YEARLY', process.env.PAYPAL_PLAN_BASIC_YEARLY)
+        warnIfProductId('PAYPAL_PLAN_ENTERPRISE_MONTHLY', process.env.PAYPAL_PLAN_ENTERPRISE_MONTHLY)
+        warnIfProductId('PAYPAL_PLAN_ENTERPRISE_YEARLY', process.env.PAYPAL_PLAN_ENTERPRISE_YEARLY)
 
         // Map our plan keys to PayPal Billing Plan IDs defined in env vars
         // These must be created ONCE in PayPal dashboard → Products & Plans
