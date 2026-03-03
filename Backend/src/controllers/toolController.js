@@ -18,11 +18,13 @@ class ToolController {
             limit: parseInt(req.query.limit) || 20,
             category: req.query.category,
             pricing: req.query.pricing,
+            platform: req.query.platform,      // e.g. "iOS", "API", "Chrome Extension"
+            audience: req.query.audience,      // e.g. "Marketers", "Developers"
             isFeatured: req.query.isFeatured,
             isTrending: req.query.isTrending,
             isNew: req.query.isNew,                       // "New This Week" homepage filter
             affiliateStatus: req.query.affiliateStatus,  // Admin batch affiliate filter
-            sort: req.query.sort || '-createdAt',
+            sort: req.query.sort || '-trendingScore',
         }
 
         const result = await toolService.getAllTools(options)

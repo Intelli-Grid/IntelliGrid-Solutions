@@ -19,7 +19,29 @@ const PRICING_OPTIONS = [
     { label: 'Trial', value: 'Trial' },
 ]
 
+const PLATFORM_OPTIONS = [
+    { label: 'Web', value: 'Web' },
+    { label: 'iOS', value: 'iOS' },
+    { label: 'Android', value: 'Android' },
+    { label: 'API', value: 'API' },
+    { label: 'Chrome Ext', value: 'Chrome Extension' },
+    { label: 'VS Code', value: 'VS Code Extension' },
+    { label: 'Discord', value: 'Discord Bot' },
+]
+
+const AUDIENCE_OPTIONS = [
+    { label: 'Marketers', value: 'Marketers' },
+    { label: 'Developers', value: 'Developers' },
+    { label: 'Designers', value: 'Designers' },
+    { label: 'Students', value: 'Students' },
+    { label: 'Entrepreneurs', value: 'Entrepreneurs' },
+    { label: 'Content Creators', value: 'Content Creators' },
+    { label: 'Researchers', value: 'Researchers' },
+    { label: 'Small Business', value: 'Small Business' },
+]
+
 const SORT_TABS = [
+    { label: 'Trending', value: '-trendingScore', icon: TrendingUp },
     { label: 'Newest', value: '-createdAt', icon: Clock },
     { label: 'Popular', value: '-views', icon: Flame },
     { label: 'Top Rated', value: '-ratings.average', icon: Star },
@@ -90,7 +112,9 @@ export default function ToolsPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [activeSearch, setActiveSearch] = useState('')
     const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
-    const [filters, setFilters] = useState({ pricing: '', sort: '-createdAt', category: '' })
+    const [filters, setFilters] = useState({ pricing: '', sort: '-trendingScore', category: '', platform: '', audience: '' })
+    const [showPlatformFilters, setShowPlatformFilters] = useState(false)
+    const [showAudienceFilters, setShowAudienceFilters] = useState(false)
     const searchRef = useRef(null)
     const debounceRef = useRef(null)
     const limit = 30
@@ -110,6 +134,8 @@ export default function ToolsPage() {
             const params = { page, limit, sort: filters.sort }
             if (filters.pricing) params.pricing = filters.pricing
             if (filters.category) params.category = filters.category
+            if (filters.platform) params.platform = filters.platform
+            if (filters.audience) params.audience = filters.audience
             const response = await toolService.getTools(params)
             setTools(response.tools || [])
             setTotalPages(response.pagination?.pages || 1)
@@ -166,6 +192,13 @@ export default function ToolsPage() {
     const clearSearch = () => {
         setSearchQuery(''); setActiveSearch(''); setPage(1)
         searchRef.current?.focus()
+    }
+
+    const clearAllFilters = () => {
+        setFilters({ pricing: '', sort: '-trendingScore', category: '', platform: '', audience: '' })
+        setPage(1)
+        setShowPlatformFilters(false)
+        setShowAudienceFilters(false)
     }
 
     const setFilter = (key, value) => {
@@ -262,10 +295,10 @@ export default function ToolsPage() {
 
             {/* ══════════════ FILTER BAR ══════════════ */}
             <div className="sticky top-0 z-20 bg-gray-950/95 backdrop-blur-md border-b border-white/5">
-                <div className="container mx-auto max-w-7xl px-4 flex flex-wrap items-center justify-between gap-3 py-2.5">
-
-                    {/* Left: Pricing pills */}
+                {/* Row 1: Pricing + Sort + Controls */}
+                <div className="container mx-auto max-w-7xl px-4 flex flex-wrap items-center justify-between gap-2 py-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Pricing pills */}
                         {PRICING_OPTIONS.map(opt => (
                             <button
                                 key={opt.value}
@@ -298,6 +331,34 @@ export default function ToolsPage() {
                                 </button>
                             )
                         })}
+
+                        <div className="w-px h-4 bg-white/10 mx-1" />
+
+                        {/* Platform filter toggle */}
+                        <button
+                            onClick={() => { setShowPlatformFilters(p => !p); setShowAudienceFilters(false) }}
+                            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all border ${filters.platform
+                                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30'
+                                    : showPlatformFilters
+                                        ? 'bg-white/10 text-white border-white/20'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
+                                }`}
+                        >
+                            Platform {filters.platform ? `· ${filters.platform}` : ''}
+                        </button>
+
+                        {/* Audience filter toggle */}
+                        <button
+                            onClick={() => { setShowAudienceFilters(p => !p); setShowPlatformFilters(false) }}
+                            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all border ${filters.audience
+                                    ? 'bg-blue-600/20 text-blue-300 border-blue-500/30'
+                                    : showAudienceFilters
+                                        ? 'bg-white/10 text-white border-white/20'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
+                                }`}
+                        >
+                            Audience {filters.audience ? `· ${filters.audience}` : ''}
+                        </button>
                     </div>
 
                     {/* Right: Count + Grid/List toggle */}
@@ -328,16 +389,64 @@ export default function ToolsPage() {
                         </div>
 
                         {/* Clear all */}
-                        {(filters.pricing || filters.category || filters.sort !== '-createdAt') && !activeSearch && (
+                        {(filters.pricing || filters.category || filters.platform || filters.audience || filters.sort !== '-trendingScore') && !activeSearch && (
                             <button
-                                onClick={() => { setFilters({ pricing: '', sort: '-createdAt', category: '' }); setPage(1) }}
+                                onClick={clearAllFilters}
                                 className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
                             >
-                                <X size={11} /> Clear
+                                <X size={11} /> Clear all
                             </button>
                         )}
                     </div>
                 </div>
+
+                {/* Row 2: Platform chips (collapsible) */}
+                {showPlatformFilters && (
+                    <div className="border-t border-white/5 bg-gray-950/80">
+                        <div className="container mx-auto max-w-7xl px-4 py-2 flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] text-gray-600 uppercase tracking-wider mr-1">Platform:</span>
+                            <button
+                                onClick={() => setFilter('platform', '')}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${!filters.platform ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                    }`}
+                            >Any</button>
+                            {PLATFORM_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setFilter('platform', filters.platform === opt.value ? '' : opt.value)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${filters.platform === opt.value
+                                            ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
+                                        }`}
+                                >{opt.label}</button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Row 3: Audience chips (collapsible) */}
+                {showAudienceFilters && (
+                    <div className="border-t border-white/5 bg-gray-950/80">
+                        <div className="container mx-auto max-w-7xl px-4 py-2 flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] text-gray-600 uppercase tracking-wider mr-1">Audience:</span>
+                            <button
+                                onClick={() => setFilter('audience', '')}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${!filters.audience ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                    }`}
+                            >Anyone</button>
+                            {AUDIENCE_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setFilter('audience', filters.audience === opt.value ? '' : opt.value)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${filters.audience === opt.value
+                                            ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30'
+                                            : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
+                                        }`}
+                                >{opt.label}</button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ══════════════ MAIN CONTENT ══════════════ */}

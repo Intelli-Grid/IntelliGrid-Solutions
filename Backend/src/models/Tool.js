@@ -332,6 +332,133 @@ const toolSchema = new mongoose.Schema(
             verdict: String,           // 1-sentence editorial summary
             generatedAt: Date,
         },
+
+        // ── Enrichment Pipeline Fields (Phase 5 — Groq + Scraper) ──────────────
+
+        // Platform availability
+        platforms: [{
+            type: String,
+            enum: ['Web', 'iOS', 'Android', 'Chrome Extension', 'Firefox Extension',
+                'API', 'Desktop (Mac)', 'Desktop (Windows)', 'Discord Bot', 'Slack App', 'VS Code Extension'],
+        }],
+
+        // Granular task-based tagging (e.g. "write blog posts", "transcribe audio")
+        useCaseTags: {
+            type: [String],
+            default: [],
+        },
+
+        // Audience segments (e.g. "Marketers", "Developers", "Students")
+        audienceTags: {
+            type: [String],
+            default: [],
+        },
+
+        // Industry verticals (e.g. "Healthcare", "Finance", "Education")
+        industryTags: {
+            type: [String],
+            default: [],
+        },
+
+        // Integration ecosystem (e.g. "Zapier", "Notion", "Slack")
+        integrationTags: {
+            type: [String],
+            default: [],
+        },
+
+        // Key feature bullet points (3-6 specific, factual feature statements)
+        keyFeatures: {
+            type: [String],
+            default: [],
+        },
+
+        // Concrete use-case examples (e.g. "Use this tool to write newsletters 3x faster")
+        useCaseExamples: {
+            type: [String],
+            default: [],
+        },
+
+        // Long-form SEO description (150-300 words, Groq-generated, distinct from fullDescription)
+        longDescription: {
+            type: String,
+            default: '',
+        },
+
+        // Screenshot media
+        screenshotUrl: {
+            type: String,
+            default: '',
+        },
+        screenshotTakenAt: {
+            type: Date,
+            default: null,
+        },
+
+        // YouTube demo/tutorial embed URL (https://www.youtube.com/embed/{videoId})
+        videoEmbedUrl: {
+            type: String,
+            default: '',
+        },
+
+        // Names of well-known tools this is an alternative to (enables /alternatives/:slug pages)
+        alternativeTo: {
+            type: [String],
+            default: [],
+        },
+
+        // Social presence
+        twitterHandle: {
+            type: String,
+            default: '',
+            trim: true,
+        },
+
+        // Engagement counters (reset weekly by trendingCron)
+        weeklyViews: {
+            type: Number,
+            default: 0,
+        },
+        weeklyBookmarks: {
+            type: Number,
+            default: 0,
+        },
+        totalBookmarks: {
+            type: Number,
+            default: 0,
+        },
+
+        // Computed trending score (weeklyViews + weeklyBookmarks × weight × enrichmentBonus)
+        trendingScore: {
+            type: Number,
+            default: 0,
+        },
+
+        // Enrichment pipeline tracking
+        enrichmentVersion: {
+            // Incremented on each successful enrichment pass
+            type: Number,
+            default: 0,
+        },
+        lastEnrichedAt: {
+            // Alias/upgrade of lastEnriched — enrichmentCron writes here
+            type: Date,
+            default: null,
+        },
+        enrichmentSource: {
+            // Which pipeline version generated the data (e.g. "groq-v1", "manual", "pipeline-v2")
+            type: String,
+            default: '',
+        },
+        humanVerified: {
+            // Admin-confirmed data accuracy — adds 5 bonus points to enrichmentScore
+            type: Boolean,
+            default: false,
+        },
+        dataQualityFlags: {
+            // Automated quality issue flags (e.g. "missing_screenshot", "website_unreachable")
+            type: [String],
+            default: [],
+        },
     },
     {
         timestamps: true,
@@ -365,6 +492,12 @@ toolSchema.index({ affiliateStatus: 1, affiliateNetwork: 1 }) // admin affiliate
 toolSchema.index({ isNew: 1, status: 1 })                     // "New This Week" homepage query
 toolSchema.index({ enrichmentScore: 1 })                      // enrichment queue sort
 toolSchema.index({ needsEnrichment: 1, views: -1 })           // re-enrichment cron priority
+// Phase 5 — enrichment pipeline indexes
+toolSchema.index({ lastEnrichedAt: 1, enrichmentScore: 1 })   // bulk enrichment priority queue
+toolSchema.index({ trendingScore: -1, status: 1 })            // trending sort
+toolSchema.index({ useCaseTags: 1 })                          // use-case SEO page queries
+toolSchema.index({ audienceTags: 1 })                         // audience filter queries
+toolSchema.index({ alternativeTo: 1 })                        // alternatives SEO page queries
 
 /**
  * ✅ Cascade Delete Hook

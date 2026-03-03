@@ -20,12 +20,14 @@ class ToolService {
             limit = 20,
             category,
             pricing,
+            platform,
+            audience,
             isFeatured,
             isTrending,
             isNew,
             affiliateStatus,
             status = 'active',
-            sort = '-createdAt',
+            sort = '-trendingScore',
         } = options
 
         const skip = (page - 1) * limit
@@ -57,6 +59,10 @@ class ToolService {
             }
         }
         if (pricing) query.pricing = pricing
+        // platform filter — matches against the platforms array
+        if (platform) query.platforms = platform
+        // audience filter — matches against audienceTags array
+        if (audience) query.audienceTags = audience
         if (isFeatured !== undefined) query.isFeatured = isFeatured === 'true' || isFeatured === true
         if (isTrending !== undefined) query.isTrending = isTrending === 'true' || isTrending === true
         if (isNew !== undefined) query.isNew = isNew === 'true' || isNew === true
