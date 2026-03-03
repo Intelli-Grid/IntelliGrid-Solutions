@@ -92,15 +92,26 @@ async function main() {
             }
         })
 
-        try {
-            await toolsIndex.saveObjects(algoliaObjects)
-            indexed += tools.length
-            skip += tools.length
-            console.log(`  ✅ Indexed ${indexed}/${total}`)
-        } catch (err) {
-            failed += tools.length
-            skip += tools.length
-            console.error(`  ❌ Batch failed:`, err.message)
+        let batchIndexed = false
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await toolsIndex.saveObjects(algoliaObjects)
+                indexed += tools.length
+                skip += tools.length
+                console.log(`  ✅ Indexed ${indexed}/${total}`)
+                batchIndexed = true
+                break
+            } catch (err) {
+                console.warn(`  ⚠️  Batch attempt ${attempt}/3 failed: ${err.message.substring(0, 80)}`)
+                if (attempt < 3) {
+                    console.log(`     Retrying in 5s...`)
+                    await new Promise(r => setTimeout(r, 5000))
+                } else {
+                    failed += tools.length
+                    skip += tools.length
+                    console.error(`  ❌ Batch permanently failed after 3 attempts`)
+                }
+            }
         }
     }
 

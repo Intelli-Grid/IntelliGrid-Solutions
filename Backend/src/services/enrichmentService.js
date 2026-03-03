@@ -13,9 +13,121 @@
 import * as cheerio from 'cheerio'
 import Groq from 'groq-sdk'
 import Tool from '../models/Tool.js'
+import Category from '../models/Category.js' // register schema for populate()
 import { syncToolToAlgolia } from '../config/algolia.js'
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+// ─────────────────────────────────────────────────────────────
+// Groq Key Rotator — supports up to 9 keys
+// Set GROQ_API_KEY (key 1) + GROQ_API_KEY_2 ... GROQ_API_KEY_9 in .env
+// When a key hits its daily token limit it is marked exhausted and the
+// rotator automatically switches to the next available key.
+// ─────────────────────────────────────────────────────────────
+class GroqKeyRotator {
+    constructor() {
+        // Collect all configured keys
+        const keys = [
+            process.env.GROQ_API_KEY,
+            process.env.GROQ_API_KEY_2,
+            process.env.GROQ_API_KEY_3,
+            process.env.GROQ_API_KEY_4,
+            process.env.GROQ_API_KEY_5,
+            process.env.GROQ_API_KEY_6,
+            process.env.GROQ_API_KEY_7,
+            process.env.GROQ_API_KEY_8,
+            process.env.GROQ_API_KEY_9,
+            process.env.GROQ_API_KEY_10,
+        ].filter(Boolean) // remove undefined/empty
+
+        if (keys.length === 0) throw new Error('No GROQ_API_KEY found in environment')
+
+        this.clients = keys.map((key, i) => ({
+            index: i + 1,
+            key,
+            client: new Groq({ apiKey: key }),
+            exhausted: false,
+        }))
+
+        this.currentIndex = 0
+        console.log(`🔑 Groq key rotator initialized with ${keys.length} key(s)`)
+    }
+
+    get current() {
+        return this.clients[this.currentIndex]
+    }
+
+    get availableCount() {
+        return this.clients.filter(c => !c.exhausted).length
+    }
+
+    markCurrentExhausted() {
+        this.clients[this.currentIndex].exhausted = true
+        console.warn(`⚠️  Key #${this.currentIndex + 1} daily limit reached — rotating to next key...`)
+        // Find next non-exhausted key
+        const next = this.clients.findIndex((c, i) => i > this.currentIndex && !c.exhausted)
+        if (next !== -1) {
+            this.currentIndex = next
+            console.log(`✅ Switched to key #${this.currentIndex + 1}`)
+            return true
+        }
+        // Try wrapping from the start (in case earlier keys reset overnight)
+        const fromStart = this.clients.findIndex(c => !c.exhausted)
+        if (fromStart !== -1) {
+            this.currentIndex = fromStart
+            console.log(`✅ Switched to key #${this.currentIndex + 1}`)
+            return true
+        }
+        return false // all keys exhausted
+    }
+
+    async complete(params) {
+        // Try current key, rotate on daily limit, retry on TPM with backoff
+        const MAX_TPM_RETRIES = 2
+        let tpmRetries = 0
+
+        while (true) {
+            if (this.current.exhausted) {
+                const rotated = this.markCurrentExhausted()
+                if (!rotated) throw new DailyTokenLimitError()
+            }
+
+            try {
+                return await this.current.client.chat.completions.create(params)
+            } catch (err) {
+                const msg = err.message || ''
+                const status = err.status || err.statusCode || 0
+
+                if (status === 429 || msg.includes('rate_limit_exceeded') || msg.includes('Rate limit')) {
+                    // Daily token limit — rotate key
+                    if (msg.includes('tokens per day') || msg.includes('TPD')) {
+                        const rotated = this.markCurrentExhausted()
+                        if (!rotated) throw new DailyTokenLimitError()
+                        tpmRetries = 0
+                        continue // retry with new key
+                    }
+
+                    // Per-minute/request limit — wait then retry same key
+                    if (tpmRetries < MAX_TPM_RETRIES) {
+                        const waitMatch = msg.match(/try again in (\d+(?:\.\d+)?)m?(\d+(?:\.\d+)?)?s?/i)
+                        let waitMs = 65000
+                        if (waitMatch) {
+                            const mins = parseFloat(waitMatch[1]) || 0
+                            const secs = parseFloat(waitMatch[2]) || 0
+                            waitMs = Math.ceil((mins * 60 + secs) * 1000) + 2000
+                        }
+                        tpmRetries++
+                        console.warn(`  ⏳ TPM limit — waiting ${Math.round(waitMs / 1000)}s (retry ${tpmRetries}/${MAX_TPM_RETRIES})...`)
+                        await new Promise(r => setTimeout(r, waitMs))
+                        continue
+                    }
+                }
+                throw err // propagate non-rate-limit errors
+            }
+        }
+    }
+}
+
+const groqRotator = new GroqKeyRotator()
+
 
 // ─────────────────────────────────────────────────────────────
 // STEP 1: Website scraper (Cheerio — lightweight, no Puppeteer)
@@ -23,19 +135,22 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function scrapeToolWebsite(url) {
     try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 12000)
+        // Hard timeout wrapper — more reliable than AbortController across Node versions
+        const fetchWithTimeout = (targetUrl, timeoutMs = 10000) => {
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+            )
+            const fetchPromise = fetch(targetUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; IntelliGridBot/1.0; +https://intelligrid.online/bot)',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                },
+            })
+            return Promise.race([fetchPromise, timeoutPromise])
+        }
 
-        const response = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; IntelliGridBot/1.0; +https://intelligrid.online/bot)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-            },
-        })
-        clearTimeout(timeout)
-
+        const response = await fetchWithTimeout(url, 10000)
         if (!response.ok) return null
 
         const html = await response.text()
@@ -97,6 +212,11 @@ export async function scrapeToolWebsite(url) {
 // STEP 2: Groq AI enrichment
 // ─────────────────────────────────────────────────────────────
 
+// Custom error class so bulkEnrich can detect daily limit and stop cleanly
+export class DailyTokenLimitError extends Error {
+    constructor() { super('groq_daily_limit_reached'); this.code = 'daily_limit' }
+}
+
 export async function enrichWithGroq(tool, scrapeData) {
     const scrapeContext = scrapeData
         ? `
@@ -145,21 +265,23 @@ Return EXACTLY this JSON structure (no extra fields, no missing fields):
 }`
 
     try {
-        const response = await groq.chat.completions.create({
-            model: 'llama-3.1-8b-instant',  // fast + free
+        // groqRotator handles TPD rotation + TPM retry internally
+        const response = await groqRotator.complete({
+            model: 'llama-3.1-8b-instant',
             max_tokens: 1800,
-            temperature: 0.15,              // low = consistent structured output
+            temperature: 0.15,
             messages: [{ role: 'user', content: prompt }],
         })
 
         const raw = response.choices[0].message.content.trim()
-
-        // Parse — strip accidental markdown fences if LLM slips
         const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
         return JSON.parse(cleaned)
 
     } catch (err) {
-        console.error(`[Enrichment] Groq failed for "${tool.name}":`, err.message)
+        // DailyTokenLimitError must propagate up to bulkEnrich to stop the run
+        if (err.code === 'daily_limit') throw err
+
+        console.error(`[Enrichment] Groq failed for "${tool.name}":`, (err.message || '').substring(0, 120))
         return null
     }
 }
@@ -336,9 +458,8 @@ export async function enrichTool(tool) {
         const groqData = await enrichWithGroq(tool, scrapeData)
 
         if (!groqData) {
-            // Groq failed — mark as attempted but not enriched
+            // Groq failed — do NOT set lastEnrichedAt so this tool is retried next run
             await Tool.findByIdAndUpdate(tool._id, {
-                $set: { lastEnrichedAt: new Date(), lastEnriched: new Date() },
                 $addToSet: { dataQualityFlags: 'groq_failed' },
             })
             return { success: false, reason: 'groq_failed' }
@@ -366,6 +487,9 @@ export async function enrichTool(tool) {
         return { success: true, score: updates.enrichmentScore }
 
     } catch (err) {
+        // Re-throw daily limit so bulkEnrich can stop cleanly
+        if (err.code === 'daily_limit') throw err
+
         console.error(`[Enrichment] Unexpected error for "${tool.name}":`, err.message)
         await Tool.findByIdAndUpdate(tool._id, {
             $addToSet: { dataQualityFlags: 'enrichment_error' },
