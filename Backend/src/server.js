@@ -5,6 +5,7 @@ import discoveryScheduler from './services/discoveryScheduler.js'
 import { startTrialCron } from './jobs/trialCron.js'
 import { startWinBackCron } from './jobs/winBackCron.js'
 import { startEnrichmentCron } from './jobs/enrichmentCron.js'
+import './jobs/linkHealthCron.js'   // Phase 6: registers Sunday 04:00 UTC cron on import
 
 // Start Server
 const PORT = process.env.PORT || 10000
@@ -32,4 +33,5 @@ app.listen(PORT, () => {
     startTrialCron()       // Daily 08:00 UTC — trial lifecycle (expire, urgency, reminder, midpoint)
     startWinBackCron()     // Daily 09:00 UTC — win-back emails for cancelled/expired users
     startEnrichmentCron()  // Weekly Sun 02:00 UTC — flag stale tools for re-enrichment
+    // linkHealthCron auto-starts on import (Sunday 04:00 UTC)
 })
