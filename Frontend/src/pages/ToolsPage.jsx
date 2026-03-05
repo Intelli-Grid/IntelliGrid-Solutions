@@ -112,7 +112,7 @@ export default function ToolsPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [activeSearch, setActiveSearch] = useState('')
     const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
-    const [filters, setFilters] = useState({ pricing: '', sort: '-trendingScore', category: '', platform: '', audience: '' })
+    const [filters, setFilters] = useState({ pricing: '', sort: '-createdAt', category: '', platform: '', audience: '' })
     const [showPlatformFilters, setShowPlatformFilters] = useState(false)
     const [showAudienceFilters, setShowAudienceFilters] = useState(false)
     const searchRef = useRef(null)
@@ -137,9 +137,11 @@ export default function ToolsPage() {
             if (filters.platform) params.platform = filters.platform
             if (filters.audience) params.audience = filters.audience
             const response = await toolService.getTools(params)
-            setTools(response.tools || [])
-            setTotalPages(response.pagination?.pages || 1)
-            setTotal(response.pagination?.total || 0)
+            // ApiResponse wraps result as { data: { tools, pagination }, statusCode, ... }
+            const payload = response?.data || response
+            setTools(payload?.tools || [])
+            setTotalPages(payload?.pagination?.pages || 1)
+            setTotal(payload?.pagination?.total || 0)
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to load tools')
         } finally {
@@ -195,7 +197,7 @@ export default function ToolsPage() {
     }
 
     const clearAllFilters = () => {
-        setFilters({ pricing: '', sort: '-trendingScore', category: '', platform: '', audience: '' })
+        setFilters({ pricing: '', sort: '-createdAt', category: '', platform: '', audience: '' })
         setPage(1)
         setShowPlatformFilters(false)
         setShowAudienceFilters(false)
@@ -338,10 +340,10 @@ export default function ToolsPage() {
                         <button
                             onClick={() => { setShowPlatformFilters(p => !p); setShowAudienceFilters(false) }}
                             className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all border ${filters.platform
-                                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30'
-                                    : showPlatformFilters
-                                        ? 'bg-white/10 text-white border-white/20'
-                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
+                                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30'
+                                : showPlatformFilters
+                                    ? 'bg-white/10 text-white border-white/20'
+                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
                                 }`}
                         >
                             Platform {filters.platform ? `· ${filters.platform}` : ''}
@@ -351,10 +353,10 @@ export default function ToolsPage() {
                         <button
                             onClick={() => { setShowAudienceFilters(p => !p); setShowPlatformFilters(false) }}
                             className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all border ${filters.audience
-                                    ? 'bg-blue-600/20 text-blue-300 border-blue-500/30'
-                                    : showAudienceFilters
-                                        ? 'bg-white/10 text-white border-white/20'
-                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
+                                ? 'bg-blue-600/20 text-blue-300 border-blue-500/30'
+                                : showAudienceFilters
+                                    ? 'bg-white/10 text-white border-white/20'
+                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border-transparent'
                                 }`}
                         >
                             Audience {filters.audience ? `· ${filters.audience}` : ''}
@@ -415,8 +417,8 @@ export default function ToolsPage() {
                                     key={opt.value}
                                     onClick={() => setFilter('platform', filters.platform === opt.value ? '' : opt.value)}
                                     className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${filters.platform === opt.value
-                                            ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30'
-                                            : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
+                                        ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
                                         }`}
                                 >{opt.label}</button>
                             ))}
@@ -439,8 +441,8 @@ export default function ToolsPage() {
                                     key={opt.value}
                                     onClick={() => setFilter('audience', filters.audience === opt.value ? '' : opt.value)}
                                     className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${filters.audience === opt.value
-                                            ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30'
-                                            : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
+                                        ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30'
+                                        : 'bg-white/4 text-gray-400 hover:text-white hover:bg-white/8 border border-white/6'
                                         }`}
                                 >{opt.label}</button>
                             ))}

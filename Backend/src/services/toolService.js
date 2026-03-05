@@ -27,7 +27,7 @@ class ToolService {
             isNew,
             affiliateStatus,
             status = 'active',
-            sort = '-trendingScore',
+            sort = '-createdAt',
         } = options
 
         const skip = (page - 1) * limit
