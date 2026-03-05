@@ -21,7 +21,15 @@ export default function ToolDetailsPage() {
     const [tool, setTool] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-    const [relatedTools, setRelatedTools] = useState([])
+
+    // Phase 3.2 — 4-bucket related tools
+    const [relatedBuckets, setRelatedBuckets] = useState({
+        alsoViewed: [],
+        pairsWellWith: [],
+        alternatives: [],
+        cheaperOptions: [],
+    })
+
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false)
     const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false)
 
@@ -41,15 +49,27 @@ export default function ToolDetailsPage() {
                     // Increment view counter (fire-and-forget)
                     toolService.incrementViews(toolData._id).catch(() => { })
 
-                    // Track analytics event (fire-and-forget — auth optional, fails silently if not logged in)
+                    // Track analytics event (fire-and-forget)
                     analyticsService.trackEvent({
                         eventType: 'tool_view',
                         data: { toolId: toolData._id, toolName: toolData.name, slug: toolData.slug },
                     }).catch(() => { })
 
                     try {
-                        const related = await toolService.getRelatedTools(toolData._id)
-                        setRelatedTools(related.data || related)
+                        const related = await toolService.getRelatedTools(toolData._id, 4)
+                        const payload = related?.data || related
+
+                        // Handle both old flat array (backwards compat) and new 4-bucket object
+                        if (Array.isArray(payload)) {
+                            setRelatedBuckets({ alsoViewed: payload, pairsWellWith: [], alternatives: [], cheaperOptions: [] })
+                        } else {
+                            setRelatedBuckets({
+                                alsoViewed: payload?.alsoViewed || [],
+                                pairsWellWith: payload?.pairsWellWith || [],
+                                alternatives: payload?.alternatives || [],
+                                cheaperOptions: payload?.cheaperOptions || [],
+                            })
+                        }
                     } catch (relatedErr) {
                         console.warn('Failed to load related tools', relatedErr)
                     }
@@ -119,18 +139,27 @@ export default function ToolDetailsPage() {
 
             <div className="container mx-auto px-4 pt-8 lg:pt-12 max-w-7xl">
                 {/* 1. Breadcrumb */}
-                <nav className="mb-8 flex items-center space-x-2 text-sm font-medium text-gray-500">
-                    <Link to="/" className="hover:text-white transition-colors">Home</Link>
-                    <span>/</span>
-                    <Link to="/tools" className="hover:text-white transition-colors">Tools</Link>
-                    <span>/</span>
-                    {typeof tool.category === 'object' && (
-                        <>
-                            <Link to={`/category/${tool.category.slug}`} className="hover:text-white transition-colors">{tool.category.name}</Link>
-                            <span>/</span>
-                        </>
-                    )}
-                    <span className="text-gray-300 truncate max-w-[200px]">{tool.name}</span>
+                <nav className="mb-8 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2 text-sm font-medium text-gray-500">
+                        <Link to="/" className="hover:text-white transition-colors">Home</Link>
+                        <span>/</span>
+                        <Link to="/tools" className="hover:text-white transition-colors">Tools</Link>
+                        <span>/</span>
+                        {typeof tool.category === 'object' && (
+                            <>
+                                <Link to={`/category/${tool.category.slug}`} className="hover:text-white transition-colors">{tool.category.name}</Link>
+                                <span>/</span>
+                            </>
+                        )}
+                        <span className="text-gray-300 truncate max-w-[200px]">{tool.name}</span>
+                    </div>
+                    {/* Phase 2.1 SEO link — alternatives page */}
+                    <Link
+                        to={`/alternatives/${tool.slug}`}
+                        className="text-xs text-purple-400 hover:text-purple-300 transition-colors border border-purple-500/20 bg-purple-500/5 px-3 py-1 rounded-full"
+                    >
+                        Best {tool.name} alternatives →
+                    </Link>
                 </nav>
 
                 {/* 2. Top Section: Product Grid (Gallery + Details) */}
@@ -153,9 +182,14 @@ export default function ToolDetailsPage() {
                     <ToolContent tool={tool} />
                 </div>
 
-                {/* 4. Bottom Section: Related Tools (Carousel style) */}
+                {/* 4. Bottom Section: Related Tools — 4 enriched buckets (Phase 3.2) */}
                 <div className="mt-24 border-t border-white/10 pt-16">
-                    <SimilarTools tools={relatedTools} currentToolSlug={tool.slug} />
+                    <SimilarTools
+                        relatedBuckets={relatedBuckets}
+                        tools={relatedBuckets.alsoViewed}
+                        currentToolSlug={tool.slug}
+                        toolName={tool.name}
+                    />
                 </div>
             </div>
 

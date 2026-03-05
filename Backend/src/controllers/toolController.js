@@ -227,6 +227,76 @@ class ToolController {
             new ApiResponse(200, tools, 'Managed tools retrieved successfully')
         )
     })
+
+    /**
+     * Get "Hot Right Now" tools
+     * GET /api/v1/tools/hot
+     */
+    getHotTools = asyncHandler(async (req, res) => {
+        const limit = parseInt(req.query.limit) || 8
+        const tools = await toolService.getHotTools(limit)
+
+        res.status(200).json(
+            new ApiResponse(200, tools, 'Hot tools retrieved successfully')
+        )
+    })
+
+    /**
+     * Get alternatives to a named tool
+     * GET /api/v1/tools/alternatives/:toolName
+     */
+    getAlternatives = asyncHandler(async (req, res) => {
+        const { toolName } = req.params
+        const options = {
+            page: parseInt(req.query.page) || 1,
+            limit: parseInt(req.query.limit) || 20,
+            pricing: req.query.pricing,
+        }
+
+        const result = await toolService.getAlternatives(toolName, options)
+
+        res.status(200).json(
+            new ApiResponse(200, result, `Alternatives to ${toolName} retrieved`)
+        )
+    })
+
+    /**
+     * Get tools by use-case tag
+     * GET /api/v1/tools/use-case/:tag
+     */
+    getToolsByUseCase = asyncHandler(async (req, res) => {
+        const { tag } = req.params
+        const options = {
+            page: parseInt(req.query.page) || 1,
+            limit: parseInt(req.query.limit) || 24,
+            pricing: req.query.pricing,
+        }
+
+        const result = await toolService.getToolsByUseCase(tag, options)
+
+        res.status(200).json(
+            new ApiResponse(200, result, `Tools for use-case "${tag}" retrieved`)
+        )
+    })
+
+    /**
+     * Get tools by industry tag
+     * GET /api/v1/tools/industry/:tag
+     */
+    getToolsByIndustry = asyncHandler(async (req, res) => {
+        const { tag } = req.params
+        const options = {
+            page: parseInt(req.query.page) || 1,
+            limit: parseInt(req.query.limit) || 24,
+            pricing: req.query.pricing,
+        }
+
+        const result = await toolService.getToolsByIndustry(tag, options)
+
+        res.status(200).json(
+            new ApiResponse(200, result, `Tools for industry "${tag}" retrieved`)
+        )
+    })
 }
 
 export default new ToolController()

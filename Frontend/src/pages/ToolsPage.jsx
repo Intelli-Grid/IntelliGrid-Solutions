@@ -6,6 +6,7 @@ import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Pagination from '../components/common/Pagination'
 import SEO from '../components/common/SEO'
+import HotRightNow from '../components/tools/HotRightNow'
 import {
     Search, X, Sparkles, TrendingUp, Star,
     LayoutGrid, List, ArrowUpRight, Flame, Clock, SortAsc
@@ -453,6 +454,11 @@ export default function ToolsPage() {
 
             {/* ══════════════ MAIN CONTENT ══════════════ */}
             <div className="container mx-auto max-w-7xl px-4 py-8">
+
+                {/* Phase 1.3 — Hot Right Now strip (only when browsing, not when searching/filtering) */}
+                {!activeSearch && !filters.pricing && !filters.category && !filters.platform && !filters.audience && (
+                    <HotRightNow className="mb-8" />
+                )}
 
                 {/* Active search banner */}
                 {activeSearch && !loading && tools.length > 0 && (

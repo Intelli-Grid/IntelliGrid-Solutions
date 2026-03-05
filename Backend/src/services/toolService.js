@@ -35,9 +35,11 @@ class ToolService {
         // Build query — always exclude soft-deleted tools
         const query = { status, isActive: { $ne: false } }
 
+        let resolvedCategoryId = null
         if (category) {
             if (mongoose.Types.ObjectId.isValid(category)) {
                 query.category = category
+                resolvedCategoryId = category
             } else {
                 const categoryDoc = await Category.findOne({
                     $or: [{ slug: category }, { name: category }],
@@ -45,19 +47,36 @@ class ToolService {
 
                 if (categoryDoc) {
                     query.category = categoryDoc._id
+                    resolvedCategoryId = categoryDoc._id.toString()
                 } else {
                     return {
                         tools: [],
-                        pagination: {
-                            page,
-                            limit,
-                            total: 0,
-                            pages: 0,
-                        },
+                        pagination: { page, limit, total: 0, pages: 0 },
                     }
                 }
             }
         }
+
+        // ── Category-smart default sort ───────────────────────────────────────
+        // Only apply smart sort when the caller hasn't explicitly specified one
+        // AND a category filter is active.
+        if (sort === '-createdAt' && resolvedCategoryId) {
+            const catDoc = await Category.findById(resolvedCategoryId).select('slug name').lean()
+            const catSlug = (catDoc?.slug || catDoc?.name || '').toLowerCase()
+
+            if (catSlug.includes('chatbot') || catSlug.includes('assistant')) {
+                sort = '-trendingScore'
+            } else if (catSlug.includes('image') || catSlug.includes('art') || catSlug.includes('design')) {
+                sort = '-ratings.average'
+            } else if (catSlug.includes('developer') || catSlug.includes('code') || catSlug.includes('coding')) {
+                sort = '-views'
+            } else if (catSlug.includes('productivity') || catSlug.includes('workflow')) {
+                sort = '-weeklyBookmarks'
+            } else if (catSlug.includes('education') || catSlug.includes('learning')) {
+                sort = '-ratings.average'
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
         if (pricing) query.pricing = pricing
         // platform filter — matches against the platforms array
         if (platform) query.platforms = platform
@@ -153,10 +172,10 @@ class ToolService {
      * Get trending tools
      */
     async getTrendingTools(limit = 10) {
-        // Get tools sorted by views (most popular)
+        // Prefer trendingScore; fall back to views if not yet computed
         const tools = await Tool.find({ status: 'active', isActive: { $ne: false } })
             .populate('category', 'name slug')
-            .sort('-views -ratings.average')
+            .sort({ trendingScore: -1, views: -1 })
             .limit(limit)
             .lean()
 
@@ -302,26 +321,69 @@ class ToolService {
     }
 
     /**
-     * Get related tools
+     * Get related tools — returns 4 enriched buckets for the tool detail page:
+     *   alsoViewed    — same category, sorted by views
+     *   pairsWellWith — share integrationTags
+     *   alternatives  — share alternativeTo entries
+     *   cheaperOptions — same category, Free or Freemium pricing
      */
     async getRelatedTools(toolId, limit = 3) {
         const tool = await Tool.findById(toolId)
+            .select('category integrationTags alternativeTo name pricing slug')
+            .lean()
         if (!tool) {
             throw ApiError.notFound('Tool not found')
         }
 
-        const relatedTools = await Tool.find({
-            category: tool.category,
-            _id: { $ne: tool._id },
-            status: 'active',
-            isActive: { $ne: false },
-        })
-            .populate('category', 'name slug')
-            .sort('-ratings.average -views')
-            .limit(limit)
-            .lean()
+        const baseFilter = { _id: { $ne: tool._id }, status: 'active', isActive: { $ne: false } }
 
-        return relatedTools
+        const [alsoViewed, pairsWellWith, alternatives, cheaperOptions] = await Promise.all([
+            // 1. Also viewed — same category
+            Tool.find({ ...baseFilter, category: tool.category })
+                .populate('category', 'name slug')
+                .sort({ views: -1 })
+                .limit(limit)
+                .lean(),
+
+            // 2. Pairs well with — shared integrationTags
+            tool.integrationTags?.length
+                ? Tool.find({
+                    ...baseFilter,
+                    integrationTags: { $in: tool.integrationTags },
+                })
+                    .populate('category', 'name slug')
+                    .sort({ trendingScore: -1, views: -1 })
+                    .limit(limit)
+                    .lean()
+                : Promise.resolve([]),
+
+            // 3. Alternatives — shared alternativeTo entries
+            tool.alternativeTo?.length
+                ? Tool.find({
+                    ...baseFilter,
+                    alternativeTo: { $in: tool.alternativeTo },
+                })
+                    .populate('category', 'name slug')
+                    .sort({ ratings: -1 })
+                    .limit(limit)
+                    .lean()
+                : Promise.resolve([]),
+
+            // 4. Cheaper options — same category + free/freemium
+            ['Paid', 'Unknown'].includes(tool.pricing)
+                ? Tool.find({
+                    ...baseFilter,
+                    category: tool.category,
+                    pricing: { $in: ['Free', 'Freemium'] },
+                })
+                    .populate('category', 'name slug')
+                    .sort({ ratings: -1, views: -1 })
+                    .limit(limit)
+                    .lean()
+                : Promise.resolve([]),
+        ])
+
+        return { alsoViewed, pairsWellWith, alternatives, cheaperOptions }
     }
     /**
      * Compare tools
@@ -384,6 +446,132 @@ class ToolService {
             .lean()
 
         return tools
+    }
+
+    /**
+     * Get "Hot Right Now" — top 8 tools by trendingScore computed in last 48h.
+     * Used for the homepage hot strip and /api/v1/tools/hot endpoint.
+     */
+    async getHotTools(limit = 8) {
+        const tools = await Tool.find({ status: 'active', isActive: { $ne: false }, trendingScore: { $gt: 0 } })
+            .populate('category', 'name slug')
+            .sort({ trendingScore: -1 })
+            .limit(limit)
+            .select('name slug shortDescription logo pricing trendingScore weeklyViews isFeatured isNew isTrending ratings category')
+            .lean()
+
+        // If trendingScore is not yet populated for any tools, fall back to views-based
+        if (tools.length < 4) {
+            return Tool.find({ status: 'active', isActive: { $ne: false } })
+                .populate('category', 'name slug')
+                .sort({ views: -1 })
+                .limit(limit)
+                .select('name slug shortDescription logo pricing views isFeatured isNew isTrending ratings category')
+                .lean()
+        }
+
+        return tools
+    }
+
+    /**
+     * Get alternatives to a named tool
+     * GET /api/v1/tools/alternatives/:toolName
+     * Queries tools where alternativeTo array contains the tool name (case-insensitive).
+     */
+    async getAlternatives(toolName, options = {}) {
+        const { limit = 20, page = 1, pricing } = options
+        const skip = (page - 1) * limit
+
+        // Case-insensitive regex match against the alternativeTo array
+        const nameRegex = new RegExp(toolName.replace(/[-_]/g, '[ -_]'), 'i')
+        const query = {
+            status: 'active',
+            isActive: { $ne: false },
+            alternativeTo: { $regex: nameRegex },
+        }
+        if (pricing) query.pricing = pricing
+
+        const [tools, total] = await Promise.all([
+            Tool.find(query)
+                .populate('category', 'name slug')
+                .sort({ enrichmentScore: -1, 'ratings.average': -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Tool.countDocuments(query),
+        ])
+
+        return {
+            targetTool: toolName,
+            tools,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+        }
+    }
+
+    /**
+     * Get tools by use-case tag
+     * GET /api/v1/tools/use-case/:tag
+     */
+    async getToolsByUseCase(tag, options = {}) {
+        const { limit = 24, page = 1, pricing } = options
+        const skip = (page - 1) * limit
+
+        const tagRegex = new RegExp(tag.replace(/-/g, '[ -]'), 'i')
+        const query = {
+            status: 'active',
+            isActive: { $ne: false },
+            useCaseTags: { $regex: tagRegex },
+        }
+        if (pricing) query.pricing = pricing
+
+        const [tools, total] = await Promise.all([
+            Tool.find(query)
+                .populate('category', 'name slug')
+                .sort({ enrichmentScore: -1, 'ratings.average': -1, views: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Tool.countDocuments(query),
+        ])
+
+        return {
+            tag,
+            tools,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+        }
+    }
+
+    /**
+     * Get tools by industry tag
+     * GET /api/v1/tools/industry/:tag
+     */
+    async getToolsByIndustry(tag, options = {}) {
+        const { limit = 24, page = 1, pricing } = options
+        const skip = (page - 1) * limit
+
+        const tagRegex = new RegExp(tag.replace(/-/g, '[ -]'), 'i')
+        const query = {
+            status: 'active',
+            isActive: { $ne: false },
+            industryTags: { $regex: tagRegex },
+        }
+        if (pricing) query.pricing = pricing
+
+        const [tools, total] = await Promise.all([
+            Tool.find(query)
+                .populate('category', 'name slug')
+                .sort({ enrichmentScore: -1, 'ratings.average': -1, views: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Tool.countDocuments(query),
+        ])
+
+        return {
+            tag,
+            tools,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+        }
     }
 }
 

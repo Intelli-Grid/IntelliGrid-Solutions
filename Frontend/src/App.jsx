@@ -94,8 +94,9 @@ function App() {
                             <Route path="/blog" element={<BlogPage />} />
                             <Route path="/blog/:slug" element={<BlogPostPage />} />
                             <Route path="/newsletter" element={<NewsletterPage />} />
-                            <Route path="/alternatives/:toolSlug" element={<AlternativesPage />} />
+                            <Route path="/alternatives/:toolName" element={<AlternativesPage />} />
                             <Route path="/best-tools/:role" element={<BestToolsForPage />} />
+                            <Route path="/best-ai-tools-for/:useCase" element={<BestToolsForPage />} />
 
                             {/* ── Payment Routes ────────────────────────────── */}
                             <Route

@@ -1,165 +1,206 @@
 /**
  * BestToolsForPage.jsx
- * Route: /best-tools/:role
+ * Route: /best-tools/:role  (e.g. /best-tools/writers)
+ *        /best-ai-tools-for/:useCase  (e.g. /best-ai-tools-for/writing)
  *
- * Programmatic SEO page: "Best AI Tools for {Role} in 2026"
- * Each of 25 role URLs creates a unique, indexable, high-intent search page.
- * Fetches tools tagged for that role from the backend.
+ * Programmatic SEO page: "Best AI Tools for {Role/UseCase} in 2026"
+ * Uses the real /api/v1/tools/use-case/:tag endpoint which queries
+ * the `useCaseTags` enrichment field populated by Groq AI.
  */
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Star, ExternalLink, ChevronRight, Briefcase, ArrowRight } from 'lucide-react'
+import {
+    Star, ExternalLink, ChevronRight, Briefcase, ArrowRight,
+    Filter, Zap, ArrowUpRight, Shield
+} from 'lucide-react'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
 
-// 25 role definitions — each one becomes a unique SEO URL
+const PRICING_COLORS = {
+    Free: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+    Freemium: 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
+    Paid: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+    Trial: 'bg-violet-500/10 text-violet-400 border border-violet-500/20',
+}
+
+// Role → useCaseTag mapping + metadata for each SEO page
 const ROLE_DEFINITIONS = {
     'developers': {
         label: 'Developers & Engineers',
-        query: 'developer engineering programming coding',
+        useCaseTag: 'coding',
         description: 'The best AI tools for software developers, from code completion to debugging and documentation.',
+        icon: '💻',
     },
     'marketers': {
         label: 'Marketers',
-        query: 'marketing content social media copywriting SEO',
+        useCaseTag: 'marketing',
         description: 'Top AI marketing tools to write copy faster, analyze campaigns, and automate outreach.',
+        icon: '📣',
     },
     'designers': {
         label: 'Designers',
-        query: 'design image generation UI graphics',
-        description: 'AI tools for designers — from image generation to UI mock-ups and brand asset creation.',
+        useCaseTag: 'design',
+        description: 'AI tools for designers — from image generation to UI mockups and brand asset creation.',
+        icon: '🎨',
     },
     'writers': {
         label: 'Writers & Content Creators',
-        query: 'writing content blog article long-form',
+        useCaseTag: 'writing',
         description: 'The best AI writing tools to draft, edit, and publish content faster without losing your voice.',
+        icon: '✍️',
     },
     'founders': {
         label: 'Founders & Entrepreneurs',
-        query: 'startup business productivity automation',
+        useCaseTag: 'productivity',
         description: 'AI tools that help founders move faster — from fundraising pitch decks to customer research.',
+        icon: '🚀',
     },
     'students': {
         label: 'Students',
-        query: 'education learning research essay study',
+        useCaseTag: 'education',
         description: 'AI tools for students to study smarter, write better essays, and understand complex topics.',
+        icon: '🎓',
     },
     'researchers': {
         label: 'Researchers',
-        query: 'research literature review analysis data',
+        useCaseTag: 'research',
         description: 'AI research tools for literature reviews, data analysis, and knowledge synthesis.',
+        icon: '🔬',
     },
     'sales-teams': {
         label: 'Sales Teams',
-        query: 'sales CRM outreach cold email prospecting',
+        useCaseTag: 'sales',
         description: 'The best AI sales tools to prospect, personalize outreach, and close deals faster.',
+        icon: '💼',
     },
     'product-managers': {
         label: 'Product Managers',
-        query: 'product roadmap user research PRD requirements',
+        useCaseTag: 'product management',
         description: 'AI tools for PMs to build better products — from user research to writing PRDs.',
+        icon: '📋',
     },
     'customer-success': {
         label: 'Customer Success Teams',
-        query: 'customer service support chat helpdesk',
+        useCaseTag: 'customer support',
         description: 'AI customer success tools for support automation, ticket resolution, and retention.',
+        icon: '🤝',
     },
     'video-creators': {
         label: 'Video Creators',
-        query: 'video editing animation transcript subtitle',
+        useCaseTag: 'video',
         description: 'AI video tools for creators — auto-captions, editing, thumbnail generation, and more.',
+        icon: '🎬',
     },
     'podcasters': {
         label: 'Podcasters',
-        query: 'podcast audio transcription voice editing',
+        useCaseTag: 'audio',
         description: 'The best AI tools for podcasters to transcribe, edit, promote, and grow their show.',
+        icon: '🎙️',
     },
     'educators': {
         label: 'Educators & Teachers',
-        query: 'education teaching lesson plan quiz assessment',
+        useCaseTag: 'education',
         description: 'AI tools for educators to create lesson plans, assessments, and personalized learning materials.',
+        icon: '📚',
     },
     'hr-teams': {
         label: 'HR Teams',
-        query: 'human resources hiring recruitment resume screening',
+        useCaseTag: 'recruiting',
         description: 'AI HR tools for recruiting, resume screening, employee onboarding, and performance reviews.',
+        icon: '👥',
     },
     'lawyers': {
         label: 'Legal Professionals',
-        query: 'legal document contract analysis law',
+        useCaseTag: 'legal',
         description: 'AI tools for lawyers to review contracts, research case law, and draft legal documents.',
+        icon: '⚖️',
     },
     'finance-teams': {
         label: 'Finance Teams',
-        query: 'finance accounting forecasting analysis Excel',
+        useCaseTag: 'finance',
         description: 'AI finance tools for forecasting, analysis, reporting, and automating accounting workflows.',
+        icon: '📊',
     },
     'data-analysts': {
         label: 'Data Analysts',
-        query: 'data analysis SQL visualization chart dashboard',
+        useCaseTag: 'data analysis',
         description: 'The best AI data tools for analysts — from natural language SQL to automated dashboards.',
+        icon: '🔢',
     },
     'healthcare': {
         label: 'Healthcare Professionals',
-        query: 'medical healthcare clinical diagnosis documentation',
+        useCaseTag: 'healthcare',
         description: 'AI tools for healthcare professionals — from clinical documentation to medical research.',
+        icon: '🏥',
     },
     'real-estate': {
         label: 'Real Estate Professionals',
-        query: 'real estate property listing description marketing',
+        useCaseTag: 'real estate',
         description: 'AI real estate tools for writing listings, generating leads, and analyzing markets.',
+        icon: '🏠',
     },
     'ecommerce': {
         label: 'E-Commerce Sellers',
-        query: 'ecommerce product description listing shop',
+        useCaseTag: 'ecommerce',
         description: 'AI tools for e-commerce — product descriptions, ad copy, customer support, and analytics.',
+        icon: '🛍️',
     },
     'freelancers': {
         label: 'Freelancers',
-        query: 'freelancer productivity writing automation client',
+        useCaseTag: 'productivity',
         description: 'AI tools to help freelancers work faster, win more clients, and deliver better work.',
+        icon: '💻',
     },
     'agencies': {
         label: 'Agencies',
-        query: 'agency client report presentation content',
+        useCaseTag: 'marketing',
         description: 'The best AI tools for agencies to deliver quality work at scale for multiple clients.',
+        icon: '🏢',
     },
     'solopreneurs': {
         label: 'Solopreneurs',
-        query: 'solopreneur one-person business automation',
+        useCaseTag: 'automation',
         description: 'AI tools for running a one-person business — be more productive, automate more.',
+        icon: '⚡',
     },
     'social-media-managers': {
         label: 'Social Media Managers',
-        query: 'social media Instagram Twitter LinkedIn posts scheduling',
+        useCaseTag: 'social media',
         description: 'AI social media tools for creating, scheduling, and analyzing posts across platforms.',
+        icon: '📱',
     },
     'ctos': {
         label: 'CTOs & Engineering Leaders',
-        query: 'technical leadership architecture code review',
+        useCaseTag: 'coding',
         description: 'AI tools for engineering leaders — code reviews, documentation, architecture decisions.',
+        icon: '🏗️',
     },
 }
 
 function ToolCard({ tool }) {
     const rating = tool.ratings?.average ?? 0
     const reviewCount = tool.ratings?.count ?? 0
+    const pricingStyle = PRICING_COLORS[tool.pricing] || 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
 
     return (
-        <div className="group flex gap-4 rounded-xl border border-white/8 bg-white/2 p-4 transition-all hover:border-purple-500/20 hover:bg-purple-500/3">
-            {tool.logo && (
-                <img
-                    src={tool.logo}
-                    alt={`${tool.name} logo`}
-                    className="h-11 w-11 flex-shrink-0 rounded-xl border border-white/10 object-contain bg-white/5 p-1"
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                />
-            )}
+        <div className="group flex gap-4 rounded-xl border border-white/8 bg-[#0c0c0c] p-4 transition-all duration-200 hover:border-purple-500/25 hover:bg-purple-500/3 hover:-translate-y-0.5">
+            <div className="flex-shrink-0 h-11 w-11 rounded-xl border border-white/10 bg-white/5 overflow-hidden flex items-center justify-center">
+                {tool.logo ? (
+                    <img
+                        src={tool.logo}
+                        alt={`${tool.name} logo`}
+                        className="w-full h-full object-contain p-1"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
+                ) : (
+                    <span className="text-base font-black text-white/20">{tool.name?.charAt(0)}</span>
+                )}
+            </div>
             <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                    <div>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="min-w-0">
                         <Link
                             to={`/tools/${tool.slug}`}
                             className="font-semibold text-white hover:text-purple-300 transition-colors text-sm"
@@ -176,18 +217,15 @@ function ToolCard({ tool }) {
                             </div>
                         )}
                     </div>
-                    <span className={`flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${tool.pricing === 'Free' ? 'bg-emerald-500/10 text-emerald-400' :
-                            tool.pricing === 'Freemium' ? 'bg-blue-500/10 text-blue-400' :
-                                'bg-gray-500/10 text-gray-400'
-                        }`}>
+                    <span className={`flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${pricingStyle}`}>
                         {tool.pricing || 'Unknown'}
                     </span>
                 </div>
                 <p className="mt-1 text-xs text-gray-500 leading-relaxed line-clamp-2">
                     {tool.shortDescription}
                 </p>
-                <div className="mt-2 flex gap-3">
-                    <Link to={`/tools/${tool.slug}`} className="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                <div className="mt-2.5 flex gap-3">
+                    <Link to={`/tools/${tool.slug}`} className="text-xs text-purple-400 hover:text-purple-300 transition-colors font-medium">
                         View details →
                     </Link>
                     <a
@@ -206,63 +244,76 @@ function ToolCard({ tool }) {
 }
 
 export default function BestToolsForPage() {
-    const { role } = useParams()
+    const { role, useCase } = useParams()
+    const slug = role || useCase
+
     const [tools, setTools] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [pricingFilter, setPricingFilter] = useState('')
+    const [total, setTotal] = useState(0)
 
-    const roleDef = ROLE_DEFINITIONS[role]
+    const roleDef = ROLE_DEFINITIONS[slug]
     const year = new Date().getFullYear()
 
     useEffect(() => {
-        if (!role) return
+        if (!slug) return
         setLoading(true)
         setError(null)
 
         async function fetchTools() {
             try {
-                const query = roleDef?.query || role.replace(/-/g, ' ')
-                // Use search endpoint with the role query for relevant results
+                // Use the real use-case endpoint first
+                const tag = roleDef?.useCaseTag || slug.replace(/-/g, ' ')
+                const params = new URLSearchParams({ limit: '24' })
+                if (pricingFilter) params.set('pricing', pricingFilter)
+
                 const res = await fetch(
-                    `${API_URL}/api/v1/tools/search?q=${encodeURIComponent(query)}&limit=20`
+                    `${API_URL}/api/v1/tools/use-case/${encodeURIComponent(tag)}?${params}`
                 )
-                if (!res.ok) throw new Error('Failed to fetch tools')
-                const data = await res.json()
-                const items = data.tools || data.results || data || []
-                setTools(Array.isArray(items) ? items : [])
-            } catch (err) {
-                // Fallback: fetch top-rated tools
-                try {
-                    const res = await fetch(`${API_URL}/api/v1/tools?sort=rating&limit=15`)
-                    const data = await res.json()
-                    setTools(data.tools || [])
-                } catch {
-                    setError(err.message)
+                if (!res.ok) throw new Error('use-case endpoint failed')
+                const json = await res.json()
+                const payload = json?.data || json
+                const items = payload?.tools || []
+                setTools(items)
+                setTotal(payload?.pagination?.total || items.length)
+
+                // If the use-case endpoint returns < 6 results, supplement via search
+                if (items.length < 6) {
+                    const fallbackQuery = roleDef?.useCaseTag || slug.replace(/-/g, ' ')
+                    const sRes = await fetch(
+                        `${API_URL}/api/v1/tools/search?q=${encodeURIComponent(fallbackQuery)}&hitsPerPage=24`
+                    )
+                    if (sRes.ok) {
+                        const sJson = await sRes.json()
+                        const sPayload = sJson?.data || sJson
+                        const hits = sPayload?.hits || []
+                        // Merge without duplicates
+                        const combined = [...items]
+                        for (const h of hits) {
+                            if (!combined.find(t => t._id === h.objectID || t.slug === h.slug)) {
+                                combined.push(h)
+                            }
+                        }
+                        setTools(combined)
+                        setTotal(combined.length)
+                    }
                 }
+            } catch (err) {
+                setError(err.message)
             } finally {
                 setLoading(false)
             }
         }
 
         fetchTools()
-    }, [role, roleDef])
+    }, [slug, roleDef, pricingFilter])
 
-    const roleLabel = roleDef?.label || role?.replace(/-/g, ' ')
+    const roleLabel = roleDef?.label || slug?.replace(/-/g, ' ')
+    const roleIcon = roleDef?.icon || '🤖'
     const pageTitle = `Best AI Tools for ${roleLabel} in ${year} — IntelliGrid`
-    const pageDesc = roleDef?.description || `Discover the top AI tools for ${roleLabel} — curated, reviewed, and ranked by the IntelliGrid community in ${year}.`
-    const canonicalUrl = `https://www.intelligrid.online/best-tools/${role}`
-
-    if (!roleDef) {
-        return (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-                <Briefcase size={32} className="text-gray-700" />
-                <p className="text-gray-400">We don't have a curated page for <strong className="text-white">{role}</strong> yet.</p>
-                <Link to="/tools" className="text-sm text-purple-400 hover:text-purple-300">
-                    Browse all tools →
-                </Link>
-            </div>
-        )
-    }
+    const pageDesc = roleDef?.description || `Discover the top AI tools for ${roleLabel} — curated, reviewed, and ranked in ${year}.`
+    const canonicalUrl = `https://www.intelligrid.online/${role ? 'best-tools' : 'best-ai-tools-for'}/${slug}`
 
     return (
         <>
@@ -289,9 +340,9 @@ export default function BestToolsForPage() {
                 })}</script>
             </Helmet>
 
-            <div className="min-h-screen bg-black">
+            <div className="min-h-screen bg-[#09090b]">
                 {/* Hero */}
-                <section className="border-b border-white/8 px-4 py-14">
+                <section className="border-b border-white/6 bg-gradient-to-b from-[#0c0c14] to-[#09090b] px-4 py-14">
                     <div className="mx-auto max-w-4xl">
                         {/* Breadcrumb */}
                         <nav className="mb-6 flex items-center gap-1.5 text-xs text-gray-600">
@@ -302,11 +353,16 @@ export default function BestToolsForPage() {
                             <span className="text-gray-400">Best for {roleLabel}</span>
                         </nav>
 
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-purple-500/10 border border-purple-500/20 px-3 py-1 text-xs font-medium text-purple-400">
+                            <Zap size={11} />
+                            {total > 0 ? `${total} tools curated` : 'Curated collection'}
+                        </div>
+
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-500/10 flex-shrink-0">
-                                <Briefcase size={20} className="text-purple-400" />
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10 border border-purple-500/15 flex-shrink-0 text-2xl">
+                                {roleIcon}
                             </div>
-                            <h1 className="text-3xl font-bold text-white md:text-4xl">
+                            <h1 className="text-3xl font-extrabold text-white md:text-5xl tracking-tight">
                                 Best AI Tools for{' '}
                                 <span className="bg-gradient-to-r from-purple-400 to-violet-400 bg-clip-text text-transparent">
                                     {roleLabel}
@@ -315,23 +371,55 @@ export default function BestToolsForPage() {
                             </h1>
                         </div>
 
-                        <p className="max-w-2xl text-gray-400 leading-relaxed">
-                            {roleDef.description}
+                        <p className="max-w-2xl text-gray-400 leading-relaxed text-base">
+                            {roleDef?.description || `Discover the top AI tools curated for ${roleLabel} — all independently reviewed and updated weekly.`}
                         </p>
+
+                        {/* Pricing filter */}
+                        <div className="mt-6 flex items-center gap-2 flex-wrap">
+                            <span className="text-xs text-gray-600 flex items-center gap-1"><Filter size={11} /> Pricing:</span>
+                            {['', 'Free', 'Freemium', 'Paid', 'Trial'].map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setPricingFilter(p)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${pricingFilter === p
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/8'
+                                        }`}
+                                >
+                                    {p || 'All prices'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </section>
 
-                <div className="mx-auto max-w-4xl px-4 py-12">
+                {/* Trust signals */}
+                <div className="border-b border-white/6 bg-black/20 px-4 py-3">
+                    <div className="mx-auto max-w-4xl flex gap-6 flex-wrap">
+                        {[
+                            { icon: Shield, text: 'Independently reviewed' },
+                            { icon: Star, text: 'Real user ratings' },
+                        ].map(({ icon: Icon, text }) => (
+                            <div key={text} className="flex items-center gap-1.5 text-xs text-gray-500">
+                                <Icon size={12} className="text-purple-500" />
+                                {text}
+                            </div>
+                        ))}
+                        <div className="ml-auto flex items-center gap-1">
+                            <Link to="/tools" className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                                Browse all tools <ArrowRight size={11} />
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="mx-auto max-w-4xl px-4 py-10">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-sm font-semibold text-white">
-                            {loading ? 'Fetching tools...' : `${tools.length} tools curated for ${roleLabel}`}
+                            {loading ? 'Finding tools...' : `${tools.length} tools for ${roleLabel}`}
                         </h2>
-                        <Link
-                            to="/tools"
-                            className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                        >
-                            Browse all tools <ArrowRight size={12} />
-                        </Link>
                     </div>
 
                     {loading ? (
@@ -340,39 +428,42 @@ export default function BestToolsForPage() {
                         </div>
                     ) : error ? (
                         <div className="py-20 text-center">
-                            <p className="text-gray-500">Couldn't load tools right now.</p>
-                            <Link to="/tools" className="mt-3 inline-block text-sm text-purple-400 hover:text-purple-300">
-                                Browse tools manually →
+                            <p className="text-gray-500 mb-3">Couldn't load tools right now.</p>
+                            <Link to="/tools" className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-purple-500 transition-colors">
+                                Browse all tools <ArrowUpRight size={14} />
                             </Link>
                         </div>
                     ) : tools.length === 0 ? (
                         <div className="py-20 text-center">
-                            <p className="text-gray-500">No specific results yet for {roleLabel}.</p>
-                            <Link to="/tools" className="mt-3 inline-block text-sm text-purple-400 hover:text-purple-300">
-                                Browse all tools →
+                            <Briefcase size={36} className="mx-auto mb-4 text-gray-700" />
+                            <p className="text-gray-500 mb-2">No specific tools found yet for {roleLabel}.</p>
+                            <p className="text-xs text-gray-600 mb-4">Our AI pipeline is still tagging tools. Try browsing all tools.</p>
+                            <Link to="/tools" className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-purple-500 transition-colors">
+                                Browse all tools <ArrowUpRight size={14} />
                             </Link>
                         </div>
                     ) : (
                         <div className="grid gap-3 sm:grid-cols-2">
                             {tools.map((tool) => (
-                                <ToolCard key={tool._id || tool.slug} tool={tool} />
+                                <ToolCard key={tool._id || tool.objectID || tool.slug} tool={tool} />
                             ))}
                         </div>
                     )}
 
                     {/* Related role pages */}
-                    <div className="mt-12 border-t border-white/8 pt-10">
+                    <div className="mt-12 border-t border-white/6 pt-8">
                         <h3 className="mb-4 text-sm font-semibold text-gray-400">Also explore</h3>
                         <div className="flex flex-wrap gap-2">
                             {Object.entries(ROLE_DEFINITIONS)
-                                .filter(([k]) => k !== role)
+                                .filter(([k]) => k !== slug)
                                 .slice(0, 12)
-                                .map(([slug, def]) => (
+                                .map(([s, def]) => (
                                     <Link
-                                        key={slug}
-                                        to={`/best-tools/${slug}`}
-                                        className="rounded-lg border border-white/8 bg-white/2 px-3 py-1.5 text-xs text-gray-400 hover:border-purple-500/20 hover:text-purple-300 transition-all"
+                                        key={s}
+                                        to={`/best-tools/${s}`}
+                                        className="rounded-lg border border-white/8 bg-white/2 px-3 py-1.5 text-xs text-gray-400 hover:border-purple-500/20 hover:text-purple-300 transition-all flex items-center gap-1.5"
                                     >
+                                        <span>{def.icon}</span>
                                         {def.label}
                                     </Link>
                                 ))}
@@ -384,5 +475,4 @@ export default function BestToolsForPage() {
     )
 }
 
-// Export the full list of supported roles for sitemap generation
 export { ROLE_DEFINITIONS }

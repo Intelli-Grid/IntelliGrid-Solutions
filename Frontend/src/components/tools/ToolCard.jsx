@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight } from 'lucide-react'
+import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight, Crown, Zap } from 'lucide-react'
 import { getPricingDisplay, formatToolName, getInitials } from '../../utils/helpers'
 import AddToCollectionModal from './AddToCollectionModal'
 import { useFlag } from '../../hooks/useFeatureFlags'
@@ -15,8 +15,56 @@ const PRICING_COLORS = {
 // Generate a deterministic gradient from a tool name so every logo-less
 // tool gets its own unique colour rather than the same purple/blue.
 function nameToGradient(name = '') {
-    const hue = (name.charCodeAt(0) * 37 + name.charCodeAt(1) * 17) % 360
+    const hue = (name.charCodeAt(0) * 37 + (name.charCodeAt(1) || 0) * 17) % 360
     return `hsl(${hue},55%,28%)`
+}
+
+/**
+ * Phase 4.1 — Badge system
+ * Returns the highest-priority single badge to show on the card banner.
+ * Priority: Editor's Pick > Top Rated > Trending > Forever Free > New
+ */
+function getBadge(tool) {
+    const rating = tool.ratings?.average ?? 0
+    const reviewCount = tool.ratings?.count ?? 0
+
+    if (tool.humanVerified) {
+        return {
+            label: "Editor's Pick",
+            icon: Crown,
+            className: 'text-purple-300 bg-purple-600/80 border-purple-400/40',
+        }
+    }
+    if (rating >= 4.5 && reviewCount >= 10) {
+        return {
+            label: 'Top Rated',
+            icon: Star,
+            className: 'text-amber-300 bg-amber-600/70 border-amber-400/40',
+        }
+    }
+    if (tool.isTrending) {
+        return {
+            label: 'Trending',
+            icon: TrendingUp,
+            className: 'text-orange-300 bg-orange-600/70 border-orange-400/40',
+        }
+    }
+    if (tool.pricing === 'Free') {
+        return {
+            label: 'Forever Free',
+            icon: Zap,
+            className: 'text-emerald-300 bg-emerald-600/70 border-emerald-400/40',
+        }
+    }
+    const isNew = tool.isNew ?? (!tool.createdAt || (Date.now() - new Date(tool.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000))
+    if (isNew) {
+        return {
+            label: 'New',
+            icon: Sparkles,
+            className: 'text-sky-300 bg-sky-600/70 border-sky-400/40',
+        }
+    }
+    return null
 }
 
 export default function ToolCard({ tool }) {
@@ -34,9 +82,12 @@ export default function ToolCard({ tool }) {
     const pricingDisplay = getPricingDisplay(tool.pricing)
     const pricingClass = PRICING_COLORS[pricingDisplay] || 'text-gray-400 bg-gray-400/10 border-gray-400/20'
     const rating = tool.ratings?.average || 0
-    const isNew = tool.isNew ?? (!tool.createdAt || (new Date() - new Date(tool.createdAt) < 30 * 24 * 60 * 60 * 1000))
-    const logoSrc = tool.logo || tool.metadata?.logo || ''
+    const reviewCount = tool.ratings?.count || 0
+    const logoSrc = tool.screenshotUrl || tool.logo || tool.metadata?.logo || ''
     const showBanner = logoSrc && !bannerError
+
+    // Phase 4.1: compute badge
+    const badge = getBadge(tool)
 
     return (
         <>
@@ -71,19 +122,16 @@ export default function ToolCard({ tool }) {
                     {/* Fade to card background at bottom */}
                     <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
-                    {/* Top-right badges */}
-                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1.5 z-10">
-                        {tool.isTrending && (
-                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-black/70 backdrop-blur-sm px-2 py-0.5 rounded-full border border-amber-400/30">
-                                <TrendingUp size={8} /> Hot
+                    {/* ── Phase 4.1 Badge — top-right ────────────────── */}
+                    {badge && (() => {
+                        const { icon: BadgeIcon, label, className } = badge
+                        return (
+                            <span className={`absolute top-2.5 right-2.5 z-10 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest backdrop-blur-sm px-2 py-0.5 rounded-full border ${className}`}>
+                                <BadgeIcon size={8} />
+                                {label}
                             </span>
-                        )}
-                        {isNew && !tool.isTrending && (
-                            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-400 bg-black/70 backdrop-blur-sm px-2 py-0.5 rounded-full border border-emerald-400/30">
-                                <Sparkles size={8} /> New
-                            </span>
-                        )}
-                    </div>
+                        )
+                    })()}
                 </div>
 
                 {/* ── Card Body ──────────────────────────────────────── */}
@@ -95,7 +143,7 @@ export default function ToolCard({ tool }) {
                             {formattedName}
                         </h3>
                         {rating > 0 && (
-                            <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                            <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5" title={`${reviewCount} reviews`}>
                                 <Star size={10} className="fill-amber-400 text-amber-400" />
                                 <span className="text-[11px] font-semibold text-amber-400">{rating.toFixed(1)}</span>
                             </div>

@@ -46,6 +46,41 @@ router.get(
     toolController.getManagedTools
 )
 
+// ── Phase 1.3: Hot Right Now ──────────────────────────────────────────────────
+// GET /api/v1/tools/hot — top 8 by trendingScore, cached 30 min
+router.get(
+    '/hot',
+    cacheMiddleware(1800),
+    toolController.getHotTools
+)
+
+// ── Phase 2.1: Alternatives SEO pages ────────────────────────────────────────
+// GET /api/v1/tools/alternatives/:toolName
+// e.g. /alternatives/chatgpt → tools where alternativeTo includes "chatgpt"
+router.get(
+    '/alternatives/:toolName',
+    cacheMiddleware(3600),
+    toolController.getAlternatives
+)
+
+// ── Phase 2.2: Use-case landing pages ────────────────────────────────────────
+// GET /api/v1/tools/use-case/:tag
+// e.g. /use-case/write-blog-posts → tools with that useCaseTag
+router.get(
+    '/use-case/:tag',
+    cacheMiddleware(3600),
+    toolController.getToolsByUseCase
+)
+
+// ── Phase 2.3: Industry landing pages ────────────────────────────────────────
+// GET /api/v1/tools/industry/:tag
+// e.g. /industry/marketing → tools with that industryTag
+router.get(
+    '/industry/:tag',
+    cacheMiddleware(3600),
+    toolController.getToolsByIndustry
+)
+
 // ── Affiliate Visit Redirect ──────────────────────────────────────────────────
 // GET /api/v1/tools/slug/:slug/visit
 // Tracks the outbound click and redirects to affiliate URL (or direct URL).
