@@ -230,8 +230,8 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             </div>
 
 
-            {/* Alternatives CTA */}
-            <div className="pt-4 border-t border-white/5">
+            {/* Alternatives + Compare CTAs */}
+            <div className="pt-4 border-t border-white/5 space-y-2">
                 <Link
                     to={`/alternatives/${tool.slug}`}
                     className="group flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/6 hover:border-purple-500/20 transition-all duration-200"
@@ -241,6 +241,16 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                         <div className="text-xs text-gray-500 mt-0.5">See the best {tool.name} alternatives</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
+                </Link>
+                <Link
+                    to={`/compare/${tool.slug}`}
+                    className="group flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/6 hover:border-cyan-500/20 transition-all duration-200"
+                >
+                    <div>
+                        <div className="text-sm font-semibold text-white">Compare side-by-side</div>
+                        <div className="text-xs text-gray-500 mt-0.5">Compare {tool.name} with other tools</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
                 </Link>
             </div>
 
