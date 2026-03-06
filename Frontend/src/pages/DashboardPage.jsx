@@ -32,6 +32,9 @@ export default function DashboardPage() {
     // Cancellation rescue modal state
     const [rescueOpen, setRescueOpen] = useState(false)
     const [cancellingSubscription, setCancellingSubscription] = useState(false)
+    // View History tab — lazy loaded
+    const [viewHistory, setViewHistory] = useState(null)
+    const [historyLoading, setHistoryLoading] = useState(false)
 
     useEffect(() => {
         if (isLoaded && user) {
@@ -315,6 +318,24 @@ export default function DashboardPage() {
                         }`}
                 >
                     🔒 Privacy
+                </button>
+                <button
+                    onClick={() => {
+                        setActiveTab('history')
+                        if (viewHistory === null) {
+                            setHistoryLoading(true)
+                            userService.getHistory(20)
+                                .then(res => setViewHistory(res?.history || []))
+                                .catch(() => setViewHistory([]))
+                                .finally(() => setHistoryLoading(false))
+                        }
+                    }}
+                    className={`pb-4 text-sm font-medium transition whitespace-nowrap ${activeTab === 'history'
+                        ? 'border-b-2 border-purple-500 text-white'
+                        : 'text-gray-400 hover:text-white'
+                        }`}
+                >
+                    🕐 History
                 </button>
             </div>
 
@@ -659,6 +680,56 @@ export default function DashboardPage() {
 
             {/* My Submissions Tab */}
             {activeTab === 'submissions' && <MySubmissionsTab />}
+
+            {/* View History Tab */}
+            {activeTab === 'history' && (
+                <div>
+                    <div className="mb-6 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Recently Viewed</h2>
+                            <p className="text-sm text-gray-500 mt-0.5">Tools you have visited, newest first</p>
+                        </div>
+                        {viewHistory && viewHistory.length > 0 && (
+                            <span className="text-xs text-gray-600">{viewHistory.length} tools</span>
+                        )}
+                    </div>
+
+                    {historyLoading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <LoadingSpinner text="Loading history..." />
+                        </div>
+                    ) : viewHistory && viewHistory.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            {viewHistory.map((entry) => (
+                                entry.tool && (
+                                    <div key={entry.tool._id} className="relative">
+                                        <ToolCard tool={entry.tool} />
+                                        <div className="absolute bottom-3 right-3">
+                                            <span className="text-[10px] text-gray-600 bg-black/60 px-2 py-0.5 rounded-full">
+                                                {new Date(entry.viewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
+                            <Eye className="mx-auto mb-4 h-12 w-12 text-gray-600" />
+                            <h3 className="mb-2 text-lg font-semibold text-white">No history yet</h3>
+                            <p className="mb-4 text-sm text-gray-400">
+                                Tools you visit will appear here automatically
+                            </p>
+                            <Link
+                                to="/tools"
+                                className="inline-block rounded-lg bg-purple-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-purple-700"
+                            >
+                                Browse Tools
+                            </Link>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <EditToolModal
                 isOpen={isEditModalOpen}

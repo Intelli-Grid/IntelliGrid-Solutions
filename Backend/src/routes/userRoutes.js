@@ -33,4 +33,11 @@ router.delete(
     userController.removeFavorite
 )
 
+// View history routes
+// POST — called on every tool page load (fire-and-forget from frontend)
+router.post('/history/:toolId', userController.addToHistory)
+
+// GET — fetches the user's recent history for the Dashboard
+router.get('/history', userController.getHistory)
+
 export default router

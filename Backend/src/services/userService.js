@@ -260,6 +260,54 @@ class UserService {
     }
 
     /**
+     * Add a tool to the user's view history.
+     * Removes any duplicate entry for the tool first, then prepends the new
+     * entry. The array is capped at 50 items via $slice so the document never
+     * grows unbounded.
+     */
+    async addToHistory(userId, toolId) {
+        // Step 1: remove any existing entry for this tool (dedup)
+        await User.findByIdAndUpdate(userId, {
+            $pull: { viewHistory: { tool: toolId } },
+        })
+
+        // Step 2: prepend new entry and cap at 50
+        await User.findByIdAndUpdate(userId, {
+            $push: {
+                viewHistory: {
+                    $each: [{ tool: toolId, viewedAt: new Date() }],
+                    $position: 0,
+                    $slice: 50,
+                },
+            },
+        })
+    }
+
+    /**
+     * Fetch the user's view history, populated with tool details.
+     * Returns entries newest-first, limited to `limit` (max 50).
+     */
+    async getHistory(userId, limit = 20) {
+        const user = await User.findById(userId)
+            .select('viewHistory')
+            .populate({
+                path: 'viewHistory.tool',
+                select: 'name slug shortDescription logo screenshotUrl pricing ratings category isTrending isNew trendingScore',
+                populate: { path: 'category', select: 'name slug' },
+            })
+            .lean()
+
+        if (!user) return []
+
+        // Filter out any entries where the tool was deleted from DB
+        const history = (user.viewHistory || [])
+            .filter(entry => entry.tool != null)
+            .slice(0, limit)
+
+        return history
+    }
+
+    /**
      * Delete user — cascades all owned data (GDPR-compliant)
      */
     async deleteUser(userId) {

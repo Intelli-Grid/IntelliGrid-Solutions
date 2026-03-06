@@ -38,6 +38,9 @@ export const userService = {
     getFavorites: () => apiClient.get('/user/favorites'),
     addFavorite: (toolId) => apiClient.post('/user/favorites', { toolId }),
     removeFavorite: (toolId) => apiClient.delete(`/user/favorites/${toolId}`),
+    // View History
+    addToHistory: (toolId) => apiClient.post(`/user/history/${toolId}`),
+    getHistory: (limit = 20) => apiClient.get('/user/history', { params: { limit } }),
 }
 
 /**

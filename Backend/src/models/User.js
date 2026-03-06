@@ -130,6 +130,16 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // Recently viewed tools — capped at 50 entries, newest first
+        viewHistory: {
+            type: [
+                {
+                    tool: { type: mongoose.Schema.Types.ObjectId, ref: 'Tool', required: true },
+                    viewedAt: { type: Date, default: Date.now },
+                },
+            ],
+            default: [],
+        },
     },
     {
         timestamps: true,

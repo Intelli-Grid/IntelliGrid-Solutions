@@ -1,7 +1,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { toolService, analyticsService } from '../services'
+import { useUser } from '@clerk/clerk-react'
+import { toolService, analyticsService, userService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import SEO from '../components/common/SEO'
@@ -18,6 +19,7 @@ import EmbedToolModal from '../components/tools/EmbedToolModal'
 
 export default function ToolDetailsPage() {
     const { slug } = useParams()
+    const { isSignedIn } = useUser()
     const [tool, setTool] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -54,6 +56,11 @@ export default function ToolDetailsPage() {
                         eventType: 'tool_view',
                         data: { toolId: toolData._id, toolName: toolData.name, slug: toolData.slug },
                     }).catch(() => { })
+
+                    // Add to user's personal view history (fire-and-forget, only for signed-in users)
+                    if (isSignedIn) {
+                        userService.addToHistory(toolData._id).catch(() => { })
+                    }
 
                     try {
                         const related = await toolService.getRelatedTools(toolData._id, 4)

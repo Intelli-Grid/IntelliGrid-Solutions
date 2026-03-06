@@ -84,6 +84,38 @@ class UserController {
             new ApiResponse(200, null, 'Tool removed from favorites')
         )
     })
+
+    /**
+     * Record a tool view in the user's history (fire-and-forget safe)
+     * POST /api/v1/user/history/:toolId
+     *
+     * - Removes any existing entry for this tool (dedup)
+     * - Prepends new entry with current timestamp
+     * - Slices to 50 most recent entries using $slice
+     */
+    addToHistory = asyncHandler(async (req, res) => {
+        const { toolId } = req.params
+        const userId = req.user._id
+
+        await userService.addToHistory(userId, toolId)
+
+        res.status(200).json(
+            new ApiResponse(200, null, 'History updated')
+        )
+    })
+
+    /**
+     * Get user's view history (populated tool objects, newest first)
+     * GET /api/v1/user/history
+     */
+    getHistory = asyncHandler(async (req, res) => {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+        const history = await userService.getHistory(req.user._id, limit)
+
+        res.status(200).json(
+            new ApiResponse(200, { history }, 'History retrieved successfully')
+        )
+    })
 }
 
 export default new UserController()
