@@ -41,11 +41,11 @@ export const generateToolSchema = (tool) => {
         },
     }
 
-    // Logo / image — only add when we have a real URL
-    const logoSrc = tool.logo || tool.metadata?.logo
+    // Logo / image — prefer screenshot (real page visual), fall back to logo
+    const logoSrc = tool.screenshotUrl || tool.logo || tool.metadata?.logo
     if (logoSrc) {
-        schema.image = { '@type': 'ImageObject', url: logoSrc }
-        schema.thumbnailUrl = logoSrc
+        schema.image = { '@type': 'ImageObject', url: logoSrc, width: 1200, height: 630 }
+        schema.thumbnailUrl = tool.logo || tool.metadata?.logo || logoSrc
     }
 
     // aggregateRating — only include when there are real reviews (avoids Google Search Console warnings)

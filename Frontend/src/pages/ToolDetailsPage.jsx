@@ -132,7 +132,7 @@ export default function ToolDetailsPage() {
                 title={tool.metaTitle || `${tool.name} - AI Tool Review & Pricing | IntelliGrid`}
                 description={tool.metaDescription || tool.shortDescription}
                 canonicalUrl={`https://www.intelligrid.online/tools/${tool.slug}`}
-                ogImage={tool.logo || tool.metadata?.logo || 'https://www.intelligrid.online/og-image.png'}
+                ogImage={tool.screenshotUrl || tool.logo || tool.metadata?.logo || 'https://www.intelligrid.online/og-image.png'}
                 ogType="product"
                 structuredData={schemas}
             />
