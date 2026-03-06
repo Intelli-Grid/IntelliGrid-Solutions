@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import {
@@ -75,7 +75,7 @@ export default function AdminPage() {
                     totalRevenue: data.stats?.totalRevenue ?? 0,
                 })
             } else if (data) {
-                // API responded but without success flag — use whatever data we got
+                // API responded but without success flag â€” use whatever data we got
                 setStats(prev => ({ ...prev, ...data.stats }))
             }
         } catch (error) {
@@ -90,7 +90,7 @@ export default function AdminPage() {
         }
     }
 
-    // Role check — support all admin-tier roles (legacy + new RBAC)
+    // Role check â€” support all admin-tier roles (legacy + new RBAC)
     const ADMIN_ROLES = ['admin', 'ADMIN', 'MODERATOR', 'TRUSTED_OPERATOR', 'SUPERADMIN']
     const userRole = user?.publicMetadata?.role
     const isAdmin = ADMIN_ROLES.includes(userRole)
@@ -253,7 +253,7 @@ function OverviewTab({ setActiveTab, stats }) {
                     </p>
                     {systemHealth && (
                         <p className="text-xs text-gray-400">
-                            DB: {systemHealth.services?.database} · Redis: {systemHealth.services?.redis} · PayPal: {systemHealth.paypal_mode} · Cashfree: {systemHealth.cashfree_env}
+                            DB: {systemHealth.services?.database} Â· Redis: {systemHealth.services?.redis} Â· PayPal: {systemHealth.paypal_mode} Â· Cashfree: {systemHealth.cashfree_env}
                         </p>
                     )}
                 </div>
@@ -267,7 +267,7 @@ function OverviewTab({ setActiveTab, stats }) {
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="font-semibold text-white">Recent Signups</h3>
-                        <button onClick={() => setActiveTab('users')} className="text-xs text-purple-400 hover:text-purple-300">View all →</button>
+                        <button onClick={() => setActiveTab('users')} className="text-xs text-purple-400 hover:text-purple-300">View all â†’</button>
                     </div>
                     {loading ? <LoadingSpinner /> : recentUsers.length === 0 ? (
                         <p className="text-sm text-gray-400">No users yet</p>
@@ -513,134 +513,191 @@ function ToolsTab() {
 }
 
 function ClaimsTab() {
+    const { toast } = useToast()
     const [claims, setClaims] = useState([])
     const [loading, setLoading] = useState(true)
-    const { toast } = useToast()
+    const [statusFilter, setStatusFilter] = useState('pending')
+    const [actionLoading, setActionLoading] = useState({})
+    const [rejectReason, setRejectReason] = useState({})
+    const [showRejectInput, setShowRejectInput] = useState({})
 
-    useEffect(() => {
-        fetchPendingClaims()
-    }, [])
-
-    const fetchPendingClaims = async () => {
+    const fetchClaims = async (status) => {
+        setLoading(true)
         try {
-            const data = await adminService.getPendingClaims()
-            if (data.success) {
-                setClaims(data.claims)
-            }
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: 'Failed to fetch pending claims',
-                variant: 'destructive',
-            })
+            const res = await adminService.getClaims({ status, limit: 50 })
+            setClaims(res?.data?.claims || res?.claims || [])
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load claims', variant: 'destructive' })
         } finally {
             setLoading(false)
         }
     }
 
-    const handleApprove = async (id) => {
+    useEffect(() => { fetchClaims(statusFilter) }, [statusFilter])
+
+    const handleApprove = async (claim) => {
+        setActionLoading(prev => ({ ...prev, [claim._id]: 'approve' }))
         try {
-            await adminService.approveClaim(id)
-            toast({
-                title: 'Success',
-                description: 'Claim approved successfully',
-                variant: 'default',
-            })
-            fetchPendingClaims()
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error.response?.data?.message || 'Failed to approve claim',
-                variant: 'destructive',
-            })
+            await adminService.approveClaimById(claim._id)
+            toast({ title: 'Approved', description: `${claim.tool?.name || 'Tool'} is now verified âœ…` })
+            setClaims(prev => prev.filter(c => c._id !== claim._id))
+        } catch (err) {
+            toast({ title: 'Error', description: err?.response?.data?.message || 'Approval failed', variant: 'destructive' })
+        } finally {
+            setActionLoading(prev => ({ ...prev, [claim._id]: null }))
         }
     }
 
-    const handleReject = async (id) => {
-        if (!window.confirm('Are you sure you want to reject this claim?')) return
-
+    const handleReject = async (claim) => {
+        const reason = rejectReason[claim._id] || ''
+        setActionLoading(prev => ({ ...prev, [claim._id]: 'reject' }))
         try {
-            await adminService.rejectClaim(id)
-            toast({
-                title: 'Success',
-                description: 'Claim rejected successfully',
-                variant: 'default',
-            })
-            fetchPendingClaims()
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: 'Failed to reject claim',
-                variant: 'destructive',
-            })
+            await adminService.rejectClaimById(claim._id, reason)
+            toast({ title: 'Rejected', description: `Claim for ${claim.tool?.name || 'tool'} rejected` })
+            setClaims(prev => prev.filter(c => c._id !== claim._id))
+        } catch (err) {
+            toast({ title: 'Error', description: err?.response?.data?.message || 'Rejection failed', variant: 'destructive' })
+        } finally {
+            setActionLoading(prev => ({ ...prev, [claim._id]: null }))
+            setShowRejectInput(prev => ({ ...prev, [claim._id]: false }))
         }
     }
 
-    if (loading) return <LoadingSpinner />
+    const STATUS_COLORS = {
+        pending:  'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+        approved: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+        rejected: 'bg-red-500/10 text-red-400 border border-red-500/20',
+    }
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Pending Claims ({claims.length})</h2>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white">Tool Claim Requests</h2>
+                    <p className="text-sm text-gray-500 mt-1">Review and approve tool ownership claims</p>
+                </div>
+                <div className="flex gap-2">
+                    {['pending', 'approved', 'rejected'].map(s => (
+                        <button
+                            key={s}
+                            onClick={() => setStatusFilter(s)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+                                statusFilter === s ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                            }`}
+                        >
+                            {s}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
-            {claims.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 bg-white/5 rounded-lg border border-white/10">
-                    <ShieldCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No pending claims to review.</p>
+            {loading ? (
+                <div className="flex items-center justify-center py-16">
+                    <div className="h-8 w-8 rounded-full border-2 border-purple-600 border-t-transparent animate-spin" />
+                </div>
+            ) : claims.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
+                    <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-gray-600" />
+                    <h3 className="text-lg font-semibold text-white mb-1">No {statusFilter} claims</h3>
+                    <p className="text-sm text-gray-500">All caught up!</p>
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {claims.map((claim) => (
-                        <div key={claim._id} className="p-4 rounded-lg border border-white/10 bg-white/5">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <h3 className="font-semibold text-white text-lg">{claim.tool?.name || 'Unknown Tool'}</h3>
-                                        <span className="text-xs text-gray-500">ID: {claim.tool?._id || claim.tool}</span>
+                    {claims.map(claim => (
+                        <div key={claim._id} className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    {claim.tool?.logo && (
+                                        <img src={claim.tool.logo} alt="" className="h-9 w-9 rounded-lg object-contain bg-white/5 border border-white/10 flex-shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-semibold text-white">{claim.tool?.name || 'Unknown Tool'}</span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_COLORS[claim.status]}`}>
+                                                {claim.status}
+                                            </span>
+                                        </div>
+                                        {claim.tool?.slug && (
+                                            <a
+                                                href={`https://www.intelligrid.online/tools/${claim.tool.slug}`}
+                                                target="_blank" rel="noopener noreferrer"
+                                                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 mt-0.5"
+                                            >
+                                                /tools/{claim.tool.slug} <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
                                     </div>
+                                </div>
+                                <span className="text-xs text-gray-600 flex-shrink-0">
+                                    {new Date(claim.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                            </div>
 
-                                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-300">
-                                        <div>
-                                            <span className="text-gray-500 block text-xs uppercase">Claimant Email</span>
-                                            {claim.email}
-                                        </div>
-                                        <div>
-                                            <span className="text-gray-500 block text-xs uppercase">Role</span>
-                                            {claim.role}
-                                        </div>
-                                        {claim.verificationInfo && (
-                                            <div className="col-span-2 mt-2 pt-2 border-t border-white/5">
-                                                <span className="text-gray-500 block text-xs uppercase">Verification Info</span>
-                                                {claim.verificationInfo}
-                                            </div>
-                                        )}
-                                        {claim.user && (
-                                            <div className="col-span-2 mt-2 flex items-center gap-2">
-                                                <div className="h-6 w-6 rounded-full bg-purple-500/20 flex items-center justify-center text-xs text-purple-300">
-                                                    {claim.user.firstName?.[0] || 'U'}
-                                                </div>
-                                                <span className="text-xs text-gray-400">Linked User: {claim.user.firstName} {claim.user.lastName}</span>
-                                            </div>
-                                        )}
-                                    </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                                <div className="rounded-lg bg-white/5 border border-white/8 p-3">
+                                    <div className="text-xs text-gray-500 mb-0.5">Email</div>
+                                    <div className="text-white font-medium break-all">{claim.email}</div>
                                 </div>
+                                <div className="rounded-lg bg-white/5 border border-white/8 p-3">
+                                    <div className="text-xs text-gray-500 mb-0.5">Role / Position</div>
+                                    <div className="text-white font-medium">{claim.role || 'â€”'}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/5 border border-white/8 p-3">
+                                    <div className="text-xs text-gray-500 mb-0.5">Verification Info</div>
+                                    <div className="text-gray-300 text-xs leading-relaxed line-clamp-2">{claim.verificationInfo || 'â€”'}</div>
+                                </div>
+                            </div>
+
+                            {claim.status === 'pending' && (
                                 <div className="flex flex-col gap-2">
-                                    <button
-                                        onClick={() => handleApprove(claim._id)}
-                                        className="px-3 py-1 bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 text-sm font-medium transition flex items-center gap-1"
-                                    >
-                                        <Check className="h-4 w-4" /> Approve
-                                    </button>
-                                    <button
-                                        onClick={() => handleReject(claim._id)}
-                                        className="px-3 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 text-sm font-medium transition flex items-center gap-1"
-                                    >
-                                        <X className="h-4 w-4" /> Reject
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleApprove(claim)}
+                                            disabled={!!actionLoading[claim._id]}
+                                            className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-all disabled:opacity-50"
+                                        >
+                                            {actionLoading[claim._id] === 'approve'
+                                                ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                : <Check className="h-4 w-4" />}
+                                            Approve
+                                        </button>
+                                        <button
+                                            onClick={() => setShowRejectInput(prev => ({ ...prev, [claim._id]: !prev[claim._id] }))}
+                                            disabled={!!actionLoading[claim._id]}
+                                            className="flex items-center gap-1.5 rounded-lg bg-red-600/40 hover:bg-red-600/70 px-4 py-2 text-sm font-medium text-red-300 transition-all disabled:opacity-50"
+                                        >
+                                            <X className="h-4 w-4" />
+                                            Reject
+                                        </button>
+                                    </div>
+                                    {showRejectInput[claim._id] && (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Optional rejection reason (sent to claimant by email)"
+                                                value={rejectReason[claim._id] || ''}
+                                                onChange={e => setRejectReason(prev => ({ ...prev, [claim._id]: e.target.value }))}
+                                                className="flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+                                            />
+                                            <button
+                                                onClick={() => handleReject(claim)}
+                                                disabled={!!actionLoading[claim._id]}
+                                                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-sm font-medium text-white transition disabled:opacity-50"
+                                            >
+                                                {actionLoading[claim._id] === 'reject'
+                                                    ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin inline-block" />
+                                                    : 'Confirm Reject'}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                            <div className="mt-3 text-xs text-gray-600">
-                                Submitted: {new Date(claim.createdAt).toLocaleString()}
-                            </div>
+                            )}
+
+                            {claim.status !== 'pending' && claim.reviewedAt && (
+                                <p className="text-xs text-gray-600">
+                                    Reviewed on {new Date(claim.reviewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -701,7 +758,7 @@ function UsersTab() {
         try {
             const res = await adminService.overrideSubscription(subModal.userId, subAction, subTier, subDuration)
             if (res.success) {
-                toast({ title: '✅ Done', description: res.message })
+                toast({ title: 'âœ… Done', description: res.message })
                 setSubModal(null)
                 fetchUsers()
             }
@@ -869,7 +926,7 @@ function UsersTab() {
                                 </div>
                             </div>
 
-                            {/* Tier — only shown for activate */}
+                            {/* Tier â€” only shown for activate */}
                             {subAction === 'activate' && (
                                 <>
                                     <div>
@@ -909,8 +966,8 @@ function UsersTab() {
                                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
                                     <p className="text-xs text-amber-300">
                                         {subAction === 'cancel'
-                                            ? '⚠️ This will mark the subscription as cancelled. The user will lose Pro access on their next session.'
-                                            : '⚠️ This will immediately move the user to the Free tier.'}
+                                            ? 'âš ï¸ This will mark the subscription as cancelled. The user will lose Pro access on their next session.'
+                                            : 'âš ï¸ This will immediately move the user to the Free tier.'}
                                     </p>
                                 </div>
                             )}
@@ -941,9 +998,9 @@ function UsersTab() {
     )
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Admin Tab: Featured Listings (Vendor Sponsorships)
-// ────────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FeaturedListingsAdminTab() {
     const { toast } = useToast()
     const [listings, setListings] = useState([])
@@ -1099,7 +1156,7 @@ function FeaturedListingsAdminTab() {
                                     className="w-full px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
                                 >
                                     {TIERS.map(t => (
-                                        <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
+                                        <option key={t.value} value={t.value}>{t.label} â€” {t.desc}</option>
                                     ))}
                                 </select>
                             </div>
@@ -1187,7 +1244,7 @@ function FeaturedListingsAdminTab() {
                         onClick={() => setShowForm(true)}
                         className="mt-4 text-sm text-purple-400 hover:text-purple-300"
                     >
-                        Create your first listing →
+                        Create your first listing â†’
                     </button>
                 </div>
             ) : (
@@ -1218,8 +1275,8 @@ function FeaturedListingsAdminTab() {
                                     </div>
                                     <p className="text-xs text-gray-500">
                                         {listing.vendorName || 'Unknown vendor'}
-                                        {listing.priceUSD ? ` · $${listing.priceUSD}` : ''}
-                                        {endsAt ? ` · Expires ${endsAt.toLocaleDateString()}` : ''}
+                                        {listing.priceUSD ? ` Â· $${listing.priceUSD}` : ''}
+                                        {endsAt ? ` Â· Expires ${endsAt.toLocaleDateString()}` : ''}
                                     </p>
                                 </div>
                                 <div className="flex gap-2">
@@ -1271,8 +1328,8 @@ function FeaturedListingsAdminTab() {
             <div className="rounded-xl border border-white/5 bg-white/2 p-4">
                 <p className="text-xs text-gray-600">
                     <strong className="text-gray-400">Pricing reference:</strong>{' '}
-                    Standard $99–299/mo · Premium $299–999/mo · Exclusive $999–2,999/mo.
-                    All deals negotiated manually — this panel records the agreed price.
+                    Standard $99â€“299/mo Â· Premium $299â€“999/mo Â· Exclusive $999â€“2,999/mo.
+                    All deals negotiated manually â€” this panel records the agreed price.
                 </p>
             </div>
         </div>
@@ -1411,9 +1468,9 @@ function ReviewsTab() {
                                     <UserIcon size={12} />
                                     {review.user ? `${review.user.firstName} ${review.user.lastName}` : 'Unknown User'}
                                 </span>
-                                <span>•</span>
+                                <span>â€¢</span>
                                 <span>{review.user?.email}</span>
-                                <span>•</span>
+                                <span>â€¢</span>
                                 <span>{new Date(review.createdAt).toLocaleString()}</span>
                             </div>
                         </div>
@@ -1483,7 +1540,7 @@ function PaymentsTab() {
                                                 <p className="text-xs text-gray-400">{payment.user.email}</p>
                                             </div>
                                         ) : (
-                                            <span className="text-gray-500 text-xs font-mono">{payment.userId || '—'}</span>
+                                            <span className="text-gray-500 text-xs font-mono">{payment.userId || 'â€”'}</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-white font-medium">${(payment.amount?.total ?? payment.amount ?? 0).toFixed(2)}</td>
@@ -1603,8 +1660,8 @@ function AnalyticsTab() {
         </div>
     )
 }
-
 function SettingsTab() {
+
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
@@ -1643,11 +1700,11 @@ function SettingsTab() {
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-gray-400">PayPal</span>
-                            <span className="text-green-400 font-medium">Live Mode ✓</span>
+                            <span className="text-green-400 font-medium">Live Mode âœ“</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-gray-400">Cashfree</span>
-                            <span className="text-green-400 font-medium">PROD Mode ✓</span>
+                            <span className="text-green-400 font-medium">PROD Mode âœ“</span>
                         </div>
                     </div>
                 </div>
@@ -1677,7 +1734,7 @@ function SettingsTab() {
     )
 }
 
-// ─── Submissions Tab ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Submissions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SubmissionsTab() {
     const { toast } = useToast()
     const [submissions, setSubmissions] = useState([])
@@ -1723,7 +1780,7 @@ function SubmissionsTab() {
         try {
             await submissionService.review(reviewing.id, reviewing.action, reviewNotes)
             toast({
-                title: reviewing.action === 'approve' ? '✅ Approved!' : '❌ Rejected',
+                title: reviewing.action === 'approve' ? 'âœ… Approved!' : 'âŒ Rejected',
                 description: reviewing.action === 'approve'
                     ? 'Tool has been created and submitter notified.'
                     : 'Submission rejected and submitter notified.',
@@ -1792,8 +1849,8 @@ function SubmissionsTab() {
                                     {sub.submittedBy?.name && (
                                         <p className="mt-2 text-xs text-gray-600">
                                             Submitted by <span className="text-gray-500">{sub.submittedBy.name}</span>
-                                            {sub.submittedBy.email && <> · {sub.submittedBy.email}</>}
-                                            {' · '}{new Date(sub.createdAt).toLocaleDateString()}
+                                            {sub.submittedBy.email && <> Â· {sub.submittedBy.email}</>}
+                                            {' Â· '}{new Date(sub.createdAt).toLocaleDateString()}
                                         </p>
                                     )}
                                     {sub.reviewNotes && (
@@ -1839,12 +1896,12 @@ function SubmissionsTab() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
                     <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0d0d] p-6">
                         <h3 className="text-lg font-bold text-white mb-4">
-                            {reviewing.action === 'approve' ? '✅ Approve Submission' : '❌ Reject Submission'}
+                            {reviewing.action === 'approve' ? 'âœ… Approve Submission' : 'âŒ Reject Submission'}
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
                             {reviewing.action === 'approve'
                                 ? 'This will create the tool in the database and notify the submitter.'
-                                : 'Provide a reason (optional) — it will be sent to the submitter.'}
+                                : 'Provide a reason (optional) â€” it will be sent to the submitter.'}
                         </p>
                         <textarea
                             value={reviewNotes}
@@ -1872,7 +1929,7 @@ function SubmissionsTab() {
     )
 }
 
-// ─── Blog Admin Tab ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Blog Admin Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function BlogAdminTab() {
     const { toast } = useToast()
     const [posts, setPosts] = useState([])
@@ -1940,10 +1997,10 @@ function BlogAdminTab() {
             const payload = { ...form, tags: form.tags.split(',').map(t => t.trim()).filter(Boolean) }
             if (editId) {
                 await blogService.update(editId, payload)
-                toast({ title: '✅ Post updated!', description: `"${form.title}" saved.` })
+                toast({ title: 'âœ… Post updated!', description: `"${form.title}" saved.` })
             } else {
                 await blogService.create(payload)
-                toast({ title: '✅ Post created!', description: `"${form.title}" saved as ${form.status}.` })
+                toast({ title: 'âœ… Post created!', description: `"${form.title}" saved as ${form.status}.` })
             }
             setShowForm(false)
             setEditId(null)
@@ -1989,7 +2046,7 @@ function BlogAdminTab() {
 
             {showForm && (
                 <form onSubmit={handleSave} className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-6 space-y-4">
-                    <h3 className="font-semibold text-white">{editId ? '✏️ Edit Post' : 'Create New Post'}</h3>
+                    <h3 className="font-semibold text-white">{editId ? 'âœï¸ Edit Post' : 'Create New Post'}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs text-gray-400 mb-1">Title *</label>
@@ -2062,7 +2119,7 @@ function BlogAdminTab() {
                                     <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${post.status === 'published' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'}`}>{post.status}</span>
                                     {post.category && <span className="text-[10px] text-purple-400">{post.category}</span>}
                                 </div>
-                                <p className="text-xs text-gray-600 mt-0.5">/blog/{post.slug} · {post.views || 0} views</p>
+                                <p className="text-xs text-gray-600 mt-0.5">/blog/{post.slug} Â· {post.views || 0} views</p>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button onClick={() => handleTogglePublish(post)}
@@ -2087,7 +2144,7 @@ function BlogAdminTab() {
     )
 }
 
-// ─── Coupons Admin Tab ────────────────────────────────────────────────────────
+// â”€â”€â”€ Coupons Admin Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CouponsAdminTab() {
     const { toast } = useToast()
     const [coupons, setCoupons] = useState([])
@@ -2148,7 +2205,7 @@ function CouponsAdminTab() {
                 applicablePlans: form.applicablePlans.length ? form.applicablePlans : undefined,
             }
             const data = await couponService.create(payload)
-            toast({ title: '✅ Coupon created!', description: `${payload.code} is ready to use.` })
+            toast({ title: 'âœ… Coupon created!', description: `${payload.code} is ready to use.` })
             setCoupons(c => [data.coupon, ...c])
             setShowForm(false)
             setForm({ code: '', discountType: 'percentage', discountValue: '', maxDiscount: '', maxUses: '', expiresAt: '', applicablePlans: [], description: '', isActive: true })
@@ -2279,9 +2336,9 @@ function CouponsAdminTab() {
                                     </span>
                                 </div>
                                 <p className="text-xs text-gray-600 mt-0.5">
-                                    {coupon.usedCount || 0}/{coupon.maxUses || '∞'} uses
-                                    {coupon.expiresAt ? ` · Expires ${new Date(coupon.expiresAt).toLocaleDateString()}` : ''}
-                                    {coupon.description ? ` · ${coupon.description}` : ''}
+                                    {coupon.usedCount || 0}/{coupon.maxUses || 'âˆž'} uses
+                                    {coupon.expiresAt ? ` Â· Expires ${new Date(coupon.expiresAt).toLocaleDateString()}` : ''}
+                                    {coupon.description ? ` Â· ${coupon.description}` : ''}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -2301,7 +2358,7 @@ function CouponsAdminTab() {
     )
 }
 
-// ── Batch 7: Link Health Tab ──────────────────────────────────────────────────
+// â”€â”€ Batch 7: Link Health Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function LinkHealthTab() {
     const [stats, setStats] = useState(null)
     const [deadTools, setDeadTools] = useState([])
@@ -2386,8 +2443,8 @@ function LinkHealthTab() {
                     {stats.pendingPurge > 0 && (
                         <p className="mt-3 flex items-center gap-2 text-xs text-amber-400">
                             <AlertTriangle className="h-3.5 w-3.5" />
-                            {stats.pendingPurge} tool(s) dead {'>'}7 days — eligible for hard-delete
-                            {stats.purgeEnabled ? ' (LINK_PURGE_ENABLED=true — daily auto-purge active)' : ' (set LINK_PURGE_ENABLED=true to enable auto-purge)'}
+                            {stats.pendingPurge} tool(s) dead {'>'}7 days â€” eligible for hard-delete
+                            {stats.purgeEnabled ? ' (LINK_PURGE_ENABLED=true â€” daily auto-purge active)' : ' (set LINK_PURGE_ENABLED=true to enable auto-purge)'}
                         </p>
                     )}
                 </div>
@@ -2399,7 +2456,7 @@ function LinkHealthTab() {
                 {deadTools.length === 0 ? (
                     <div className="rounded-lg border border-white/10 bg-white/5 py-10 text-center text-gray-500">
                         <Wifi className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                        <p>No dead tools — everything looks healthy!</p>
+                        <p>No dead tools â€” everything looks healthy!</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto rounded-lg border border-white/10">
@@ -2445,7 +2502,7 @@ function LinkHealthTab() {
     )
 }
 
-// ── Batch 7: Discovery Tab ────────────────────────────────────────────────────
+// â”€â”€ Batch 7: Discovery Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DiscoveryTab() {
     const [tools, setTools] = useState([])
     const [loading, setLoading] = useState(true)
@@ -2473,7 +2530,7 @@ function DiscoveryTab() {
     const handleApprove = async (id) => {
         try {
             await adminService.approveTool(id)
-            toast({ title: '✅ Approved', description: 'Tool is now live and tweeted' })
+            toast({ title: 'âœ… Approved', description: 'Tool is now live and tweeted' })
             load()
         } catch (err) {
             toast({ title: 'Error', description: 'Failed to approve tool', variant: 'destructive' })
@@ -2495,7 +2552,7 @@ function DiscoveryTab() {
         setTriggering(true)
         try {
             const data = await adminService.triggerDiscovery(1)
-            toast({ title: '🔍 Discovery Started', description: data?.message || 'Check back in 1–2 min' })
+            toast({ title: 'ðŸ” Discovery Started', description: data?.message || 'Check back in 1â€“2 min' })
         } catch (err) {
             toast({ title: 'Error', description: 'Failed to trigger discovery', variant: 'destructive' })
         } finally {
@@ -2598,9 +2655,9 @@ function DiscoveryTab() {
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Feature Flags Tab — deployment control panel
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Feature Flags Tab â€” deployment control panel
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FeatureFlagsTab() {
     const [flags, setFlags] = useState([])
     const [loading, setLoading] = useState(true)
@@ -2629,7 +2686,7 @@ function FeatureFlagsTab() {
             if (res.success) {
                 setFlags(prev => prev.map(f => f.key === flag.key ? res.flag : f))
                 toast({
-                    title: res.flag.enabled ? '✅ Flag Enabled' : '⏸ Flag Disabled',
+                    title: res.flag.enabled ? 'âœ… Flag Enabled' : 'â¸ Flag Disabled',
                     description: `${flag.key} is now ${res.flag.enabled ? 'ON' : 'OFF'}. Takes effect within 60 seconds.`,
                 })
             } else {
@@ -2648,7 +2705,7 @@ function FeatureFlagsTab() {
         try {
             const res = await adminService.seedFeatureFlags()
             if (res.success) {
-                toast({ title: '✅ Seeded', description: res.message })
+                toast({ title: 'âœ… Seeded', description: res.message })
                 fetchFlags()
             } else {
                 throw new Error(res.message)
@@ -2673,7 +2730,7 @@ function FeatureFlagsTab() {
                         Feature Flags
                     </h2>
                     <p className="text-sm text-gray-400 mt-1">
-                        Deployment control panel — toggle features on/off without a code deploy.
+                        Deployment control panel â€” toggle features on/off without a code deploy.
                         Changes propagate within 60 seconds.
                     </p>
                 </div>
@@ -2779,10 +2836,10 @@ function FeatureFlagsTab() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Affiliate Analytics Tab
-// GET /api/v1/analytics/affiliate-clicks → byNetwork, byTool, timeline, totals
-// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/analytics/affiliate-clicks â†’ byNetwork, byTool, timeline, totals
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AffiliateTab() {
     const { toast } = useToast()
     const [loading, setLoading] = useState(true)
@@ -2872,7 +2929,7 @@ function AffiliateTab() {
                         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Top Network</p>
                             <p className={`text-2xl font-bold capitalize ${NETWORK_COLORS[data.topNetwork] || 'text-white'}`}>
-                                {data.topNetwork === 'none' ? '—' : data.topNetwork}
+                                {data.topNetwork === 'none' ? 'â€”' : data.topNetwork}
                             </p>
                         </div>
                     </div>
@@ -2960,7 +3017,7 @@ function AffiliateTab() {
                                                 <td className="py-2.5 px-3">
                                                     <span className={`capitalize text-xs ${NETWORK_COLORS[t.network] || 'text-gray-400'}`}>{t.network}</span>
                                                 </td>
-                                                <td className="py-2.5 px-3 text-xs text-gray-400 capitalize">{t.commissionType} {t.commissionRate ? `· ${t.commissionRate}` : ''}</td>
+                                                <td className="py-2.5 px-3 text-xs text-gray-400 capitalize">{t.commissionType} {t.commissionRate ? `Â· ${t.commissionRate}` : ''}</td>
                                                 <td className="py-2.5 px-3 text-right font-bold text-green-400">{t.clicks}</td>
                                             </tr>
                                         ))}
@@ -2975,10 +3032,10 @@ function AffiliateTab() {
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Enrichment Tab
-// GET /api/v1/admin/tools/enrichment-stats → stats, staleTools
-// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/admin/tools/enrichment-stats â†’ stats, staleTools
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EnrichmentTab() {
     const { toast } = useToast()
     const [loading, setLoading] = useState(true)
@@ -3027,17 +3084,17 @@ function EnrichmentTab() {
                         <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Fully Enriched</p>
                             <p className="text-3xl font-bold text-green-400">{stats.fullyEnriched}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score ≥ 80 · {pct(stats.fullyEnriched)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score â‰¥ 80 Â· {pct(stats.fullyEnriched)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Partial</p>
                             <p className="text-3xl font-bold text-blue-400">{stats.partial}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score 30–79 · {pct(stats.partial)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score 30â€“79 Â· {pct(stats.partial)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Not Enriched</p>
                             <p className="text-3xl font-bold text-red-400">{stats.notEnriched}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score &lt; 30 · {pct(stats.notEnriched)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score &lt; 30 Â· {pct(stats.notEnriched)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Stale / Flagged</p>
@@ -3072,12 +3129,12 @@ function EnrichmentTab() {
                         {staleTools.length === 0 ? (
                             <div className="text-center py-10 text-gray-500">
                                 <Database className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                                <p className="text-sm">No stale tools — all data is fresh! 🎉</p>
+                                <p className="text-sm">No stale tools â€” all data is fresh! ðŸŽ‰</p>
                             </div>
                         ) : (
                             <>
                                 <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
-                                    💡 To re-enrich: run Browse AI robot → export CSV → then run{' '}
+                                    ðŸ’¡ To re-enrich: run Browse AI robot â†’ export CSV â†’ then run{' '}
                                     <code className="text-purple-300">node src/scripts/importEnrichmentData.js ./exports/browse_ai_export.csv</code>
                                 </div>
                                 <div className="overflow-x-auto">
