@@ -1071,4 +1071,104 @@ router.post('/feature-flags/seed', async (req, res) => {
 })
 
 
+// ─── Claim Requests ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/admin/claims
+ * List all claim requests, newest first, with pagination.
+ * Query params: status (pending|approved|rejected), page, limit
+ */
+router.get('/claims', async (req, res) => {
+    try {
+        const { status, page = 1, limit = 20 } = req.query
+        const filter = {}
+        if (status) filter.status = status
+
+        const skip = (parseInt(page) - 1) * parseInt(limit)
+
+        const [claims, total] = await Promise.all([
+            ClaimRequest.find(filter)
+                .populate('tool', 'name slug logo officialUrl')
+                .populate('user', 'firstName lastName email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean(),
+            ClaimRequest.countDocuments(filter),
+        ])
+
+        res.json({
+            success: true,
+            data: { claims, pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) } },
+        })
+    } catch (err) {
+        console.error('Admin claims list error:', err)
+        res.status(500).json({ success: false, message: 'Failed to fetch claims' })
+    }
+})
+
+/**
+ * PUT /api/v1/admin/claims/:id/approve
+ * Approve a claim — marks the tool as verified and sets claimedBy.
+ */
+router.put('/claims/:id/approve', async (req, res) => {
+    try {
+        const claim = await ClaimRequest.findById(req.params.id)
+            .populate('tool', 'name slug officialUrl')
+
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
+        if (claim.status !== 'pending') return res.status(400).json({ success: false, message: `Claim is already ${claim.status}` })
+
+        claim.status = 'approved'
+        claim.reviewedBy = req.user._id
+        claim.reviewedAt = new Date()
+        await claim.save()
+
+        // Mark the tool as verified and store the claimant's user ID
+        await Tool.findByIdAndUpdate(claim.tool._id, {
+            $set: {
+                isVerified: true,
+                claimedBy: claim.user || null,
+                verifiedAt: new Date(),
+            },
+        })
+
+        // Notify claimant by email (fire-and-forget)
+        emailService.sendClaimResult(claim.email, claim.tool.name, 'approved').catch(() => {})
+
+        res.json({ success: true, message: `Claim approved — ${claim.tool.name} is now verified.` })
+    } catch (err) {
+        console.error('Admin claim approve error:', err)
+        res.status(500).json({ success: false, message: 'Failed to approve claim' })
+    }
+})
+
+/**
+ * PUT /api/v1/admin/claims/:id/reject
+ * Reject a claim with an optional reason.
+ */
+router.put('/claims/:id/reject', async (req, res) => {
+    try {
+        const { reason = '' } = req.body
+        const claim = await ClaimRequest.findById(req.params.id)
+            .populate('tool', 'name slug')
+
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
+        if (claim.status !== 'pending') return res.status(400).json({ success: false, message: `Claim is already ${claim.status}` })
+
+        claim.status = 'rejected'
+        claim.reviewedBy = req.user._id
+        claim.reviewedAt = new Date()
+        await claim.save()
+
+        // Notify claimant by email (fire-and-forget)
+        emailService.sendClaimResult(claim.email, claim.tool.name, 'rejected', reason).catch(() => {})
+
+        res.json({ success: true, message: 'Claim rejected.' })
+    } catch (err) {
+        console.error('Admin claim reject error:', err)
+        res.status(500).json({ success: false, message: 'Failed to reject claim' })
+    }
+})
+
 export default router

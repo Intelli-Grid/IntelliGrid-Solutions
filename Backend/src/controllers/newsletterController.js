@@ -50,6 +50,11 @@ class NewsletterController {
             console.warn(`Failed to add ${email} to Brevo list.`)
         }
 
+        // 4. Send welcome/confirmation email (fire-and-forget — never block the subscribe response)
+        emailService.sendNewsletterWelcome(email).catch(err =>
+            console.warn('[Newsletter] Welcome email failed:', err?.message || err)
+        )
+
         res.status(201).json(new ApiResponse(201, newSubscriber, 'Successfully subscribed to the newsletter!'))
     })
 

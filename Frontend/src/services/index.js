@@ -106,6 +106,10 @@ export const adminService = {
     getPendingClaims: () => apiClient.get('/admin/claims/pending'),
     approveClaim: (id) => apiClient.put(`/admin/claims/${id}/approve`),
     rejectClaim: (id) => apiClient.put(`/admin/claims/${id}/reject`),
+    // Claims — full list with status filter
+    getClaims: (params = {}) => apiClient.get('/admin/claims', { params }),
+    approveClaimById: (id) => apiClient.put(`/admin/claims/${id}/approve`),
+    rejectClaimById: (id, reason = '') => apiClient.put(`/admin/claims/${id}/reject`, { reason }),
     sendInvitation: (id, data = {}) => apiClient.post(`/admin/tools/${id}/invite`, data),
     updateTool: (id, data) => apiClient.put(`/tools/${id}`, data),
     getUsers: (params = {}) => apiClient.get('/admin/users', { params }),

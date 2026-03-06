@@ -39,6 +39,7 @@ const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const AlternativesPage = lazy(() => import('./pages/AlternativesPage'))
 const BestToolsForPage = lazy(() => import('./pages/BestToolsForPage'))
 const NewsletterPage = lazy(() => import('./pages/NewsletterPage'))
+const EmbedPage = lazy(() => import('./pages/EmbedPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -68,6 +69,16 @@ function App() {
             {/* ── Clerk Auth Pages (no site layout) ─────────── */}
             <Route path="/sign-in/*" element={<SignInPage />} />
             <Route path="/sign-up/*" element={<SignUpPage />} />
+
+            {/* ── Embed widget (no layout — for iframe use) ──── */}
+            <Route
+                path="/embed/:toolSlug"
+                element={
+                    <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><LoadingSpinner /></div>}>
+                        <EmbedPage />
+                    </Suspense>
+                }
+            />
 
             {/* ── All other routes wrapped in site Layout ──── */}
             <Route path="*" element={<>

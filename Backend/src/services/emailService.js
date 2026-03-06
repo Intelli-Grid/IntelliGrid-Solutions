@@ -515,6 +515,69 @@ class EmailService {
             <p style="color:#6b7280;font-size:13px;">If you cancelled by mistake or have questions, just reply to this email.</p>`
         return sendEmail(user.email, user.firstName, 'Come back — here\'s 20% off your IntelliGrid plan', emailWrapper(content, user.email))
     }
+
+    /**
+     * Claim result notification — sent to the claimant after admin reviews their request.
+     * @param {string} email      - Claimant's email address
+     * @param {string} toolName   - Name of the claimed tool
+     * @param {'approved'|'rejected'} decision
+     * @param {string} [reason]   - Optional rejection reason
+     */
+    async sendClaimResult(email, toolName, decision, reason = '') {
+        const isApproved = decision === 'approved'
+        const subject = isApproved
+            ? `Your claim for ${toolName} has been approved ✅`
+            : `Your claim for ${toolName} was not approved`
+
+        const content = isApproved
+            ? `
+            <h2 style="color:#111827;margin-top:0;">Your tool claim is approved! ✅</h2>
+            <p style="color:#374151;line-height:1.6;">Great news — your claim for <strong>${toolName}</strong> on IntelliGrid has been approved.</p>
+            <p style="color:#374151;line-height:1.6;">Your tool listing is now marked as <strong>Verified</strong> and will display a verification badge to visitors.</p>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/dashboard" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Manage Your Tool &rarr;
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;">If you have any questions, reply to this email.</p>`
+            : `
+            <h2 style="color:#111827;margin-top:0;">Claim update for ${toolName}</h2>
+            <p style="color:#374151;line-height:1.6;">Hi,</p>
+            <p style="color:#374151;line-height:1.6;">After reviewing your claim for <strong>${toolName}</strong>, our team was unable to verify ownership at this time.</p>
+            ${reason ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0;"><p style="color:#991b1b;margin:0;font-size:14px;"><strong>Reason:</strong> ${reason}</p></div>` : ''}
+            <p style="color:#374151;line-height:1.6;">If you believe this is an error, or you have additional documentation to support your claim, please reply to this email.</p>`
+
+        return sendEmail(email, null, subject, emailWrapper(content, email))
+    }
+
+    /**
+     * Newsletter welcome / subscription confirmation
+     * Sent immediately when a new visitor subscribes via the newsletter form.
+     * Works for both anonymous and logged-in users (email only required).
+     */
+    async sendNewsletterWelcome(email) {
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">You're on the list! 🎉</h2>
+            <p style="color:#374151;line-height:1.6;">Thanks for subscribing to the <strong>IntelliGrid Newsletter</strong>.</p>
+            <p style="color:#374151;line-height:1.6;">Every week we send:</p>
+            <ul style="color:#374151;line-height:2;">
+                <li>🔥 The hottest new AI tools (curated, no noise)</li>
+                <li>📊 Side-by-side comparisons and pricing breakdowns</li>
+                <li>💡 Tips on building smarter AI workflows</li>
+            </ul>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/tools" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Explore the Tool Directory &rarr;
+                </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;line-height:1.6;">You subscribed at <a href="${FRONTEND_URL}" style="color:#7c3aed;">${FRONTEND_URL}</a>. If this was a mistake, you can unsubscribe below.</p>`
+        return sendEmail(
+            email,
+            null,
+            'Welcome to IntelliGrid — you\'re on the list!',
+            emailWrapper(content, email)
+        )
+    }
 }
 
 export default new EmailService()
