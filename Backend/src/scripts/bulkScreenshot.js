@@ -37,25 +37,26 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import Tool from '../models/Tool.js'
+import '../models/Category.js'   // must be imported so Mongoose registers the model before populate()
 import { captureAndUploadScreenshot, closeBrowser } from '../services/screenshotService.js'
 import { syncToolToAlgolia } from '../config/algolia.js'
 
 dotenv.config()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const LOGS_DIR   = path.join(__dirname, '../../logs')
-const FAIL_FILE  = path.join(LOGS_DIR, 'screenshot-failures.json')
-const DELAY_MS   = 4000          // 4s between captures — gives sites time to load
-const LOG_EVERY  = 10            // summary line every N tools
+const LOGS_DIR = path.join(__dirname, '../../logs')
+const FAIL_FILE = path.join(LOGS_DIR, 'screenshot-failures.json')
+const DELAY_MS = 4000          // 4s between captures — gives sites time to load
+const LOG_EVERY = 10            // summary line every N tools
 
 // ── Parse CLI flags ───────────────────────────────────────────────────────────
-const args   = process.argv.slice(2)
-const LIMIT  = (() => { const i = args.indexOf('--limit');  return i !== -1 ? parseInt(args[i + 1]) : Infinity })()
-const QUIET  = args.includes('--quiet')
-const log    = (...a) => { if (!QUIET) console.log(...a) }
+const args = process.argv.slice(2)
+const LIMIT = (() => { const i = args.indexOf('--limit'); return i !== -1 ? parseInt(args[i + 1]) : Infinity })()
+const QUIET = args.includes('--quiet')
+const log = (...a) => { if (!QUIET) console.log(...a) }
 
 // ── Graceful shutdown state ───────────────────────────────────────────────────
-let stopping    = false
+let stopping = false
 let globalFails = []
 
 function writeFails() {
@@ -112,7 +113,7 @@ async function main() {
     }
 
     const totalRemaining = await Tool.countDocuments(query)
-    const toProcess      = LIMIT < Infinity ? Math.min(LIMIT, totalRemaining) : totalRemaining
+    const toProcess = LIMIT < Infinity ? Math.min(LIMIT, totalRemaining) : totalRemaining
 
     if (totalRemaining === 0) {
         console.log('\n🎉 All enriched tools already have screenshots. Nothing to do.\n')
@@ -138,7 +139,7 @@ async function main() {
         .lean()
 
     let succeeded = 0
-    let failed    = 0
+    let failed = 0
     const startTime = Date.now()
 
     for (let i = 0; i < tools.length; i++) {
@@ -149,7 +150,7 @@ async function main() {
         // Progress summary line
         if (i > 0 && i % LOG_EVERY === 0) {
             const elapsed = ((Date.now() - startTime) / 60000).toFixed(1)
-            const eta     = ((tools.length - i) * DELAY_MS / 60000).toFixed(1)
+            const eta = ((tools.length - i) * DELAY_MS / 60000).toFixed(1)
             console.log(
                 `  📦 ${i}/${tools.length} | ✅ ${succeeded} | ❌ ${failed}` +
                 ` | ⏱ ${elapsed}m elapsed | ~${eta}m left`
@@ -171,7 +172,7 @@ async function main() {
                 const updated = await Tool.findById(tool._id)
                     .populate('category', 'name slug')
                     .lean()
-                if (updated) syncToolToAlgolia(updated).catch(() => {})
+                if (updated) syncToolToAlgolia(updated).catch(() => { })
 
                 succeeded++
                 log(`  ✅ [${i + 1}] ${tool.name}`)
@@ -208,9 +209,9 @@ async function main() {
     await closeBrowser()
     writeFails()
 
-    const totalElapsed  = ((Date.now() - startTime) / 60000).toFixed(1)
+    const totalElapsed = ((Date.now() - startTime) / 60000).toFixed(1)
     const processedCount = succeeded + failed
-    const remaining      = totalRemaining - succeeded
+    const remaining = totalRemaining - succeeded
 
     console.log('\n═══════════════════════════════════════════')
     console.log('📸 BULK SCREENSHOT — SESSION COMPLETE')

@@ -15,13 +15,22 @@ import puppeteer from 'puppeteer-core'
 import { v2 as cloudinary } from 'cloudinary'
 import { Readable } from 'stream'
 
-// ── Cloudinary config ────────────────────────────────────────────────────────
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-})
+// ── Cloudinary config (lazy) ─────────────────────────────────────────────────
+// ESM hoists all `import` statements before any executable code runs.
+// That means cloudinary.config() at module-level would fire BEFORE dotenv
+// in the calling script has loaded the .env file — env vars would be undefined.
+// Fix: call cloudinary.config() lazily at first upload, not at module load.
+let _cloudinaryConfigured = false
+function ensureCloudinary() {
+    if (_cloudinaryConfigured) return
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+        secure: true,
+    })
+    _cloudinaryConfigured = true
+}
 
 // ── Browser singleton ────────────────────────────────────────────────────────
 let browser = null
@@ -157,6 +166,7 @@ export async function captureScreenshot(url) {
  * Returns the secure HTTPS CDN URL, or null on failure.
  */
 export async function uploadToCloudinary(buffer, slug) {
+    ensureCloudinary()  // lazy config — reads env vars now (after dotenv has loaded)
     return new Promise((resolve) => {
         const publicId = `intelligrid/screenshots/${slug}`
 
