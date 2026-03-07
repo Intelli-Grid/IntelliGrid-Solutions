@@ -167,7 +167,8 @@ export async function captureScreenshot(url) {
  */
 export async function uploadToCloudinary(buffer, slug) {
     ensureCloudinary()  // lazy config — reads env vars now (after dotenv has loaded)
-    return new Promise((resolve) => {
+
+    const uploadPromise = new Promise((resolve) => {
         const publicId = `intelligrid/screenshots/${slug}`
 
         const uploadStream = cloudinary.uploader.upload_stream(
@@ -199,7 +200,18 @@ export async function uploadToCloudinary(buffer, slug) {
         readable.push(null)
         readable.pipe(uploadStream)
     })
+
+    // Hard 30-second timeout — prevents hanging on slow/stalled network
+    const timeoutPromise = new Promise((resolve) =>
+        setTimeout(() => {
+            console.error(`[Screenshot] Cloudinary upload timed out for ${slug} — skipping`)
+            resolve(null)
+        }, 30_000)
+    )
+
+    return Promise.race([uploadPromise, timeoutPromise])
 }
+
 
 // ── Main exported function ────────────────────────────────────────────────────
 /**
