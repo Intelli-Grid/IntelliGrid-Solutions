@@ -88,6 +88,8 @@ export default function BlogPostPage() {
                 description={post.excerpt || post.content?.slice(0, 160)}
                 canonicalUrl={`https://www.intelligrid.online/blog/${post.slug}`}
                 keywords={post.tags?.join(', ')}
+                ogImage={post.featuredImage || 'https://www.intelligrid.online/og-image.jpg'}
+                ogType="article"
             />
 
             {/* Cover image */}

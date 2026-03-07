@@ -26,7 +26,9 @@ app.listen(PORT, () => {
 
     // Start legacy schedulers
     renewalService.startScheduler()
-    linkValidationService.startScheduler()
+    // NOTE: linkValidationService.startScheduler() removed — its link-checking logic
+    // duplicates linkHealthCron (Sunday 04:00 UTC). linkHealthCron is the canonical
+    // link health job. linkValidationService is retained for its utility functions only.
     discoveryScheduler.startScheduler()
 
     // Start cron jobs

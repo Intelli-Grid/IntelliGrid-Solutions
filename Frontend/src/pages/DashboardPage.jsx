@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { userService, collectionService, toolService, gdprService, submissionService, paymentService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
+import DashboardSkeleton from '../components/common/DashboardSkeleton'
+import EmptyState from '../components/common/EmptyState'
 import ErrorMessage from '../components/common/ErrorMessage'
 import ToolCard from '../components/tools/ToolCard'
-import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil, Shield, Download, AlertTriangle, Loader2, XCircle } from 'lucide-react'
+import { User, Heart, Star, Eye, TrendingUp, Folder, FolderPlus, Plus, Trash2, ExternalLink, Briefcase, Pencil, Shield, Download, AlertTriangle, Loader2, XCircle, Clock, Package, Share2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import EditToolModal from '../components/tools/EditToolModal'
@@ -176,11 +178,7 @@ export default function DashboardPage() {
     }
 
     if (!isLoaded || loading) {
-        return (
-            <div className="container mx-auto px-4 py-16">
-                <LoadingSpinner text="Loading dashboard..." />
-            </div>
-        )
+        return <DashboardSkeleton />
     }
 
     if (error) {
@@ -415,25 +413,34 @@ export default function DashboardPage() {
 
             {
                 activeTab === 'my-tools' && (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {managedTools.map((tool) => (
-                            <div key={tool._id} className="relative">
-                                <ToolCard tool={tool} />
-                                <div className="absolute top-4 right-4 flex gap-2">
-                                    <button
-                                        onClick={() => handleEditTool(tool._id)}
-                                        className="rounded-lg bg-black/60 backdrop-blur-md p-2 text-white hover:bg-black/80 transition shadow-lg border border-white/10"
-                                        title="Edit Tool"
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </button>
-                                    <span className="rounded-lg bg-black/60 backdrop-blur-md px-3 py-1 text-xs font-bold text-white shadow-lg border border-white/10 flex items-center">
-                                        {tool.views} Views
-                                    </span>
+                    managedTools.length === 0 ? (
+                        <EmptyState
+                            icon={Package}
+                            title="No tools yet"
+                            description="Submit your AI tool to reach thousands of discovery-ready users."
+                            action={{ label: 'Submit a Tool', href: '/submit' }}
+                        />
+                    ) : (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 cards-grid">
+                            {managedTools.map((tool) => (
+                                <div key={tool._id} className="relative">
+                                    <ToolCard tool={tool} />
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <button
+                                            onClick={() => handleEditTool(tool._id)}
+                                            className="rounded-lg bg-black/60 backdrop-blur-md p-2 text-white hover:bg-black/80 transition shadow-lg border border-white/10"
+                                            title="Edit Tool"
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </button>
+                                        <span className="rounded-lg bg-black/60 backdrop-blur-md px-3 py-1 text-xs font-bold text-white shadow-lg border border-white/10 flex items-center">
+                                            {tool.views} Views
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )
                 )
             }
 
@@ -509,7 +516,7 @@ export default function DashboardPage() {
                                             <div className="text-xs text-gray-500">
                                                 {collection.views} views
                                             </div>
-                                            <div className="flex gap-2">
+                                        <div className="flex gap-2">
                                                 <Link
                                                     to={`/collections/${collection.slug || collection._id}`}
                                                     className="inline-flex items-center gap-1 text-sm font-medium text-purple-400 hover:text-purple-300"
@@ -517,19 +524,32 @@ export default function DashboardPage() {
                                                     View
                                                     <ExternalLink size={14} />
                                                 </Link>
+                                                {collection.isPublic && collection.slug && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const url = `${window.location.origin}/collections/${collection.slug}`
+                                                            navigator.clipboard.writeText(url)
+                                                                .then(() => toast.success('Collection link copied!'))
+                                                                .catch(() => toast.error('Failed to copy link'))
+                                                        }}
+                                                        className="inline-flex items-center gap-1 text-sm font-medium text-gray-400 hover:text-white transition"
+                                                        title="Copy shareable link"
+                                                    >
+                                                        <Share2 size={14} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">
-                                <FolderPlus className="mx-auto mb-4 h-12 w-12 text-gray-600" />
-                                <h3 className="mb-2 text-lg font-semibold text-white">No collections yet</h3>
-                                <p className="text-sm text-gray-400">
-                                    Create your first collection to start organizing tools.
-                                </p>
-                            </div>
+                            <EmptyState
+                                icon={FolderPlus}
+                                title="No collections yet"
+                                description="Create your first collection to organise and share your favourite AI tools."
+                                size="sm"
+                            />
                         )}
                     </div>
                 )
@@ -585,7 +605,7 @@ export default function DashboardPage() {
                         </div>
 
                         {favorites.length > 0 ? (
-                            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 cards-grid">
                                 {favorites.map((tool) => (
                                     <div key={tool._id} className="relative">
                                         <ToolCard tool={tool} />
@@ -600,19 +620,12 @@ export default function DashboardPage() {
                                 ))}
                             </div>
                         ) : (
-                            <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
-                                <Heart className="mx-auto mb-4 h-12 w-12 text-gray-600" />
-                                <h3 className="mb-2 text-lg font-semibold text-white">No favorites yet</h3>
-                                <p className="mb-4 text-sm text-gray-400">
-                                    Start exploring and save your favorite AI tools
-                                </p>
-                                <a
-                                    href="/tools"
-                                    className="inline-block rounded-lg bg-purple-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-purple-700"
-                                >
-                                    Browse Tools
-                                </a>
-                            </div>
+                            <EmptyState
+                                icon={Heart}
+                                title="No favourites yet"
+                                description="Save tools you love so you can find them instantly."
+                                action={{ label: 'Browse Tools', href: '/tools' }}
+                            />
                         )}
                     </div>
                 )
@@ -915,15 +928,13 @@ function MySubmissionsTab() {
             </div>
 
             {submissions.length === 0 ? (
-                <div className="rounded-xl border border-white/8 bg-white/3 p-10 text-center">
-                    <p className="text-gray-500 mb-4">You haven't submitted any tools yet.</p>
-                    <Link
-                        to="/submit"
-                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
-                    >
-                        <Plus className="h-4 w-4" /> Submit Your First Tool
-                    </Link>
-                </div>
+                <EmptyState
+                    icon={Package}
+                    title="No submissions yet"
+                    description="Share an AI tool with the IntelliGrid community and help others discover it."
+                    action={{ label: 'Submit Your First Tool', href: '/submit' }}
+                    size="sm"
+                />
             ) : (
                 <div className="space-y-3">
                     {submissions.map(sub => (

@@ -10,6 +10,8 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 
 // Components
 import CookieConsent from './components/CookieConsent'
+import OnboardingDrawer from './components/common/OnboardingDrawer'
+import FeedbackWidget from './components/common/FeedbackWidget'
 
 // Auth Pages — Dedicated Clerk sign-in/sign-up (required by Clerk Dashboard "application domain" path setting)
 // Lazy-loaded like all other pages to keep the initial bundle lean
@@ -40,6 +42,7 @@ const AlternativesPage = lazy(() => import('./pages/AlternativesPage'))
 const BestToolsForPage = lazy(() => import('./pages/BestToolsForPage'))
 const NewsletterPage = lazy(() => import('./pages/NewsletterPage'))
 const EmbedPage = lazy(() => import('./pages/EmbedPage'))
+const IndustryPage = lazy(() => import('./pages/IndustryPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -49,6 +52,8 @@ const AIStackAdvisorPage = lazy(() => import('./pages/AIStackAdvisorPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const RevenueDashboard = lazy(() => import('./pages/admin/RevenueDashboard'))
 const SystemHealthPage = lazy(() => import('./pages/admin/SystemHealthPage'))
+const AdminActivityPage = lazy(() => import('./pages/admin/AdminActivityPage'))
+const VerificationSprintPage = lazy(() => import('./pages/VerificationSprintPage'))
 
 // Analytics — logPageView tracks route changes; initGA is called ONLY from CookieConsent
 import { logPageView } from './utils/analytics'
@@ -108,6 +113,7 @@ function App() {
                             <Route path="/alternatives/:toolName" element={<AlternativesPage />} />
                             <Route path="/best-tools/:role" element={<BestToolsForPage />} />
                             <Route path="/best-ai-tools-for/:useCase" element={<BestToolsForPage />} />
+                            <Route path="/industry/:tag" element={<IndustryPage />} />
 
                             {/* ── Payment Routes ────────────────────────────── */}
                             <Route
@@ -164,6 +170,22 @@ function App() {
                                     </ProtectedRoute>
                                 }
                             />
+                            <Route
+                                path="/admin/activity"
+                                element={
+                                    <ProtectedRoute requiredRole="MODERATOR">
+                                        <AdminActivityPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/admin/verify-sprint"
+                                element={
+                                    <ProtectedRoute requiredRole="MODERATOR">
+                                        <VerificationSprintPage />
+                                    </ProtectedRoute>
+                                }
+                            />
 
                             {/* ── Catch-all ─────────────────────────────────── */}
                             <Route path="*" element={<NotFoundPage />} />
@@ -173,6 +195,8 @@ function App() {
 
                 {/* Global Components */}
                 <CookieConsent />
+                <OnboardingDrawer />
+                <FeedbackWidget />
             </>}
             />
         </Routes>

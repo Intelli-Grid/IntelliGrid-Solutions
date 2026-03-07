@@ -40,4 +40,9 @@ router.post('/history/:toolId', userController.addToHistory)
 // GET — fetches the user's recent history for the Dashboard
 router.get('/history', userController.getHistory)
 
+// ── Referral Stats ──────────────────────────────────────────────────────
+// GET /api/v1/user/referral-stats
+// Returns the user's referral code + how many users they've referred and how many converted
+router.get('/referral-stats', userController.getReferralStats)
+
 export default router

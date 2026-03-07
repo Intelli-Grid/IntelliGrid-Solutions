@@ -120,6 +120,7 @@ router.get('/sitemap.xml', async (req, res) => {
             { loc: `${BASE_URL}/sitemap-tools.xml`, lastmod: now },
             { loc: `${BASE_URL}/sitemap-alternatives.xml`, lastmod: now },
             { loc: `${BASE_URL}/sitemap-blog.xml`, lastmod: now },
+            { loc: `${BASE_URL}/sitemap-comparisons.xml`, lastmod: now },
         ]
 
         const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${subSitemaps.map(s => `\n    <sitemap>\n        <loc>${s.loc}</loc>\n        <lastmod>${s.lastmod}</lastmod>\n    </sitemap>`).join('')}\n</sitemapindex>`
@@ -181,6 +182,19 @@ router.get('/sitemap-static.xml', async (req, res) => {
         USE_CASE_TAGS.forEach(tag => {
             inner += urlEntry(`${BASE_URL}/best-ai-tools-for/${tag}`, null, 'weekly', '0.8')
         })
+
+        // Industry landing pages (/industry/:tag)
+        const INDUSTRY_TAGS = [
+            'healthcare', 'finance', 'education', 'legal', 'marketing',
+            'ecommerce', 'real-estate', 'hr', 'development', 'design',
+            'sales', 'productivity', 'research', 'media', 'security',
+        ]
+        INDUSTRY_TAGS.forEach(tag => {
+            inner += urlEntry(`${BASE_URL}/industry/${tag}`, null, 'weekly', '0.8')
+        })
+
+        // AI Stack Advisor tool page
+        inner += urlEntry(`${BASE_URL}/ai-stack-advisor`, null, 'monthly', '0.8')
 
         const xml = wrapUrlset(inner)
         await toCache('static', xml)
@@ -289,6 +303,62 @@ router.get('/sitemap-blog.xml', async (req, res) => {
     } catch (err) {
         console.error('[SEO] Blog sitemap error:', err.message)
         res.status(500).send('Error generating blog sitemap')
+    }
+})
+
+// ── GET /sitemap-comparisons.xml ────────────────────────────────────────────────────
+// Generates /compare/:slug1-vs-:slug2 URLs from alternativeTo relationships.
+// Only includes top-200 trending tools to keep the sitemap focused and crawlable.
+router.get('/sitemap-comparisons.xml', async (req, res) => {
+    try {
+        const cached = await fromCache('comparisons')
+        if (cached) return sendXml(res, cached)
+
+        // Fetch top 200 tools by trendingScore that have alternativeTo data
+        const topTools = await Tool.find({
+            status: 'active',
+            isActive: { $ne: false },
+            $and: [
+                { alternativeTo: { $exists: true } },
+                { alternativeTo: { $not: { $size: 0 } } },
+            ],
+        })
+            .sort({ trendingScore: -1, views: -1 })
+            .limit(200)
+            .select('slug name alternativeTo updatedAt')
+            .lean()
+
+        // Build a lookup map — slug → tool (for normalised name matching)
+        const slugMap = new Map(topTools.map(t => [t.name?.toLowerCase(), t.slug]))
+
+        const seen = new Set()
+        let inner = ''
+
+        for (const tool of topTools) {
+            for (const altName of (tool.alternativeTo || [])) {
+                const altSlug = slugMap.get(altName?.toLowerCase())
+                if (!altSlug || altSlug === tool.slug) continue
+
+                // Deduplicate: a-vs-b == b-vs-a
+                const pairKey = [tool.slug, altSlug].sort().join('|')
+                if (seen.has(pairKey)) continue
+                seen.add(pairKey)
+
+                inner += urlEntry(
+                    `${BASE_URL}/compare/${tool.slug}-vs-${altSlug}`,
+                    tool.updatedAt,
+                    'weekly',
+                    '0.7'
+                )
+            }
+        }
+
+        const xml = wrapUrlset(inner)
+        await toCache('comparisons', xml)
+        sendXml(res, xml)
+    } catch (err) {
+        console.error('[SEO] Comparisons sitemap error:', err.message)
+        res.status(500).send('Error generating comparisons sitemap')
     }
 })
 

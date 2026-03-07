@@ -8,6 +8,7 @@ import SEO from '../components/common/SEO'
 import { Check, X, ArrowLeft, Star } from 'lucide-react'
 import { formatNumber } from '../utils/helpers'
 import { useNudge } from '../components/common/NudgeContext'
+import { generateComparisonSchema } from '../utils/seoHelpers'
 
 export default function ComparisonPage() {
     const { slugs } = useParams()
@@ -74,7 +75,13 @@ export default function ComparisonPage() {
 
     const [tool1, tool2] = tools
 
-    // Winner Logic
+    // Structured data — ItemList + FAQPage schemas
+    const comparisonSchemas = (() => {
+        try {
+            const raw = generateComparisonSchema(tool1, tool2)
+            return raw ? JSON.parse(raw) : []
+        } catch { return [] }
+    })()
     const getRatingWinner = () => {
         if ((tool1.ratings?.average || 0) > (tool2.ratings?.average || 0)) return tool1._id
         if ((tool2.ratings?.average || 0) > (tool1.ratings?.average || 0)) return tool2._id
@@ -109,7 +116,9 @@ export default function ComparisonPage() {
                 title={`${tool1.name} vs ${tool2.name} - Comparison | IntelliGrid`}
                 description={`Compare ${tool1.name} and ${tool2.name}. Side-by-side comparison of features, pricing, ratings, and reviews to help you decide.`}
                 canonicalUrl={`https://www.intelligrid.online/compare/${slugs}`}
+                keywords={`${tool1.name} vs ${tool2.name}, ${tool1.name} alternative, ${tool2.name} alternative, best ${tool1.name} replacement, AI tool comparison`}
                 ogType="article"
+                structuredData={comparisonSchemas}
             />
 
             <div className="container mx-auto max-w-6xl">

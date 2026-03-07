@@ -498,6 +498,11 @@ toolSchema.index({ trendingScore: -1, status: 1 })            // trending sort
 toolSchema.index({ useCaseTags: 1 })                          // use-case SEO page queries
 toolSchema.index({ audienceTags: 1 })                         // audience filter queries
 toolSchema.index({ alternativeTo: 1 })                        // alternatives SEO page queries
+toolSchema.index({ pricing: 1, status: 1 })                   // pricing filter on /tools page
+toolSchema.index({ hasFreeTier: 1, status: 1 })               // free tools filter
+toolSchema.index({ platforms: 1, status: 1 })                 // platform filter
+toolSchema.index({ integrationTags: 1 })                      // integration filter
+toolSchema.index({ linkStatus: 1, status: 1 })                // dead link audit queries
 
 /**
  * ✅ Cascade Delete Hook

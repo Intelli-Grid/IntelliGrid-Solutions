@@ -3,6 +3,7 @@ import BlogPost from '../models/BlogPost.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import cacheMiddleware from '../middleware/cache.js'
 
 const router = express.Router()
 
@@ -37,7 +38,7 @@ router.get('/admin/all', requireAuth, requireAdmin, asyncHandler(async (req, res
  * @desc    Get published blog posts (paginated)
  * @access  Public
  */
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', cacheMiddleware(900), asyncHandler(async (req, res) => {
     const { page = 1, limit = 12, category, tag } = req.query
     const query = { status: 'published' }
     if (category) query.category = category
@@ -100,7 +101,7 @@ router.post('/', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
  * @desc    Get single blog post by slug
  * @access  Public
  */
-router.get('/:slug', asyncHandler(async (req, res) => {
+router.get('/:slug', cacheMiddleware(3600), asyncHandler(async (req, res) => {
     const post = await BlogPost.findOne({ slug: req.params.slug, status: 'published' })
         .populate('author', 'firstName lastName imageUrl')
         .lean()

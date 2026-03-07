@@ -70,7 +70,11 @@ class UserService {
 
                 console.log(`✅ Reverse trial activated for new user: ${email} (ends ${trialEndDate.toISOString()})`)
             } else {
-                console.log(`ℹ️  New user created on Free tier (REVERSE_TRIAL flag is OFF): ${email}`)
+                // No trial — send the standard welcome email (fire-and-forget)
+                emailService.sendWelcomeEmail(user).catch((error) =>
+                    console.error('Failed to send welcome email:', error)
+                )
+                console.log(`ℹ️  New user on Free tier — welcome email queued: ${email}`)
             }
         }
 

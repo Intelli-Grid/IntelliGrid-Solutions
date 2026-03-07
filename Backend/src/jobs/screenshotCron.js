@@ -14,7 +14,7 @@ import Category from '../models/Category.js'
 import { captureAndUploadScreenshot } from '../services/screenshotService.js'
 import { syncToolToAlgolia } from '../config/algolia.js'
 
-const BATCH_SIZE = 50
+const BATCH_SIZE = 100
 const DELAY_MS = 3000
 
 function sleep(ms) {
@@ -35,7 +35,7 @@ async function runScreenshotBatch() {
             { screenshotTakenAt: { $lt: thirtyDaysAgo } },
         ],
     })
-        .sort({ enrichmentScore: -1 })
+        .sort({ trendingScore: -1, enrichmentScore: -1 })
         .limit(BATCH_SIZE)
         .lean()
 

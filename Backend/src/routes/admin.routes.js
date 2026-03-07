@@ -13,6 +13,8 @@ import reviewService from '../services/reviewService.js'
 import linkValidationService from '../services/linkValidationService.js'
 import discoveryScheduler from '../services/discoveryScheduler.js'
 import { enqueueTools } from '../services/discoveryQueue.js'
+import { enrichTool, getEnrichmentBatch } from '../services/enrichmentService.js'
+import { computeAndSaveTrendingScores } from '../jobs/enrichmentCron.js'
 
 const router = express.Router()
 
@@ -38,7 +40,8 @@ router.get('/stats', async (req, res) => {
         ] = await Promise.all([
             Tool.countDocuments(),
             Tool.countDocuments({ status: 'pending' }),
-            clerkClient.users.getUserList({ limit: 1 }).then(result => result.totalCount),
+            // Use local MongoDB count — faster, always consistent, no Clerk API rate limit risk
+            User.countDocuments(),
             Review.countDocuments(),
             Review.countDocuments({ status: 'pending' }),
             Order.countDocuments(),
@@ -1134,7 +1137,7 @@ router.put('/claims/:id/approve', async (req, res) => {
         })
 
         // Notify claimant by email (fire-and-forget)
-        emailService.sendClaimResult(claim.email, claim.tool.name, 'approved').catch(() => {})
+        emailService.sendClaimResult(claim.email, claim.tool.name, 'approved').catch(() => { })
 
         res.json({ success: true, message: `Claim approved — ${claim.tool.name} is now verified.` })
     } catch (err) {
@@ -1162,7 +1165,7 @@ router.put('/claims/:id/reject', async (req, res) => {
         await claim.save()
 
         // Notify claimant by email (fire-and-forget)
-        emailService.sendClaimResult(claim.email, claim.tool.name, 'rejected', reason).catch(() => {})
+        emailService.sendClaimResult(claim.email, claim.tool.name, 'rejected', reason).catch(() => { })
 
         res.json({ success: true, message: 'Claim rejected.' })
     } catch (err) {
@@ -1171,4 +1174,286 @@ router.put('/claims/:id/reject', async (req, res) => {
     }
 })
 
+/**
+ * POST /api/v1/admin/enrichment/trigger
+ * Kick off an enrichment run without waiting for the cron.
+ * Accepts optional { batchSize, priority } in the request body.
+ */
+router.post('/enrichment/trigger', async (req, res) => {
+    try {
+        const { batchSize = 50, priority = 'score' } = req.body
+
+        // Fire-and-forget — import dynamically to avoid circular deps
+        import('../jobs/enrichmentCron.js')
+            .then(mod => {
+                const fn = mod.runEnrichmentCheck || mod.default?.runEnrichmentCheck
+                if (typeof fn === 'function') {
+                    fn({ batchSize: Math.min(parseInt(batchSize) || 50, 200), priority })
+                        .catch(err => console.error('[Admin] enrichment trigger error:', err.message))
+                }
+            })
+            .catch(err => console.error('[Admin] enrichment import error:', err.message))
+
+        res.json({ success: true, message: `Enrichment run started for up to ${batchSize} tools` })
+    } catch (err) {
+        console.error('[Admin] enrichment trigger error:', err.message)
+        res.status(500).json({ success: false, message: 'Failed to trigger enrichment' })
+    }
+})
+
+/**
+ * GET /api/v1/admin/activity/recent
+ * Returns the last N significant events across the platform.
+ * Used by the Admin Activity Feed widget (polls every 30s).
+ */
+router.get('/activity/recent', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+
+        const [recentTools, recentUsers, recentClaims, recentOrders, recentReviews] = await Promise.all([
+            Tool.find({ status: 'active' })
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .select('name slug createdAt status')
+                .lean(),
+            User.find({})
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .select('firstName lastName email createdAt subscription')
+                .lean(),
+            ClaimRequest.find({})
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .populate('tool', 'name slug')
+                .select('status email createdAt tool')
+                .lean(),
+            Order.find({})
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .select('amount currency status planId createdAt')
+                .lean(),
+            Review.find({})
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .populate('tool', 'name slug')
+                .select('rating status createdAt tool')
+                .lean(),
+        ])
+
+        // Normalise into unified event shape
+        const events = [
+            ...recentTools.map(t => ({
+                _id: t._id,
+                eventType: 'tool_added',
+                description: `Tool added: ${t.name}`,
+                href: `/tools/${t.slug}`,
+                createdAt: t.createdAt,
+            })),
+            ...recentUsers.map(u => ({
+                _id: u._id,
+                eventType: 'user_signup',
+                description: `New user: ${u.firstName || ''} ${u.lastName || ''} (${u.email})`.trim(),
+                createdAt: u.createdAt,
+            })),
+            ...recentClaims.map(c => ({
+                _id: c._id,
+                eventType: 'claim_submitted',
+                description: `Claim ${c.status}: "${c.tool?.name || 'Unknown tool'}" by ${c.email}`,
+                href: c.tool?.slug ? `/tools/${c.tool.slug}` : null,
+                createdAt: c.createdAt,
+            })),
+            ...recentOrders.map(o => ({
+                _id: o._id,
+                eventType: 'payment',
+                description: `Payment ${o.status}: $${o.amount} ${o.currency?.toUpperCase() || ''} — ${o.planId || 'plan'}`,
+                createdAt: o.createdAt,
+            })),
+            ...recentReviews.map(r => ({
+                _id: r._id,
+                eventType: 'review_submitted',
+                description: `Review (${r.rating}★) on "${r.tool?.name || 'Unknown'}" — ${r.status}`,
+                href: r.tool?.slug ? `/tools/${r.tool.slug}` : null,
+                createdAt: r.createdAt,
+            })),
+        ]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, limit)
+
+        res.json({ success: true, events })
+    } catch (err) {
+        console.error('[Admin] Recent activity error:', err.message)
+        res.status(500).json({ success: false, message: 'Failed to fetch recent activity' })
+    }
+})
+
+/**
+ * GET /api/v1/admin/affiliate/report
+ * Affiliate click breakdown by tool, for the AffiliateDashboard.
+ * Query params: from (ISO date), to (ISO date)
+ */
+router.get('/affiliate/report', async (req, res) => {
+    try {
+        const { from, to } = req.query
+        const sinceDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const untilDate = to ? new Date(to) : new Date()
+
+        // Top 20 tools by affiliate click volume (via Tool.visits field or aggregate on Tool)
+        const topTools = await Tool.find({
+            status: 'active',
+            affiliateStatus: { $in: ['approved', 'active'] },
+            affiliateUrl: { $exists: true, $ne: '' },
+        })
+            .sort({ views: -1 })
+            .limit(20)
+            .select('name slug logo views affiliateUrl affiliateNetwork commissionRate affiliateStatus')
+            .lean()
+
+        // Summary counts
+        const [totalAffiliate, totalActive, needsAttention] = await Promise.all([
+            Tool.countDocuments({ affiliateStatus: { $in: ['approved', 'active'] } }),
+            Tool.countDocuments({ affiliateStatus: 'active', affiliateUrl: { $exists: true, $ne: '' } }),
+            Tool.countDocuments({ affiliateStatus: 'pending' }),
+        ])
+
+        // Pipeline breakdown by network
+        const byNetwork = await Tool.aggregate([
+            { $match: { affiliateStatus: { $in: ['approved', 'active', 'pending'] } } },
+            { $group: { _id: '$affiliateNetwork', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+        ])
+
+        res.json({
+            success: true,
+            report: {
+                summary: { totalAffiliate, totalActive, needsAttention },
+                topTools,
+                byNetwork,
+                period: { from: sinceDate, to: untilDate },
+            },
+        })
+    } catch (err) {
+        console.error('[Admin] Affiliate report error:', err.message)
+        res.status(500).json({ success: false, message: 'Failed to generate affiliate report' })
+    }
+})
+
+/**
+ * @route   GET /api/v1/admin/activity/recent
+ * @desc    Real-time activity feed — last 20 events across tools, reviews, orders, users
+ * @access  Admin only
+ */
+router.get('/activity/recent', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+        const since = req.query.since
+            ? new Date(req.query.since)
+            : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // default: last 7 days
+
+        const [newTools, newReviews, newOrders, newUsers] = await Promise.all([
+            Tool.find({ createdAt: { $gte: since } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .select('name slug status createdAt logo')
+                .lean(),
+            Review.find({ createdAt: { $gte: since } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .select('toolId rating status createdAt comment')
+                .populate('toolId', 'name slug')
+                .lean(),
+            Order.find({ createdAt: { $gte: since } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .select('userId status amount.total currency createdAt plan')
+                .lean(),
+            User.find({ createdAt: { $gte: since } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .select('email firstName lastName createdAt subscription.tier')
+                .lean(),
+        ])
+
+        // Merge into unified timeline and sort by createdAt desc
+        const events = [
+            ...newTools.map(t => ({ type: 'tool_submitted', ts: t.createdAt, data: { name: t.name, slug: t.slug, status: t.status, logo: t.logo } })),
+            ...newReviews.map(r => ({ type: 'review_posted', ts: r.createdAt, data: { tool: r.toolId?.name, rating: r.rating, status: r.status } })),
+            ...newOrders.map(o => ({ type: 'payment', ts: o.createdAt, data: { amount: o.amount?.total, currency: o.currency, plan: o.plan, status: o.status } })),
+            ...newUsers.map(u => ({ type: 'user_signed_up', ts: u.createdAt, data: { email: u.email, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() } })),
+        ]
+            .sort((a, b) => new Date(b.ts) - new Date(a.ts))
+            .slice(0, limit)
+
+        res.json({ success: true, events, since, count: events.length })
+    } catch (err) {
+        console.error('[Admin] Activity feed error:', err.message)
+        res.status(500).json({ success: false, message: 'Failed to fetch activity feed' })
+    }
+})
+
+/**
+ * @route   POST /api/v1/admin/enrichment/trigger
+ * @desc    Manually trigger AI enrichment for a batch of tools (or a specific tool)
+ * @body    { toolId?: string, batchSize?: number, recomputeScores?: boolean }
+ * @access  Admin only
+ */
+router.post('/enrichment/trigger', async (req, res) => {
+    const { toolId, batchSize = 10, recomputeScores = false } = req.body
+
+    if (batchSize > 50) {
+        return res.status(400).json({ success: false, message: 'batchSize max is 50 to protect rate limits' })
+    }
+
+    // Respond immediately — enrichment runs async in background
+    res.json({
+        success: true,
+        message: toolId
+            ? `Enrichment triggered for tool ${toolId}`
+            : `Batch enrichment triggered (up to ${batchSize} tools)`,
+        async: true,
+    })
+
+    // Fire and forget — don't block the response
+    ;(async () => {
+        try {
+            const DELAY_MS = 2500  // 24 req/min — safe under Groq 30 req/min limit
+            const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+            let batch
+            if (toolId) {
+                const tool = await Tool.findById(toolId).lean()
+                if (!tool) { console.warn(`[enrichment/trigger] Tool ${toolId} not found`); return }
+                batch = [tool]
+            } else {
+                batch = await getEnrichmentBatch(batchSize)
+            }
+
+            console.log(`🔧 [enrichment/trigger] Starting manual enrichment for ${batch.length} tools (by ${req.user?.email || 'admin'})`)
+
+            let succeeded = 0, failed = 0
+            for (let i = 0; i < batch.length; i++) {
+                const tool = batch[i]
+                try {
+                    const result = await enrichTool(tool)
+                    result.success ? succeeded++ : failed++
+                    console.log(`  [${i + 1}/${batch.length}] ${tool.name} — ${result.success ? '✅' : '⚠️ ' + result.reason}`)
+                } catch (err) {
+                    failed++
+                    console.error(`  [${i + 1}/${batch.length}] ${tool.name} failed:`, err.message)
+                }
+                if (i < batch.length - 1) await sleep(DELAY_MS)
+            }
+
+            if (recomputeScores) {
+                console.log('📊 [enrichment/trigger] Recomputing trending scores...')
+                await computeAndSaveTrendingScores()
+            }
+
+            console.log(`✅ [enrichment/trigger] Done — ${succeeded} ok, ${failed} failed`)
+        } catch (err) {
+            console.error('[enrichment/trigger] Background run failed:', err.message)
+        }
+    })()
+})
+
 export default router
+

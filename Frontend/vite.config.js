@@ -36,6 +36,8 @@ export default defineConfig({
           'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
           'clerk-vendor': ['@clerk/clerk-react'],
           'algolia-vendor': ['algoliasearch', 'react-instantsearch'],
+          'motion-vendor': ['framer-motion'],
+          'icons-vendor': ['lucide-react'],
         },
       },
     },

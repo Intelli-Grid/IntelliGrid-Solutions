@@ -243,12 +243,12 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                     <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
                 </Link>
                 <Link
-                    to={`/compare/${tool.slug}`}
+                    to={`/compare/${tool.slug}-vs-chatgpt`}
                     className="group flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/6 hover:border-cyan-500/20 transition-all duration-200"
                 >
                     <div>
                         <div className="text-sm font-semibold text-white">Compare side-by-side</div>
-                        <div className="text-xs text-gray-500 mt-0.5">Compare {tool.name} with other tools</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{tool.name} vs. ChatGPT and more</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
                 </Link>

@@ -43,13 +43,13 @@ export default function SEO({
             <meta property="og:locale" content="en_US" />
 
             {/* Twitter / X */}
-            <meta property="twitter:card" content={twitterCard} />
-            <meta property="twitter:site" content="@intelligrid_ai" />
-            <meta property="twitter:creator" content="@intelligrid_ai" />
-            <meta property="twitter:url" content={fullUrl} />
-            <meta property="twitter:title" content={title} />
-            <meta property="twitter:description" content={description} />
-            <meta property="twitter:image" content={ogImage} />
+            <meta name="twitter:card" content={twitterCard} />
+            <meta name="twitter:site" content="@intelligrid_ai" />
+            <meta name="twitter:creator" content="@intelligrid_ai" />
+            <meta name="twitter:url" content={fullUrl} />
+            <meta name="twitter:title" content={title} />
+            <meta name="twitter:description" content={description} />
+            <meta name="twitter:image" content={ogImage} />
 
             {/* Additional */}
             <meta name="theme-color" content="#0A0E27" />

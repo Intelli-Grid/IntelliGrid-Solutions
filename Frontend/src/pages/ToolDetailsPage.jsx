@@ -57,11 +57,6 @@ export default function ToolDetailsPage() {
                         data: { toolId: toolData._id, toolName: toolData.name, slug: toolData.slug },
                     }).catch(() => { })
 
-                    // Add to user's personal view history (fire-and-forget, only for signed-in users)
-                    if (isSignedIn) {
-                        userService.addToHistory(toolData._id).catch(() => { })
-                    }
-
                     try {
                         const related = await toolService.getRelatedTools(toolData._id, 4)
                         const payload = related?.data || related
@@ -92,6 +87,13 @@ export default function ToolDetailsPage() {
 
         loadData()
     }, [slug])
+
+    // Separate effect: track history when auth state is resolved — never re-fetches tool data
+    useEffect(() => {
+        if (isSignedIn && tool?._id) {
+            userService.addToHistory(tool._id).catch(() => { })
+        }
+    }, [isSignedIn, tool?._id])
 
     if (loading) {
         return (

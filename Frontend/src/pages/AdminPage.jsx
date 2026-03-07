@@ -308,9 +308,90 @@ function OverviewTab({ setActiveTab, stats }) {
                         <button onClick={() => setActiveTab('analytics')} className="flex w-full items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">
                             <BarChart3 className="h-4 w-4" /> View Revenue Analytics
                         </button>
+                        <Link to="/admin/verify-sprint" className="flex w-full items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-300 transition hover:bg-purple-500/20">
+                            <Zap className="h-4 w-4" /> Verification Sprint 🚀
+                        </Link>
+                        <Link to="/admin/activity" className="flex w-full items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-300 transition hover:bg-blue-500/20">
+                            <Activity className="h-4 w-4" /> Activity Feed & Enrichment
+                        </Link>
                     </div>
                 </div>
             </div>
+            <ActivityFeedWidget />
+        </div>
+    )
+}
+function ActivityFeedWidget() {
+    const [events, setEvents] = useState([])
+    const [loading, setLoading] = useState(true)
+
+    const load = async () => {
+        try {
+            const res = await adminService.getRecentActivity(15)
+            if (res.success) setEvents(res.events || [])
+        } catch {
+            // fail silently
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        load()
+        const timer = setInterval(load, 30000)
+        return () => clearInterval(timer)
+    }, [])
+
+    const EVENT_ICON = {
+        tool_added: '🔧',
+        user_signup: '👤',
+        claim_submitted: '🏷️',
+        payment: '💳',
+        review_submitted: '⭐',
+    }
+    const EVENT_COLOR = {
+        tool_added: 'text-blue-400',
+        user_signup: 'text-emerald-400',
+        claim_submitted: 'text-amber-400',
+        payment: 'text-green-400',
+        review_submitted: 'text-purple-400',
+    }
+
+    const relTime = (d) => {
+        const diff = Date.now() - new Date(d).getTime()
+        if (diff < 60000) return 'just now'
+        if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`
+        if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`
+        return `${Math.round(diff / 86400000)}d ago`
+    }
+
+    return (
+        <div className="mt-6 rounded-lg border border-white/10 bg-white/5 p-6">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-purple-400" /> Live Activity Feed
+                </h3>
+                <button onClick={load} className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1">
+                    <RefreshCw size={11} /> refresh
+                </button>
+            </div>
+            {loading ? (
+                <div className="flex justify-center py-6"><LoadingSpinner /></div>
+            ) : events.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">No recent activity</p>
+            ) : (
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                    {events.map((ev, i) => (
+                        <div key={`${ev._id}-${i}`} className="flex items-start gap-3">
+                            <span className="text-base leading-none mt-0.5">{EVENT_ICON[ev.eventType] || '📌'}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-xs ${EVENT_COLOR[ev.eventType] || 'text-gray-400'} truncate`}>{ev.description}</p>
+                            </div>
+                            <span className="text-[10px] text-gray-600 whitespace-nowrap flex-shrink-0">{relTime(ev.createdAt)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -3072,9 +3153,24 @@ function EnrichmentTab() {
                     </h2>
                     <p className="text-sm text-gray-400 mt-1">Tool data completeness scores and re-enrichment queue</p>
                 </div>
-                <button onClick={fetchStats} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">
-                    <RefreshCw size={13} /> Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={async () => {
+                            try {
+                                const res = await adminService.triggerEnrichment(50)
+                                toast({ title: 'Enrichment started', description: res.message || 'Running...', variant: 'default' })
+                            } catch {
+                                toast({ title: 'Error', description: 'Failed to trigger enrichment', variant: 'destructive' })
+                            }
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-sm text-white font-semibold transition-colors"
+                    >
+                        <Zap size={13} /> Run 50 Now
+                    </button>
+                    <button onClick={fetchStats} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+                        <RefreshCw size={13} /> Refresh
+                    </button>
+                </div>
             </div>
 
             {loading ? <div className="flex justify-center py-16"><LoadingSpinner /></div> : (

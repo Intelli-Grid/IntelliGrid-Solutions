@@ -40,6 +40,41 @@ router.get(
     toolController.searchTools
 )
 
+// ── Search Suggestions (typeahead) ───────────────────────────────────────────
+// GET /api/v1/tools/suggestions?q=chatg
+// Returns max 8 lightweight tool suggestions for instant search dropdowns.
+// Short Redis cache (60s) avoids DB hammering on every keystroke.
+router.get('/suggestions', cacheMiddleware(60), async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim()
+        if (!q || q.length < 2) {
+            return res.json({ success: true, suggestions: [] })
+        }
+
+        // Sanitise input — only allow alphanumeric, spaces, hyphens, dots
+        const safeQ = q.replace(/[^a-zA-Z0-9 \-\.]/g, '')
+        if (!safeQ) return res.json({ success: true, suggestions: [] })
+        const regex = new RegExp(safeQ, 'i')
+
+        const suggestions = await Tool.find({
+            status: 'active',
+            $or: [
+                { name: { $regex: regex } },
+                { tags: { $regex: regex } },
+            ],
+        })
+            .sort({ trendingScore: -1, views: -1 })
+            .limit(8)
+            .select('name slug logo pricing shortDescription')
+            .lean()
+
+        res.json({ success: true, suggestions })
+    } catch (err) {
+        console.error('[Suggestions] Error:', err.message)
+        res.json({ success: true, suggestions: [] })
+    }
+})
+
 router.get(
     '/managed',
     requireAuth,

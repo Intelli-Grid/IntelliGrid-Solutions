@@ -99,3 +99,72 @@
   background-size: 200% 100%;
   animation: shimmer 1.6s infinite;
 }
+
+/* ── Shimmer skeleton helpers ─────────────────────────────────────────────── */
+/* .shimmer-card wraps the whole skeleton card; .shimmer-bar targets shimmer rects */
+
+@keyframes shimmerSweep {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.shimmer-card {
+  /* Prevent overflow from shimmer children */
+  overflow: hidden;
+  position: relative;
+}
+
+.shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.09) 40%,
+    rgba(255,255,255,0.04) 80%
+  );
+  background-size: 400px 100%;
+  animation: shimmerSweep 1.5s ease-in-out infinite;
+}
+
+/* ── Card stagger entrance animation ─────────────────────────────────────── */
+/* Apply .cards-grid to the grid wrapper; nth-child delays stagger automatically */
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cards-grid > * {
+  animation: cardEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger: first 12 get individual delays */
+.cards-grid > *:nth-child(1)  { animation-delay: 0ms; }
+.cards-grid > *:nth-child(2)  { animation-delay: 30ms; }
+.cards-grid > *:nth-child(3)  { animation-delay: 60ms; }
+.cards-grid > *:nth-child(4)  { animation-delay: 90ms; }
+.cards-grid > *:nth-child(5)  { animation-delay: 120ms; }
+.cards-grid > *:nth-child(6)  { animation-delay: 150ms; }
+.cards-grid > *:nth-child(7)  { animation-delay: 180ms; }
+.cards-grid > *:nth-child(8)  { animation-delay: 210ms; }
+.cards-grid > *:nth-child(9)  { animation-delay: 240ms; }
+.cards-grid > *:nth-child(10) { animation-delay: 270ms; }
+.cards-grid > *:nth-child(11) { animation-delay: 300ms; }
+.cards-grid > *:nth-child(12) { animation-delay: 330ms; }
+/* Beyond 12: cap at 360ms so late cards don't feel broken */
+.cards-grid > *:nth-child(n+13) { animation-delay: 360ms; }
+
+/* ── Page fade-in wrapper ─────────────────────────────────────────────────── */
+.page-enter {
+  animation: fadeIn 0.3s ease-out both;
+}
+
+/* ── Micro-interaction: focus ring ───────────────────────────────────────── */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/60 focus-visible:ring-offset-1 focus-visible:ring-offset-black;
+}

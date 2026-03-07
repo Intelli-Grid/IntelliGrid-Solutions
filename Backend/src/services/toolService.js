@@ -32,8 +32,8 @@ class ToolService {
 
         const skip = (page - 1) * limit
 
-        // Build query — always exclude soft-deleted tools
-        const query = { status, isActive: { $ne: false } }
+        // Build query — always exclude soft-deleted tools and dead links
+        const query = { status, isActive: { $ne: false }, linkStatus: { $ne: 'dead' } }
 
         let resolvedCategoryId = null
         if (category) {
@@ -487,6 +487,7 @@ class ToolService {
         const query = {
             status: 'active',
             isActive: { $ne: false },
+            linkStatus: { $ne: 'dead' },
             alternativeTo: { $regex: nameRegex },
         }
         if (pricing) query.pricing = pricing
@@ -520,6 +521,7 @@ class ToolService {
         const query = {
             status: 'active',
             isActive: { $ne: false },
+            linkStatus: { $ne: 'dead' },
             useCaseTags: { $regex: tagRegex },
         }
         if (pricing) query.pricing = pricing
@@ -553,6 +555,7 @@ class ToolService {
         const query = {
             status: 'active',
             isActive: { $ne: false },
+            linkStatus: { $ne: 'dead' },
             industryTags: { $regex: tagRegex },
         }
         if (pricing) query.pricing = pricing

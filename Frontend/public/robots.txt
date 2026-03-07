@@ -11,10 +11,23 @@ Disallow: /payment/
 # Block internal API routes
 Disallow: /api/
 
-# Allow search with query params (important for Algolia search indexing)
+# Allow all public discovery pages (explicit for clarity)
 Allow: /search
 Allow: /tools
+Allow: /tools/
 Allow: /category/
+Allow: /compare/
+Allow: /alternatives/
+Allow: /best-tools/
+Allow: /best-ai-tools-for/
+Allow: /industry/
+Allow: /blog
+Allow: /blog/
+Allow: /collections/
+Allow: /ai-stack-advisor
+Allow: /submit
+Allow: /pricing
+Allow: /faq
 
 # Sitemap
 Sitemap: https://www.intelligrid.online/sitemap.xml

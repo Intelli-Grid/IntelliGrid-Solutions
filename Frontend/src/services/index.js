@@ -151,6 +151,20 @@ export const adminService = {
     getFeatureFlags: () => apiClient.get('/admin/feature-flags'),
     toggleFeatureFlag: (key, enabled) => apiClient.patch(`/admin/feature-flags/${key}`, { enabled }),
     seedFeatureFlags: () => apiClient.post('/admin/feature-flags/seed'),
+    // Enrichment on-demand trigger
+    triggerEnrichment: (batchSize = 50) => apiClient.post('/admin/enrichment/trigger', { batchSize }),
+    // Live activity feed
+    getRecentActivity: (limit = 20) => apiClient.get('/admin/activity/recent', { params: { limit } }),
+    // Affiliate revenue report
+    getAffiliateReport: (from, to) => apiClient.get('/admin/affiliate/report', { params: { from, to } }),
+}
+
+/**
+ * Tool Search Suggestions Service
+ * GET /api/v1/tools/suggestions?q=...
+ */
+export const suggestionsService = {
+    getSuggestions: (q) => apiClient.get('/tools/suggestions', { params: { q } }),
 }
 
 /**

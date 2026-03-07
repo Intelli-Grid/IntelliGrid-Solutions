@@ -495,7 +495,7 @@ export default function ToolsPage() {
                 {!loading && !error && tools.length > 0 && (
                     <>
                         {viewMode === 'grid' ? (
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 cards-grid">
                                 {tools.map(tool => (
                                     <ToolCard key={tool._id || tool.objectID} tool={tool} />
                                 ))}

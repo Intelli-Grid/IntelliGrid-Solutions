@@ -30,7 +30,9 @@ import submissionRoutes from './routes/submissionRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import blogRoutes from './routes/blogRoutes.js'
 import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
+import feedbackRoutes from './routes/feedbackRoutes.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
+import { timingMiddleware } from './middleware/timing.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App bootstrap
@@ -118,6 +120,7 @@ app.use(cors({
 app.use('/', seoRoutes)
 
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
+// Global limiter — broad protection for all /api/ routes
 const limiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 min
     max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
@@ -131,6 +134,50 @@ const limiter = rateLimit({
     skip: (req) => req.path === '/health',
 })
 app.use('/api/', limiter)
+
+// Auth endpoints — 20 requests per 15 min (prevent brute-force / token flooding)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { status: 'error', message: 'Too many auth requests. Please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+app.use('/api/v1/auth/sync', authLimiter)
+app.use('/api/v1/auth/me', authLimiter)
+
+// Payment creation — 10 requests per 15 min per IP (prevent order flooding)
+const paymentCreateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { status: 'error', message: 'Too many payment requests. Please wait before trying again.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+app.use('/api/v1/payment/paypal/create-order', paymentCreateLimiter)
+app.use('/api/v1/payment/paypal/create-subscription', paymentCreateLimiter)
+app.use('/api/v1/payment/cashfree/create-order', paymentCreateLimiter)
+
+// Submission endpoint — 5 per 30 min per IP (prevent spam submissions)
+const submissionLimiter = rateLimit({
+    windowMs: 30 * 60 * 1000,
+    max: 5,
+    message: { status: 'error', message: 'Too many submissions. Please wait before submitting again.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+app.use('/api/v1/submissions', submissionLimiter)
+
+// Review write endpoint — 15 per 15 min per IP
+const reviewWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: { status: 'error', message: 'Too many review requests. Please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.method === 'GET', // Only limit writes
+})
+app.use('/api/v1/reviews', reviewWriteLimiter)
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/health', async (req, res) => {
@@ -182,6 +229,10 @@ app.get('/api/v1', (req, res) => {
     })
 })
 
+// ── Performance Timing Middleware ────────────────────────────────────────────
+// Logs slow requests (>1s warn, >2s crit+Sentry). Must be before route mounts.
+app.use(timingMiddleware)
+
 // ── Mount API Routes ──────────────────────────────────────────────────────────
 app.use('/api/v1/tools', toolRoutes)
 app.use('/api/v1/categories', categoryRoutes)
@@ -198,6 +249,7 @@ app.use('/api/v1/submissions', submissionRoutes)
 app.use('/api/v1/coupons', couponRoutes)
 app.use('/api/v1/blog', blogRoutes)
 app.use('/api/stack-advisor', stackAdvisorRoutes)
+app.use('/api/v1/feedback', feedbackRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────
 // Returns only the list of enabled flag keys — no auth required, no sensitive data.

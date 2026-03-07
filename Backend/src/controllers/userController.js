@@ -116,6 +116,38 @@ class UserController {
             new ApiResponse(200, { history }, 'History retrieved successfully')
         )
     })
+
+    /**
+     * Get user's referral stats
+     * GET /api/v1/user/referral-stats
+     * Returns referralCode, totalReferred, converted (paid subscribers)
+     */
+    getReferralStats = asyncHandler(async (req, res) => {
+        const User = (await import('../models/User.js')).default
+
+        const user = await User.findById(req.user._id)
+            .select('referralCode stats.referrals')
+            .lean()
+
+        const [totalReferred, converted] = await Promise.all([
+            User.countDocuments({ referredBy: req.user._id }),
+            User.countDocuments({
+                referredBy: req.user._id,
+                'subscription.tier': { $ne: 'Free' },
+            }),
+        ])
+
+        res.status(200).json(
+            new ApiResponse(200, {
+                referralCode:   user?.referralCode || null,
+                totalReferred,
+                converted,
+                referralLink:   user?.referralCode
+                    ? `https://www.intelligrid.online/?ref=${user.referralCode}`
+                    : null,
+            }, 'Referral stats retrieved')
+        )
+    })
 }
 
 export default new UserController()

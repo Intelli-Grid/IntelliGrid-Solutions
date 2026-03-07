@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Helmet } from 'react-helmet-async'
+import SEO from '../components/common/SEO'
 import {
     ArrowUpRight, Star, ExternalLink, ChevronRight, Search,
     Zap, Shield, DollarSign, TrendingUp, Filter
@@ -192,25 +192,12 @@ export default function AlternativesPage() {
 
     return (
         <>
-            <Helmet>
-                <title>{pageTitle}</title>
-                <meta name="description" content={pageDesc} />
-                <meta name="robots" content="index, follow" />
-                <link rel="canonical" href={canonicalUrl} />
-                <meta property="og:type" content="website" />
-                <meta property="og:site_name" content="IntelliGrid" />
-                <meta property="og:title" content={pageTitle} />
-                <meta property="og:description" content={pageDesc} />
-                <meta property="og:url" content={canonicalUrl} />
-                <meta property="og:image" content="https://www.intelligrid.online/og-image.png" />
-                <meta property="og:image:width" content="1200" />
-                <meta property="og:image:height" content="630" />
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:site" content="@intelligrid_ai" />
-                <meta name="twitter:title" content={pageTitle} />
-                <meta name="twitter:description" content={pageDesc} />
-                <meta name="twitter:image" content="https://www.intelligrid.online/og-image.png" />
-                <script type="application/ld+json">{JSON.stringify({
+            <SEO
+                title={pageTitle}
+                description={pageDesc}
+                canonicalUrl={canonicalUrl}
+                keywords={`${displayName} alternatives, best ${displayName} alternatives, ${displayName} competitors, tools like ${displayName}, ${displayName} replacement`}
+                structuredData={{
                     '@context': 'https://schema.org',
                     '@type': 'ItemList',
                     name: pageTitle,
@@ -223,8 +210,8 @@ export default function AlternativesPage() {
                         name: t.name,
                         url: `https://www.intelligrid.online/tools/${t.slug}`,
                     })),
-                })}</script>
-            </Helmet>
+                }}
+            />
 
             <div className="min-h-screen bg-[#09090b]">
                 {/* Hero */}

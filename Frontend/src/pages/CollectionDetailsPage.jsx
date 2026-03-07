@@ -63,7 +63,21 @@ export default function CollectionDetailsPage() {
             <SEO
                 title={`${collection.name} | IntelliGrid Collections`}
                 description={collection.description || `Check out this collection of ${collection.tools.length} AI tools on IntelliGrid.`}
+                canonicalUrl={collection.isPublic ? `https://www.intelligrid.online/collections/${collection._id}` : undefined}
                 noindex={!collection.isPublic}
+                structuredData={collection.isPublic && collection.tools.length > 0 ? {
+                    '@context': 'https://schema.org',
+                    '@type': 'ItemList',
+                    name: collection.name,
+                    description: collection.description || `A curated collection of ${collection.tools.length} AI tools`,
+                    numberOfItems: collection.tools.length,
+                    itemListElement: collection.tools.map((tool, i) => ({
+                        '@type': 'ListItem',
+                        position: i + 1,
+                        name: tool.name,
+                        url: `https://www.intelligrid.online/tools/${tool.slug}`,
+                    }))
+                } : null}
             />
 
             <div className="bg-gray-900 border-b border-white/10">

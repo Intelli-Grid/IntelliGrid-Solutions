@@ -121,6 +121,85 @@ export const generateCategorySchema = (category, tools = []) => {
     return JSON.stringify(schema)
 }
 
+
+/**
+ * Generates JSON-LD schema for a Comparison Page (Tool A vs Tool B).
+ */
+export const generateComparisonSchema = (tool1, tool2) => {
+    if (!tool1 || !tool2) return null
+
+    const schema = [
+        {
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: `${tool1.name} vs ${tool2.name} — AI Tool Comparison`,
+            description: `Compare ${tool1.name} and ${tool2.name} side by side — pricing, features, ratings, and user reviews.`,
+            url: `https://www.intelligrid.online/compare/${tool1.slug}-vs-${tool2.slug}`,
+            numberOfItems: 2,
+            itemListElement: [
+                {
+                    '@type': 'ListItem',
+                    position: 1,
+                    name: tool1.name,
+                    url: `https://www.intelligrid.online/tools/${tool1.slug}`,
+                    item: {
+                        '@type': 'SoftwareApplication',
+                        name: tool1.name,
+                        description: tool1.shortDescription,
+                        applicationCategory: typeof tool1.category === 'object' ? tool1.category?.name : tool1.category,
+                        ...(tool1.ratings?.count > 0 ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: tool1.ratings.average.toFixed(1), ratingCount: tool1.ratings.count, bestRating: '5', worstRating: '1' } } : {}),
+                    },
+                },
+                {
+                    '@type': 'ListItem',
+                    position: 2,
+                    name: tool2.name,
+                    url: `https://www.intelligrid.online/tools/${tool2.slug}`,
+                    item: {
+                        '@type': 'SoftwareApplication',
+                        name: tool2.name,
+                        description: tool2.shortDescription,
+                        applicationCategory: typeof tool2.category === 'object' ? tool2.category?.name : tool2.category,
+                        ...(tool2.ratings?.count > 0 ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: tool2.ratings.average.toFixed(1), ratingCount: tool2.ratings.count, bestRating: '5', worstRating: '1' } } : {}),
+                    },
+                },
+            ],
+        },
+        {
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: [
+                {
+                    '@type': 'Question',
+                    name: `What is the difference between ${tool1.name} and ${tool2.name}?`,
+                    acceptedAnswer: {
+                        '@type': 'Answer',
+                        text: `${tool1.name} is ${tool1.shortDescription || 'an AI tool'}. ${tool2.name} is ${tool2.shortDescription || 'an AI tool'}. The main difference lies in their focus areas, pricing models (${tool1.pricing || 'varies'} vs ${tool2.pricing || 'varies'}), and target audiences.`,
+                    },
+                },
+                {
+                    '@type': 'Question',
+                    name: `Is ${tool1.name} better than ${tool2.name}?`,
+                    acceptedAnswer: {
+                        '@type': 'Answer',
+                        text: `It depends on your use case. ${tool1.name} has a rating of ${tool1.ratings?.average?.toFixed(1) || 'N/A'}/5 from ${tool1.ratings?.count || 0} users, while ${tool2.name} is rated ${tool2.ratings?.average?.toFixed(1) || 'N/A'}/5 from ${tool2.ratings?.count || 0} users. Visit each tool's page on IntelliGrid to see detailed reviews and decide which fits your needs best.`,
+                    },
+                },
+                {
+                    '@type': 'Question',
+                    name: `Does ${tool1.name} have a free plan?`,
+                    acceptedAnswer: {
+                        '@type': 'Answer',
+                        text: `${tool1.name} is listed as "${tool1.pricing || 'See website'}" on IntelliGrid. Check the official website for the latest pricing details.`,
+                    },
+                },
+            ],
+        },
+    ]
+
+    return JSON.stringify(schema)
+}
+
 /**
  * Generates JSON-LD BreadcrumbList schema.
  *
