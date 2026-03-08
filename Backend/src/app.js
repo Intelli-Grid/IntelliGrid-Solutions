@@ -120,10 +120,26 @@ app.use(cors({
 app.use('/', seoRoutes)
 
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
-// Global limiter — broad protection for all /api/ routes
+
+// Admin limiter — must be registered BEFORE the global limiter.
+// Admin panel fires 8-10 parallel requests per tab-switch; standard limits are
+// not appropriate for authenticated, role-gated internal routes.
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,   // 15 minutes
+    max: 1000,                   // 1000 req / 15 min per IP — generous for power users
+    message: {
+        status: 'error',
+        message: 'Too many admin requests from this IP. Please wait a moment.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+app.use('/api/v1/admin', adminLimiter)
+
+// Global limiter — broad protection for all other /api/ routes
 const limiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 min
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 300,               // raised: 100 → 300
     message: {
         status: 'error',
         message: 'Too many requests from this IP, please try again after 15 minutes.',
