@@ -645,7 +645,7 @@ function ClaimsTab() {
     }
 
     const STATUS_COLORS = {
-        pending:  'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+        pending: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
         approved: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
         rejected: 'bg-red-500/10 text-red-400 border border-red-500/20',
     }
@@ -662,9 +662,8 @@ function ClaimsTab() {
                         <button
                             key={s}
                             onClick={() => setStatusFilter(s)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
-                                statusFilter === s ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                }`}
                         >
                             {s}
                         </button>
@@ -2950,7 +2949,16 @@ function AffiliateTab() {
             if (networkFilter) params.set('network', networkFilter)
 
             const res = await adminService.getAffiliateClickAnalytics(params.toString())
-            if (res.success) setData(res.data)
+            if (res.success) {
+                setData({
+                    totalClicks: res.totalClicks ?? 0,
+                    approvedLinksCount: res.approvedLinksCount ?? 0,
+                    topNetwork: res.topNetwork || '',
+                    byNetwork: res.byNetwork || [],
+                    byTool: res.byTool || [],
+                    timeline: res.timeline || [],
+                })
+            }
         } catch (err) {
             toast({ title: 'Error', description: 'Failed to load affiliate analytics', variant: 'destructive' })
         } finally {
@@ -3010,7 +3018,7 @@ function AffiliateTab() {
                         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Top Network</p>
                             <p className={`text-2xl font-bold capitalize ${NETWORK_COLORS[data.topNetwork] || 'text-white'}`}>
-                                {data.topNetwork === 'none' ? 'â€”' : data.topNetwork}
+                                {data.topNetwork && data.topNetwork !== 'none' ? data.topNetwork : 'None yet'}
                             </p>
                         </div>
                     </div>
@@ -3117,6 +3125,9 @@ function AffiliateTab() {
 // Enrichment Tab
 // GET /api/v1/admin/tools/enrichment-stats â†’ stats, staleTools
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// Enrichment Tab
+// GET /api/v1/admin/tools/enrichment-stats -> stats, staleTools
 function EnrichmentTab() {
     const { toast } = useToast()
     const [loading, setLoading] = useState(true)

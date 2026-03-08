@@ -159,19 +159,19 @@ router.get('/tools/enrichment-stats', async (req, res) => {
         staleDate.setDate(staleDate.getDate() - 90)
 
         const [fullyEnriched, partial, notEnriched, stale, needsEnrichmentCount, staleTools] = await Promise.all([
-            Tool.countDocuments({ enrichmentScore: { $gte: 80 }, isActive: true }),
-            Tool.countDocuments({ enrichmentScore: { $gte: 30, $lt: 80 }, isActive: true }),
-            Tool.countDocuments({ enrichmentScore: { $lt: 30 }, isActive: true }),
+            Tool.countDocuments({ enrichmentScore: { $gte: 80 }, status: 'active' }),
+            Tool.countDocuments({ enrichmentScore: { $gte: 30, $lt: 80 }, status: 'active' }),
+            Tool.countDocuments({ enrichmentScore: { $lt: 30 }, status: 'active' }),
             Tool.countDocuments({
                 $or: [
                     { lastEnriched: { $lt: staleDate } },
                     { lastEnriched: null },
                 ],
-                isActive: true,
+                status: 'active',
             }),
-            Tool.countDocuments({ needsEnrichment: true, isActive: true }),
+            Tool.countDocuments({ needsEnrichment: true, status: 'active' }),
             // Top 20 stale tools sorted by views (most traffic = most urgent)
-            Tool.find({ needsEnrichment: true, isActive: true })
+            Tool.find({ needsEnrichment: true, status: 'active' })
                 .sort({ views: -1 })
                 .limit(20)
                 .select('name slug views enrichmentScore lastEnriched')
@@ -1412,47 +1412,47 @@ router.post('/enrichment/trigger', async (req, res) => {
         async: true,
     })
 
-    // Fire and forget — don't block the response
-    ;(async () => {
-        try {
-            const DELAY_MS = 2500  // 24 req/min — safe under Groq 30 req/min limit
-            const sleep = ms => new Promise(r => setTimeout(r, ms))
+        // Fire and forget — don't block the response
+        ; (async () => {
+            try {
+                const DELAY_MS = 2500  // 24 req/min — safe under Groq 30 req/min limit
+                const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-            let batch
-            if (toolId) {
-                const tool = await Tool.findById(toolId).lean()
-                if (!tool) { console.warn(`[enrichment/trigger] Tool ${toolId} not found`); return }
-                batch = [tool]
-            } else {
-                batch = await getEnrichmentBatch(batchSize)
-            }
-
-            console.log(`🔧 [enrichment/trigger] Starting manual enrichment for ${batch.length} tools (by ${req.user?.email || 'admin'})`)
-
-            let succeeded = 0, failed = 0
-            for (let i = 0; i < batch.length; i++) {
-                const tool = batch[i]
-                try {
-                    const result = await enrichTool(tool)
-                    result.success ? succeeded++ : failed++
-                    console.log(`  [${i + 1}/${batch.length}] ${tool.name} — ${result.success ? '✅' : '⚠️ ' + result.reason}`)
-                } catch (err) {
-                    failed++
-                    console.error(`  [${i + 1}/${batch.length}] ${tool.name} failed:`, err.message)
+                let batch
+                if (toolId) {
+                    const tool = await Tool.findById(toolId).lean()
+                    if (!tool) { console.warn(`[enrichment/trigger] Tool ${toolId} not found`); return }
+                    batch = [tool]
+                } else {
+                    batch = await getEnrichmentBatch(batchSize)
                 }
-                if (i < batch.length - 1) await sleep(DELAY_MS)
-            }
 
-            if (recomputeScores) {
-                console.log('📊 [enrichment/trigger] Recomputing trending scores...')
-                await computeAndSaveTrendingScores()
-            }
+                console.log(`🔧 [enrichment/trigger] Starting manual enrichment for ${batch.length} tools (by ${req.user?.email || 'admin'})`)
 
-            console.log(`✅ [enrichment/trigger] Done — ${succeeded} ok, ${failed} failed`)
-        } catch (err) {
-            console.error('[enrichment/trigger] Background run failed:', err.message)
-        }
-    })()
+                let succeeded = 0, failed = 0
+                for (let i = 0; i < batch.length; i++) {
+                    const tool = batch[i]
+                    try {
+                        const result = await enrichTool(tool)
+                        result.success ? succeeded++ : failed++
+                        console.log(`  [${i + 1}/${batch.length}] ${tool.name} — ${result.success ? '✅' : '⚠️ ' + result.reason}`)
+                    } catch (err) {
+                        failed++
+                        console.error(`  [${i + 1}/${batch.length}] ${tool.name} failed:`, err.message)
+                    }
+                    if (i < batch.length - 1) await sleep(DELAY_MS)
+                }
+
+                if (recomputeScores) {
+                    console.log('📊 [enrichment/trigger] Recomputing trending scores...')
+                    await computeAndSaveTrendingScores()
+                }
+
+                console.log(`✅ [enrichment/trigger] Done — ${succeeded} ok, ${failed} failed`)
+            } catch (err) {
+                console.error('[enrichment/trigger] Background run failed:', err.message)
+            }
+        })()
 })
 
 export default router
