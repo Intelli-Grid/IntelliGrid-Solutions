@@ -155,12 +155,15 @@ export default function ToolsPage() {
         try {
             setLoading(true)
             setError(null)
-            const response = await toolService.searchTools(query, { limit: 60 })
-            const hits = response.hits || response.tools || response || []
-            setTools(hits.slice(0, 60))
-            setTotalPages(1)
-            setTotal(hits.length)
-        } catch {
+            const response = await toolService.searchTools(query, { hitsPerPage: 60 })
+            const hits = response.hits || response.tools || []
+            // Algolia hits use objectID instead of _id — normalise for ToolCard compatibility
+            const normalised = hits.map(h => ({ ...h, _id: h._id || h.objectID }))
+            setTools(normalised)
+            setTotalPages(Math.max(1, response.pages || 1))
+            setTotal(response.total || normalised.length)
+        } catch (err) {
+            console.error('[Search] fetch error:', err)
             setError('Search failed. Please try again.')
         } finally {
             setLoading(false)

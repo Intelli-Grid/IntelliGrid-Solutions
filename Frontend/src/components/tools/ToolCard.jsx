@@ -207,7 +207,7 @@ export default function ToolCard({ tool }) {
             <AddToCollectionModal
                 isOpen={showCollectionModal}
                 onClose={() => setShowCollectionModal(false)}
-                toolId={tool._id}
+                toolId={tool._id || tool.objectID}
             />
         </>
     )
