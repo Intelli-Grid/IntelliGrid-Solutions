@@ -3169,7 +3169,14 @@ function EnrichmentTab() {
                         onClick={async () => {
                             try {
                                 const res = await adminService.triggerEnrichment(50)
-                                toast({ title: 'Enrichment started', description: res.message || 'Running...', variant: 'default' })
+                                toast({
+                                    title: '⚡ Enrichment queued',
+                                    description: `${res.message || 'Running 50 tools in background (~2 min). Stats will refresh automatically.'}`,
+                                    variant: 'default'
+                                })
+                                // Auto-refresh stats at 30s and 90s to show progress
+                                setTimeout(() => fetchStats(), 30000)
+                                setTimeout(() => fetchStats(), 90000)
                             } catch {
                                 toast({ title: 'Error', description: 'Failed to trigger enrichment', variant: 'destructive' })
                             }
