@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
+import mongoSanitize from 'express-mongo-sanitize' // Added import for mongoSanitize
 import { initSentry, sentryErrorHandler } from './config/sentry.js'
 import connectDB from './config/database.js'
 import redisClient, { connectRedis } from './config/redis.js'
@@ -74,6 +75,9 @@ if (process.env.NODE_ENV !== 'production') {
 // Reduce body limit for most routes (10mb is excessive — 1mb is safer)
 app.use(express.json({ limit: '1mb' }))
 app.use(express.urlencoded({ extended: true, limit: '1mb' }))
+
+// Sanitize data against NoSQL query injection
+app.use(mongoSanitize()) // Added mongoSanitize middleware
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
@@ -147,7 +151,7 @@ const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     // Skip health check from rate limiting
-    skip: (req) => req.path === '/health',
+    skip: (req) => req.path === '/health' || req.originalUrl === '/api/health',
 })
 app.use('/api/', limiter)
 
@@ -212,19 +216,24 @@ app.get('/health', async (req, res) => {
         services: {
             database: dbStatus,
             redis: redisStatus,
+            algolia: process.env.ALGOLIA_API_KEY ? 'Active' : 'Missing',
+            brevo: process.env.BREVO_API_KEY ? 'Active' : 'Missing',
+            clerk: process.env.CLERK_SECRET_KEY ? 'Active' : 'Missing'
         },
-        environment: process.env.NODE_ENV,
-        paypal_mode: process.env.PAYPAL_MODE || 'sandbox',
-        cashfree_env: process.env.CASHFREE_ENV || 'TEST',
+        paypal_mode: process.env.PAYPAL_MODE || 'live',
+        cashfree_env: process.env.CASHFREE_ENVIRONMENT || 'PROD'
     })
 })
+
+// Quick health check for external monitoring (checklist 12.8)
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 
 // ── API Index ─────────────────────────────────────────────────────────────────
 app.get('/api/v1', (req, res) => {
     res.status(200).json({
         status: 'success',
         message: 'IntelliGrid API v1',
-        version: '2.3.0',
+        version: '2.4.0',
         endpoints: {
             health: '/health',
             tools: '/api/v1/tools',
@@ -249,6 +258,19 @@ app.get('/api/v1', (req, res) => {
 // Logs slow requests (>1s warn, >2s crit+Sentry). Must be before route mounts.
 app.use(timingMiddleware)
 
+// ── Global Pagination Middleware ──────────────────────────────────────────────
+app.use((req, res, next) => {
+    if (req.query.limit) {
+        const limit = parseInt(req.query.limit, 10)
+        req.query.limit = (!isNaN(limit) && limit > 0) ? Math.min(limit, 100) : 20
+    }
+    if (req.query.page) {
+        const page = parseInt(req.query.page, 10)
+        req.query.page = (!isNaN(page) && page > 0) ? page : 1
+    }
+    next()
+})
+
 // ── Mount API Routes ──────────────────────────────────────────────────────────
 app.use('/api/v1/tools', toolRoutes)
 app.use('/api/v1/categories', categoryRoutes)
@@ -264,7 +286,7 @@ app.use('/api/v1/newsletter', newsletterRoutes)
 app.use('/api/v1/submissions', submissionRoutes)
 app.use('/api/v1/coupons', couponRoutes)
 app.use('/api/v1/blog', blogRoutes)
-app.use('/api/stack-advisor', stackAdvisorRoutes)
+app.use('/api/v1/stack-advisor', stackAdvisorRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────

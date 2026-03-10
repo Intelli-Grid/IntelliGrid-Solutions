@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import {
@@ -1741,6 +1741,16 @@ function AnalyticsTab() {
     )
 }
 function SettingsTab() {
+    const [systemHealth, setSystemHealth] = useState(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        fetch(`${import.meta.env.VITE_API_BASE_URL}/health`)
+            .then(r => r.json())
+            .then(data => setSystemHealth(data))
+            .catch(() => null)
+            .finally(() => setLoading(false))
+    }, [])
 
     return (
         <div className="space-y-6">
@@ -1780,11 +1790,19 @@ function SettingsTab() {
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-gray-400">PayPal</span>
-                            <span className="text-green-400 font-medium">Live Mode âœ“</span>
+                            {loading ? <span className="text-gray-500 text-xs">Loading...</span> : (
+                                <span className={`font-medium ${systemHealth?.paypal_mode === 'live' ? 'text-green-400' : 'text-amber-400'}`}>
+                                    {systemHealth?.paypal_mode === 'live' ? 'Live Mode ✓' : 'Sandbox Mode ⚠'}
+                                </span>
+                            )}
                         </div>
                         <div className="flex justify-between">
                             <span className="text-gray-400">Cashfree</span>
-                            <span className="text-green-400 font-medium">PROD Mode âœ“</span>
+                            {loading ? <span className="text-gray-500 text-xs">Loading...</span> : (
+                                <span className={`font-medium ${systemHealth?.cashfree_env === 'PROD' ? 'text-green-400' : 'text-amber-400'}`}>
+                                    {systemHealth?.cashfree_env === 'PROD' ? 'PROD Mode ✓' : 'Sandbox Mode ⚠'}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1807,6 +1825,26 @@ function SettingsTab() {
                                 </a>
                             </div>
                         ))}
+                        
+                        {/* Dynamic integrations */}
+                        {loading ? (
+                            <div className="text-gray-500 text-xs text-center mt-2">Loading services...</div>
+                        ) : (
+                            <>
+                                {[
+                                    { name: 'Algolia Search', status: systemHealth?.services?.algolia || 'Missing' },
+                                    { name: 'Brevo Mail', status: systemHealth?.services?.brevo || 'Missing' },
+                                    { name: 'Clerk Auth', status: systemHealth?.services?.clerk || 'Missing' },
+                                ].map((s) => (
+                                    <div key={s.name} className="flex justify-between mt-2 pt-2 border-t border-white/5">
+                                        <span className="text-gray-400">{s.name}</span>
+                                        <span className={`font-medium ${s.status === 'Active' ? 'text-green-400' : 'text-red-400'}`}>
+                                            {s.status} {s.status === 'Active' ? '✓' : '⚠'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -3198,17 +3236,17 @@ function EnrichmentTab() {
                         <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Fully Enriched</p>
                             <p className="text-3xl font-bold text-green-400">{stats.fullyEnriched}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score â‰¥ 80 Â· {pct(stats.fullyEnriched)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score &ge; 80 &middot; {pct(stats.fullyEnriched)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Partial</p>
                             <p className="text-3xl font-bold text-blue-400">{stats.partial}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score 30â€“79 Â· {pct(stats.partial)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score 30-79 &middot; {pct(stats.partial)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Not Enriched</p>
                             <p className="text-3xl font-bold text-red-400">{stats.notEnriched}</p>
-                            <p className="text-xs text-gray-600 mt-1">Score &lt; 30 Â· {pct(stats.notEnriched)}% of total</p>
+                            <p className="text-xs text-gray-600 mt-1">Score &lt; 30 &middot; {pct(stats.notEnriched)}% of total</p>
                         </div>
                         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Stale / Flagged</p>
@@ -3243,7 +3281,7 @@ function EnrichmentTab() {
                         {staleTools.length === 0 ? (
                             <div className="text-center py-10 text-gray-500">
                                 <Database className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                                <p className="text-sm">No stale tools â€” all data is fresh! ðŸŽ‰</p>
+                                <p className="text-sm">No stale tools &mdash; all data is fresh! 🎉</p>
                             </div>
                         ) : (
                             <>

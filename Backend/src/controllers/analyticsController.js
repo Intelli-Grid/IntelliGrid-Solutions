@@ -15,8 +15,9 @@ export const getRevenueAnalytics = async (req, res) => {
 
         const subscriptionBreakdown = {
             free: 0,
-            proMonthly: 0,
-            proYearly: 0
+            basic: 0,
+            premium: 0,
+            enterprise: 0
         }
 
         let totalMRR = 0
@@ -33,23 +34,23 @@ export const getRevenueAnalytics = async (req, res) => {
             const sub = user.subscription || {}
             const tier = sub.tier || 'Free'
             const status = sub.status
-            const PAID_TIERS = ['Basic', 'Premium', 'Enterprise']
+            const PAID_TIERS = ['Basic', 'Premium', 'Enterprise', 'Pro', 'Business'] // Adding legacy tiers for safety
+
+            // Map any legacy 'Pro' to 'premium'
+            const normalizedTier = tier === 'Pro' ? 'premium' : tier.toLowerCase()
 
             if (PAID_TIERS.includes(tier) && status === 'active') {
                 activeSubscriptions++
 
-                // Determine billing cadence from subscription duration stored in endDate window
-                // If endDate is > 35 days from startDate it's a yearly plan
+                subscriptionBreakdown[normalizedTier] = (subscriptionBreakdown[normalizedTier] || 0) + 1
+
                 const start = sub.startDate ? new Date(sub.startDate) : null
                 const end = sub.endDate ? new Date(sub.endDate) : null
                 const isYearly = start && end && (end - start) > 35 * 24 * 60 * 60 * 1000
 
                 if (isYearly) {
-                    subscriptionBreakdown.proYearly++
-                    // MRR contribution = annual price / 12
                     totalMRR += (YEARLY_PRICE[tier] || 99.99) / 12
                 } else {
-                    subscriptionBreakdown.proMonthly++
                     totalMRR += MONTHLY_PRICE[tier] || 9.99
                 }
             } else {
