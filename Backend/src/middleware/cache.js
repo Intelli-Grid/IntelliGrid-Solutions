@@ -31,12 +31,13 @@ export const cacheMiddleware = (ttl = 3600, keyGenerator = null) => {
         // Store original res.json function
         const originalJson = res.json.bind(res)
 
-        // Override res.json to cache the response
         res.json = function (data) {
-            // Cache the response
-            cache.set(cacheKey, data, ttl).catch(err => {
-                console.error('Failed to cache response:', err)
-            })
+            // Only cache successful responses (2xx)
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+                cache.set(cacheKey, data, ttl).catch(err => {
+                    console.error('Failed to cache response:', err)
+                })
+            }
 
             // Call original json function
             return originalJson(data)

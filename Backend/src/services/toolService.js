@@ -15,7 +15,7 @@ class ToolService {
      * Get all tools with pagination, filtering, and sorting
      */
     async getAllTools(options = {}) {
-        const {
+        let {
             page = 1,
             limit = 20,
             category,
