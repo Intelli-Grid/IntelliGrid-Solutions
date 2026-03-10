@@ -4,6 +4,10 @@
     "description": "IntelliGrid Backend API Server",
     "main": "src/app.js",
     "type": "module",
+    "engines": {
+        "node": ">=20.18.0",
+        "npm": ">=10.0.0"
+    },
     "scripts": {
         "start": "node src/server.js",
         "dev": "nodemon src/server.js",
@@ -45,8 +49,8 @@
         "@clerk/express": "^1.7.72",
         "@getbrevo/brevo": "^3.0.1",
         "@paypal/paypal-server-sdk": "^2.2.0",
-        "@sentry/node": "^9.17.0",
-        "@sentry/profiling-node": "^9.17.0",
+        "@sentry/node": "^9.47.1",
+        "@sentry/profiling-node": "^9.47.1",
         "@sparticuz/chromium": "^143.0.4",
         "algoliasearch": "^4.22.0",
         "axios": "^1.13.4",
@@ -59,6 +63,7 @@
         "csv-parser": "^3.0.0",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
+        "express-mongo-sanitize": "^2.2.0",
         "express-rate-limit": "^7.1.5",
         "express-validator": "^7.0.1",
         "groq-sdk": "^0.37.0",
