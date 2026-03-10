@@ -58,28 +58,7 @@ if (process.env.SENTRY_DSN) {
 connectDB()
 connectRedis()
 
-
-// ── Security & general middleware ─────────────────────────────────────────────
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be served cross-origin
-}))
-app.use(compression())
-
-// Only log requests in development — Railway has its own request logs
-if (process.env.NODE_ENV !== 'production') {
-    app.use(morgan('dev'))
-} else {
-    app.use(morgan('combined'))
-}
-
-// Reduce body limit for most routes (10mb is excessive — 1mb is safer)
-app.use(express.json({ limit: '1mb' }))
-app.use(express.urlencoded({ extended: true, limit: '1mb' }))
-
-// Sanitize data against NoSQL query injection
-app.use(mongoSanitize()) // Added mongoSanitize middleware
-
-// ── CORS ──────────────────────────────────────────────────────────────────────
+// ── CORS — must be before helmet and any other middleware ────────────────────
 const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL,
     'http://localhost:5173',
@@ -96,7 +75,7 @@ const ALLOWED_ORIGIN_PATTERNS = [
     /^https:\/\/[a-z0-9-]+\.vercel\.app$/,                        // any other Vercel preview
 ]
 
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (mobile apps, Postman, curl, health checkers)
         if (!origin) return callback(null, true)
@@ -117,7 +96,32 @@ app.use(cors({
     },
     credentials: true,
     optionsSuccessStatus: 200,
+}
+
+// Explicitly handle ALL preflight OPTIONS requests before any other middleware
+app.options('*', cors(corsOptions))
+app.use(cors(corsOptions))
+
+// ── Security & general middleware ─────────────────────────────────────────────
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be served cross-origin
+    crossOriginOpenerPolicy: false, // Do not override CORS headers set by cors()
 }))
+app.use(compression())
+
+// Only log requests in development — Railway has its own request logs
+if (process.env.NODE_ENV !== 'production') {
+    app.use(morgan('dev'))
+} else {
+    app.use(morgan('combined'))
+}
+
+// Reduce body limit for most routes (10mb is excessive — 1mb is safer)
+app.use(express.json({ limit: '1mb' }))
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
+
+// Sanitize data against NoSQL query injection
+app.use(mongoSanitize()) // Added mongoSanitize middleware
 
 // ── SEO Routes (sitemap.xml + robots.txt) — before rate limiter ───────────────
 // These are public routes crawled frequently by bots; they must not be rate-limited
