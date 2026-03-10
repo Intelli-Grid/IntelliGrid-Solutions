@@ -576,6 +576,57 @@ class ToolService {
             pagination: { page, limit, total, pages: Math.ceil(total / limit) },
         }
     }
+
+    /**
+     * Submit a claim request for a tool
+     * @param {string} toolId
+     * @param {object} claimData
+     * @param {string} userId (optional)
+     */
+    async claimTool(toolId, claimData, userId = null) {
+        const { email, role, verificationInfo } = claimData
+
+        const tool = await Tool.findById(toolId)
+        if (!tool) {
+            throw ApiError.notFound('Tool not found')
+        }
+
+        if (tool.isVerified || tool.claimedBy) {
+            throw ApiError.badRequest('This tool has already been claimed')
+        }
+
+        // Check for existing pending claim
+        const existingClaim = await ClaimRequest.findOne({
+            tool: toolId,
+            email: email.toLowerCase(),
+            status: 'pending'
+        })
+        
+        if (existingClaim) {
+            throw ApiError.badRequest('A pending claim request from this email already exists')
+        }
+
+        const claim = await ClaimRequest.create({
+            tool: toolId,
+            user: userId,
+            email: email.toLowerCase(),
+            role,
+            verificationInfo,
+            status: 'pending'
+        })
+
+        // Notify admins about new claim request
+        try {
+            await emailService.sendAdminNotification(
+                'New Tool Claim Request',
+                `User ${email} (${role}) requested to claim ${tool.name}. Verification info: ${verificationInfo || 'None'}`
+            )
+        } catch (e) {
+            console.error('Failed to notify admins of claim request:', e)
+        }
+
+        return claim
+    }
 }
 
 export default new ToolService()

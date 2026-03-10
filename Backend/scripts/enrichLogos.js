@@ -56,27 +56,19 @@ function nameToFpSlugs(name, existingSlug) {
     return [...new Set(candidates)]
 }
 
-// Fetch logo from Futurepedia's OG image
-async function fetchLogoFromFuturepedia(fpSlug) {
+// Fetch logo from Google Favicon API based on officialUrl
+function fetchLogoFromGoogle(toolName, officialUrl) {
+    if (!officialUrl) return null;
     try {
-        const url = `https://www.futurepedia.io/tool/${fpSlug}`
-        const { data } = await http.get(url)
-        const $ = cheerio.load(data)
-
-        // Futurepedia always sets og:image to a CDN thumbnail
-        const ogImage = $('meta[property="og:image"]').attr('content') || ''
-        const ogDesc = $('meta[property="og:description"]').attr('content') || ''
-        const toolName = $('h1').first().text().trim()
-
-        // OG image format: https://www.futurepedia.io/api/og?title=...&image=https://cdn.futurepedia.io/...
-        if (ogImage && ogImage.includes('futurepedia') && ogImage.length > 20) {
-            return { logo: ogImage, description: ogDesc, name: toolName }
-        }
-        return null
-    } catch (err) {
-        if (err.response?.status === 404) return null
-        // Silently skip errors
-        return null
+        const urlObj = new URL(officialUrl);
+        const domain = urlObj.hostname;
+        return {
+            logo: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+            description: '',
+            name: toolName
+        };
+    } catch {
+        return null; // Invalid URL
     }
 }
 
@@ -113,13 +105,7 @@ async function main() {
     for (let i = 0; i < noLogoTools.length; i++) {
         const tool = noLogoTools[i]
         const slugCandidates = nameToFpSlugs(tool.name, tool.slug)
-
-        let found = null
-        for (const fpSlug of slugCandidates) {
-            found = await fetchLogoFromFuturepedia(fpSlug)
-            if (found) break
-            await politeDelay()
-        }
+        let found = fetchLogoFromGoogle(tool.name, tool.officialUrl)
 
         if (found?.logo) {
             if (!DRY_RUN) {

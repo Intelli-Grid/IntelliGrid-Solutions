@@ -86,10 +86,10 @@ function ToolListRow({ tool }) {
             {/* Info */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-semibold text-white group-hover:text-purple-300 transition-colors truncate">{tool.name}</span>
+                    <span title={tool.name} className="text-sm font-semibold text-white group-hover:text-purple-300 transition-colors truncate">{tool.name}</span>
                     {tool.isTrending && <span className="text-[9px] text-amber-400 border border-amber-400/30 px-1.5 py-0.5 rounded-full bg-amber-400/10 flex-shrink-0">Trending</span>}
                 </div>
-                <p className="text-[12px] text-gray-500 truncate mt-0.5">{tool.shortDescription || tool.description}</p>
+                <p title={tool.shortDescription || tool.description} className="text-[12px] text-gray-500 truncate mt-0.5">{tool.shortDescription || tool.description}</p>
             </div>
             {/* Pricing + Visit */}
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -156,12 +156,13 @@ export default function ToolsPage() {
             setLoading(true)
             setError(null)
             const response = await toolService.searchTools(query, { hitsPerPage: 60 })
-            const hits = response.hits || response.tools || []
+            const payload = response?.data || response
+            const hits = payload.hits || payload.tools || []
             // Algolia hits use objectID instead of _id — normalise for ToolCard compatibility
             const normalised = hits.map(h => ({ ...h, _id: h._id || h.objectID }))
             setTools(normalised)
-            setTotalPages(Math.max(1, response.pages || 1))
-            setTotal(response.total || normalised.length)
+            setTotalPages(Math.max(1, payload.pages || 1))
+            setTotal(payload.total || normalised.length)
         } catch (err) {
             console.error('[Search] fetch error:', err)
             setError('Search failed. Please try again.')

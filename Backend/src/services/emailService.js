@@ -578,6 +578,25 @@ class EmailService {
             emailWrapper(content, email)
         )
     }
+
+    /**
+     * Admin Notification
+     * Send email alerts to admins for system events (like a claim request)
+     */
+    async sendAdminNotification(subject, text) {
+        const adminEmail = process.env.ADMIN_NOTIFY_EMAIL || 'support@intelligrid.online'
+        const content = `
+            <h2 style="color:#111827;margin-top:0;">Admin Notification</h2>
+            <div style="background:#f3f4f6;border-radius:8px;padding:20px;margin:20px 0;">
+                <p style="margin:0;color:#374151;font-size:14px;white-space:pre-wrap;">${text}</p>
+            </div>
+            <div style="text-align:center;margin:32px 0;">
+                <a href="${FRONTEND_URL}/admin" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+                    Go to Admin Dashboard &rarr;
+                </a>
+            </div>`
+        return sendEmail(adminEmail, 'IntelliGrid Admin', subject, emailWrapper(content, adminEmail))
+    }
 }
 
 export default new EmailService()

@@ -57,7 +57,7 @@ const VerificationSprintPage = lazy(() => import('./pages/VerificationSprintPage
 
 // Analytics — logPageView tracks route changes; initGA is called ONLY from CookieConsent
 import { logPageView } from './utils/analytics'
-
+import ScrollToTop from './components/common/ScrollToTop'
 
 function App() {
     const location = useLocation()
@@ -70,6 +70,8 @@ function App() {
     }, [location])
 
     return (
+        <>
+        <ScrollToTop />
         <Routes>
             {/* ── Clerk Auth Pages (no site layout) ─────────── */}
             <Route path="/sign-in/*" element={<SignInPage />} />
@@ -200,6 +202,7 @@ function App() {
             </>}
             />
         </Routes>
+        </>
     )
 }
 
