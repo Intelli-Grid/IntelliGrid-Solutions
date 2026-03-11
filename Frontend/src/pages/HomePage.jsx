@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Sparkles, TrendingUp, ArrowRight, Star, Users, Zap, ChevronDown, ArrowUpRight } from 'lucide-react'
 import { toolService, categoryService } from '../services'
+import apiClient from '../services/api'
 import ToolCard from '../components/tools/ToolCard'
 import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
 import SEO from '../components/common/SEO'
@@ -63,6 +64,13 @@ export default function HomePage() {
     const [searchQuery, setSearchQuery] = useState('')
     const navigate = useNavigate()
 
+    // Live platform stats — fetched from /api/v1/platform-stats
+    const [platformStats, setPlatformStats] = useState([
+        { value: 4000, suffix: '+', label: 'AI Tools Indexed', gradient: 'from-violet-400 to-purple-400', icon: '🛠️' },
+        { value: 50, suffix: '+', label: 'Categories', gradient: 'from-cyan-400 to-blue-400', icon: '📂' },
+        { value: 99, suffix: '%', label: 'Uptime Reliability', gradient: 'from-amber-400 to-orange-400', icon: '⚡' },
+    ])
+
     // Animated counter — counts from 0 to target over ~1.2s
     const [countersStarted, setCountersStarted] = useState(false)
     const statsRef = useRef(null)
@@ -79,14 +87,33 @@ export default function HomePage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [trendingDocs, recentDocs, catDocs] = await Promise.all([
+                const [trendingDocs, recentDocs, catDocs, statsDocs] = await Promise.all([
                     toolService.getTrendingTools(6),
                     toolService.getTools({ sort: '-createdAt', limit: 6 }),
-                    categoryService.getCategories().catch(() => ({ data: [] }))
+                    categoryService.getCategories().catch(() => []),
+                    apiClient.get('/platform-stats').catch(() => null),
                 ])
                 setTrendingTools(trendingDocs.data || trendingDocs || [])
                 setRecentTools(recentDocs.data || recentDocs.tools || [])
-                setCategories(catDocs.data || catDocs || [])
+
+                // catDocs: apiClient unwraps response so we get the ApiResponse body
+                // shape is { success, data: [...] } or an array directly
+                const catArray = Array.isArray(catDocs)
+                    ? catDocs
+                    : (catDocs?.data && Array.isArray(catDocs.data))
+                        ? catDocs.data
+                        : []
+                setCategories(catArray)
+
+                // Live platform stats
+                if (statsDocs?.data) {
+                    const { totalTools, totalCategories, uptime } = statsDocs.data
+                    setPlatformStats([
+                        { value: totalTools, suffix: '+', label: 'AI Tools Indexed', gradient: 'from-violet-400 to-purple-400', icon: '🛠️' },
+                        { value: totalCategories, suffix: '+', label: 'Categories', gradient: 'from-cyan-400 to-blue-400', icon: '📂' },
+                        { value: uptime, suffix: '%', label: 'Uptime Reliability', gradient: 'from-amber-400 to-orange-400', icon: '⚡' },
+                    ])
+                }
             } catch (error) {
                 console.error('Error fetching homepage data:', error)
             } finally {
@@ -209,11 +236,7 @@ export default function HomePage() {
             {/* ════════════════ STATS ════════════════ */}
             <section ref={statsRef} className="py-16 border-y border-white/5 bg-[#08081a]">
                 <div className="max-w-5xl mx-auto px-6 grid gap-6 grid-cols-3">
-                    {[
-                        { value: 4125, suffix: '+', label: 'AI Tools Indexed', gradient: 'from-violet-400 to-purple-400', icon: '🛠️' },
-                        { value: 50, suffix: '+', label: 'Categories', gradient: 'from-cyan-400 to-blue-400', icon: '📂' },
-                        { value: 99, suffix: '%', label: 'Uptime Reliability', gradient: 'from-amber-400 to-orange-400', icon: '⚡' },
-                    ].map((stat, i) => (
+                    {platformStats.map((stat, i) => (
                         <AnimatedStat key={stat.label} stat={stat} started={countersStarted} delay={i * 120} />
                     ))}
                 </div>

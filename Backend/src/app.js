@@ -306,6 +306,52 @@ app.get('/api/v1/config/features', async (req, res) => {
     }
 })
 
+// ── Platform Stats Public Endpoint ───────────────────────────────────────────
+// Returns live tool count, category count for the homepage stats section.
+// Cached in Redis for 5 minutes. No auth required — public-facing data only.
+app.get('/api/v1/platform-stats', async (req, res) => {
+    try {
+        const CACHE_KEY = 'platform_stats_public'
+        const CACHE_TTL = 300 // 5 minutes
+
+        // Try Redis cache first
+        if (redisClient?.isOpen) {
+            const cached = await redisClient.get(CACHE_KEY).catch(() => null)
+            if (cached) return res.json(JSON.parse(cached))
+        }
+
+        const [{ default: Tool }, { default: Category }] = await Promise.all([
+            import('./models/Tool.js'),
+            import('./models/Category.js'),
+        ])
+
+        const [totalTools, totalCategories] = await Promise.all([
+            Tool.countDocuments({ status: 'active', isActive: { $ne: false } }),
+            Category.countDocuments({ isActive: true }),
+        ])
+
+        const payload = {
+            success: true,
+            data: {
+                totalTools,
+                totalCategories,
+                uptime: 99, // SLA uptime — static by design
+            }
+        }
+
+        // Cache the result
+        if (redisClient?.isOpen) {
+            await redisClient.set(CACHE_KEY, JSON.stringify(payload), { EX: CACHE_TTL }).catch(() => {})
+        }
+
+        res.json(payload)
+    } catch (err) {
+        console.error('[PlatformStats] Error:', err.message)
+        // Graceful fallback — never block homepage load
+        res.json({ success: true, data: { totalTools: 4000, totalCategories: 50, uptime: 99 } })
+    }
+})
+
 // ── Featured Listings Public Endpoint ────────────────────────────────────────
 // Returns active sponsored listings (FEATURED_LISTINGS flag must be ON).
 // Data is cached in Redis for 5 minutes to avoid hammering MongoDB on every page load.
