@@ -230,10 +230,9 @@ export const gdprService = {
 
 /**
  * Stack Advisor Service
- * NOTE: uses /api/stack-advisor (no /v1/) so we build the full path explicitly.
+ * Backend mounts at /api/v1/stack-advisor — use the standard base URL directly.
  */
-const STACK_BASE = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1')
-    .replace('/api/v1', '/api/stack-advisor')
+const STACK_BASE = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1'
 
 import axios from 'axios'
 import { getAuthToken } from './tokenStore'
@@ -250,7 +249,8 @@ stackClient.interceptors.response.use(
 )
 
 export const stackAdvisorService = {
-    getRecommendations: (data) => stackClient.post('/recommend', data),
-    getHistory: () => stackClient.get('/history'),
-    deleteStack: (stackId) => stackClient.delete(`/history/${stackId}`),
+    getRecommendations: (data) => stackClient.post('/stack-advisor/recommend', data),
+    getHistory: () => stackClient.get('/stack-advisor/history'),
+    deleteStack: (stackId) => stackClient.delete(`/stack-advisor/history/${stackId}`),
 }
+
