@@ -141,7 +141,7 @@ export default function Footer() {
                 {/* Bottom bar */}
                 <div className="border-t border-white/6 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-xs text-gray-600">
-                        © {currentYear} IntelliGrid. All rights reserved. Built with ❤️ for the AI community.
+                        © {currentYear} IntelliGrid. All rights reserved. Built for the AI community.
                     </p>
                     <div className="flex items-center gap-1.5">
                         <span className="inline-flex items-center gap-1 text-xs text-gray-600">
