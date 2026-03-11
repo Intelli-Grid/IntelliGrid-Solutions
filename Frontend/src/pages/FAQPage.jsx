@@ -8,7 +8,7 @@ const faqData = [
         questions: [
             {
                 q: 'What is IntelliGrid?',
-                a: 'IntelliGrid is a comprehensive AI tools directory that helps you discover, compare, and choose from over 3,690 AI tools across 50+ categories. We curate and update our database daily to ensure you have access to the latest AI solutions.'
+                a: 'IntelliGrid is a comprehensive AI tools directory that helps you discover, compare, and choose from over 4,000+ AI tools across 50+ categories. We curate and update our database daily to ensure you have access to the latest AI solutions.'
             },
             {
                 q: 'Is IntelliGrid free to use?',
@@ -25,7 +25,7 @@ const faqData = [
         questions: [
             {
                 q: 'What are the subscription plans?',
-                a: 'We offer three plans: Free (basic access), Pro Monthly ($9.99/month), and Pro Yearly ($99.99/year - save 17%). Pro plans include unlimited searches, advanced filters, saved favorites, detailed comparisons, priority support, and ad-free experience.'
+                a: 'We offer three plans: Explorer (free forever), Professional Monthly ($9.99/month), and Professional Yearly ($79.99/year — save 33%). Pro plans include unlimited favourites & collections, advanced search filters, ad-free browsing, and a weekly curated AI digest.'
             },
             {
                 q: 'Can I cancel my subscription anytime?',
@@ -54,7 +54,7 @@ const faqData = [
             },
             {
                 q: 'Can I save my favorite tools?',
-                a: 'Yes! Pro users can save unlimited favorite tools and create custom collections. Your favorites are synced across all devices and accessible from your dashboard.'
+                a: 'Yes! Free users can save up to 10 favourites and create up to 2 collections. Pro users get unlimited favourites and collections. Everything syncs across devices and is accessible from your dashboard.'
             },
             {
                 q: 'How do tool ratings work?',
@@ -96,11 +96,11 @@ const faqData = [
             },
             {
                 q: 'The website is not loading properly. What should I do?',
-                a: 'Try clearing your browser cache and cookies, or use an incognito/private window. We recommend using the latest version of Chrome, Firefox, Safari, or Edge. If issues persist, contact support@intelligrid.store.'
+                a: 'Try clearing your browser cache and cookies, or use an incognito/private window. We recommend using the latest version of Chrome, Firefox, Safari, or Edge. If issues persist, contact support@intelligrid.online.'
             },
             {
                 q: 'How do I contact customer support?',
-                a: 'Email us at support@intelligrid.store. Pro users receive priority support with response times within 24 hours. Free users typically receive responses within 48-72 hours.'
+                a: 'Email us at support@intelligrid.online. Pro users receive priority support with response times within 24 hours. Free users typically receive responses within 48-72 hours.'
             },
             {
                 q: 'Do you have a mobile app?',
@@ -242,7 +242,7 @@ export default function FAQPage() {
                         Can't find the answer you're looking for? Our support team is here to help.
                     </p>
                     <a
-                        href="mailto:support@intelligrid.store"
+                        href="mailto:support@intelligrid.online"
                         className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-accent-cyan to-accent-purple text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-300 hover:scale-105"
                     >
                         <Mail className="w-5 h-5" />

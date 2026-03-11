@@ -337,7 +337,7 @@ export default function AIStackAdvisorPage() {
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
             <SEO
                 title="AI Stack Advisor — IntelliGrid | Personalised Tool Recommendations"
-                description="Tell us your role and use cases. We'll recommend the best AI tools for your exact situation from our database of 3,500+ tools."
+                description="Tell us your role and use cases. We'll recommend the best AI tools for your exact situation from our database of 4,000+ tools."
                 canonicalUrl="https://www.intelligrid.online/ai-stack-advisor"
             />
 
@@ -353,7 +353,7 @@ export default function AIStackAdvisorPage() {
                             <span className="text-sm font-semibold text-accent-cyan uppercase tracking-wide">AI Stack Advisor</span>
                         </div>
                         <h1 className="text-4xl font-bold text-white">Your perfect AI stack,<br />recommended by AI.</h1>
-                        <p className="text-gray-400 mt-2 text-sm">Tell us your role → get personalised tool recommendations from 3,500+ tools.</p>
+                        <p className="text-gray-400 mt-2 text-sm">Tell us your role → get personalised tool recommendations from 4,000+ tools.</p>
                         <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
                             <Clock className="w-3 h-3" /> 10 recommendations per day on Pro
                         </p>

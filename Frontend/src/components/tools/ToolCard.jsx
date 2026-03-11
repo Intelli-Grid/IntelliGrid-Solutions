@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight, Crown, Zap } from 'lucide-react'
-import { getPricingDisplay, formatToolName, getInitials } from '../../utils/helpers'
+import { getPricingDisplay, formatToolName, getInitials, getOptimizedImageUrl } from '../../utils/helpers'
 import AddToCollectionModal from './AddToCollectionModal'
 import { useFlag } from '../../hooks/useFeatureFlags'
 
@@ -83,7 +83,8 @@ export default function ToolCard({ tool }) {
     const pricingClass = PRICING_COLORS[pricingDisplay] || 'text-gray-400 bg-gray-400/10 border-gray-400/20'
     const rating = tool.ratings?.average || 0
     const reviewCount = tool.ratings?.count || 0
-    const logoSrc = tool.screenshotUrl || tool.logo || tool.metadata?.logo || ''
+    const rawLogoSrc = tool.screenshotUrl || tool.logo || tool.metadata?.logo || ''
+    const logoSrc = getOptimizedImageUrl(rawLogoSrc)
     const showBanner = logoSrc && !bannerError
 
     // Phase 4.1: compute badge
@@ -126,8 +127,8 @@ export default function ToolCard({ tool }) {
                     {badge && (() => {
                         const { icon: BadgeIcon, label, className } = badge
                         return (
-                            <span className={`absolute top-2.5 right-2.5 z-10 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest backdrop-blur-sm px-2 py-0.5 rounded-full border ${className}`}>
-                                <BadgeIcon size={8} />
+                            <span className={`absolute top-2.5 right-2.5 z-10 flex items-center gap-1 text-xs font-bold uppercase tracking-widest backdrop-blur-sm px-2.5 py-1 rounded-full border ${className}`}>
+                                <BadgeIcon size={12} />
                                 {label}
                             </span>
                         )
@@ -139,19 +140,25 @@ export default function ToolCard({ tool }) {
 
                     {/* Name + Rating */}
                     <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <h3 className="text-[15px] font-bold text-white leading-snug line-clamp-1 group-hover:text-purple-300 transition-colors">
+                        <h3
+                            className="text-base font-bold text-white leading-snug line-clamp-1 group-hover:text-purple-300 transition-colors"
+                            title={formattedName}
+                        >
                             {formattedName}
                         </h3>
                         {rating > 0 && (
                             <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5" title={`${reviewCount} reviews`}>
-                                <Star size={10} className="fill-amber-400 text-amber-400" />
-                                <span className="text-[11px] font-semibold text-amber-400">{rating.toFixed(1)}</span>
+                                <Star size={12} className="fill-amber-400 text-amber-400" />
+                                <span className="text-sm font-semibold text-amber-400">{rating.toFixed(1)}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Description */}
-                    <p className="text-[13px] text-gray-500 line-clamp-2 leading-relaxed mb-3 flex-1">
+                    <p
+                        className="text-sm text-gray-400 line-clamp-2 leading-relaxed mb-3 flex-1"
+                        title={tool.shortDescription || tool.description || 'No description available.'}
+                    >
                         {tool.shortDescription || tool.description || 'No description available.'}
                     </p>
 
@@ -161,7 +168,8 @@ export default function ToolCard({ tool }) {
                             {tool.tags.slice(0, 3).map((tag, i) => (
                                 <span
                                     key={i}
-                                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/5 text-gray-500 border border-white/5 truncate max-w-[90px]"
+                                    title={tag}
+                                    className="text-xs px-2 py-1 rounded-md bg-white/5 text-gray-300 border border-white/10 truncate max-w-[100px]"
                                 >
                                     #{tag}
                                 </span>
@@ -171,7 +179,7 @@ export default function ToolCard({ tool }) {
 
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${pricingClass}`}>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${pricingClass}`}>
                             {pricingDisplay}
                         </span>
 
@@ -183,22 +191,24 @@ export default function ToolCard({ tool }) {
                                     e.stopPropagation()
                                     setShowCollectionModal(true)
                                 }}
-                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-colors border border-white/5"
+                                className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors border border-white/10"
                                 title="Save to collection"
                             >
-                                <Plus size={13} />
+                                <Plus size={16} />
                             </button>
 
                             {/* Visit */}
-                            <a
-                                href={visitHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-7 px-2.5 flex items-center gap-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[11px] transition-colors"
-                            >
-                                Visit <ArrowUpRight size={11} />
-                            </a>
+                            {(tool.officialUrl || tool.url) && (
+                                <a
+                                    href={visitHref || tool.officialUrl || tool.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-colors shadow-md"
+                                >
+                                    Visit <ArrowUpRight size={14} />
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>

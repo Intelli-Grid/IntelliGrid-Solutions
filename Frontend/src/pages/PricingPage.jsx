@@ -265,7 +265,8 @@ export default function PricingPage() {
                 }
 
             } else if (paymentMethod === 'cashfree') {
-                const response = await paymentService.createCashfreeOrder(planId, couponCode || null)
+                const customerPhone = user?.primaryPhoneNumber?.phoneNumber || null
+                const response = await paymentService.createCashfreeOrder(planId, couponCode || null, customerPhone)
                 const result = response?.data || response
 
                 if (result?.payment_link) {
@@ -288,7 +289,7 @@ export default function PricingPage() {
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
             <SEO
                 title="Pricing — IntelliGrid | 14-Day Free Trial, No Card Required"
-                description="Start with a 14-day free Pro trial. Explore 3,500+ AI tools with unlimited saves, advanced filters, and collections. Upgrade for $9.99/month or $79.99/year."
+                description="Start with a 14-day free Pro trial. Explore 4,000+ AI tools with unlimited saves, advanced filters, and collections. Upgrade for $9.99/month or $79.99/year."
                 keywords="AI tools pricing, IntelliGrid Pro, AI directory subscription, premium AI tools, free trial"
                 canonicalUrl="https://www.intelligrid.online/pricing"
             />
@@ -462,6 +463,11 @@ export default function PricingPage() {
                         ⚠️ Coupon discounts apply to <strong>Cashfree</strong> payments only.
                     </div>
                 )}
+
+                {/* ── Legal Disclaimer ── */}
+                <div className="mx-auto mb-8 max-w-md text-center text-xs text-gray-500">
+                    By proceeding with your payment, you agree to our <Link to="/terms-of-service" className="text-white hover:underline transition-colors">Terms of Service</Link> and <Link to="/privacy-policy" className="text-white hover:underline transition-colors">Privacy Policy</Link>.
+                </div>
 
                 {/* ── Error Message ── */}
                 {error && (

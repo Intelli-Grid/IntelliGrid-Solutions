@@ -1,9 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Tag, CheckCircle, Layers, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import ToolReviews from './ToolReviews';
 import ToolFAQSection from './ToolFAQSection';
+import ToolCard from './ToolCard';
+import ReactMarkdown from 'react-markdown';
+import DOMPurify from 'dompurify';
 
-export default function ToolContent({ tool }) {
+export default function ToolContent({ tool, relatedBuckets = {} }) {
     const [activeTab, setActiveTab] = useState('overview');
 
     if (!tool) return null;
@@ -40,29 +44,43 @@ export default function ToolContent({ tool }) {
                         {/* Summary */}
                         <div className="prose prose-invert max-w-none text-balance leading-relaxed text-gray-300">
                             <h3 className="text-xl font-semibold text-white mb-4">What is {tool.name}?</h3>
-                            <p className="whitespace-pre-wrap">
-                                {tool.fullDescription || tool.description || "No detailed description available."}
-                            </p>
+                            <div className="whitespace-pre-wrap">
+                                <ReactMarkdown>
+                                    {DOMPurify.sanitize(tool.fullDescription || tool.description || "No detailed description available.")}
+                                </ReactMarkdown>
+                            </div>
                         </div>
 
-                        {/* Use Cases (Example/Future) */}
-                        <div className="grid md:grid-cols-2 gap-6 pt-4">
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                                <h4 className="font-semibold text-white mb-2">Ideal For</h4>
-                                <ul className="space-y-2 text-sm text-gray-400">
-                                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Creators</li>
-                                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Developers</li>
-                                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Startups</li>
-                                </ul>
+                        {/* Use Cases & Platforms */}
+                        {(tool.targetAudience?.length > 0 || tool.platforms?.length > 0) && (
+                            <div className="grid md:grid-cols-2 gap-6 pt-4">
+                                {tool.targetAudience?.length > 0 && (
+                                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                        <h4 className="font-semibold text-white mb-2">Ideal For</h4>
+                                        <ul className="space-y-2 text-sm text-gray-400">
+                                            {tool.targetAudience.map(audience => (
+                                                <li key={audience} className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                                    {audience}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {tool.platforms?.length > 0 && (
+                                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                        <h4 className="font-semibold text-white mb-2">Platform</h4>
+                                        <div className="flex flex-wrap gap-2 text-sm text-gray-400">
+                                            {tool.platforms.map(platform => (
+                                                <span key={platform} className="px-2 py-1 bg-white/5 rounded border border-white/10">
+                                                    {platform}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                                <h4 className="font-semibold text-white mb-2">Platform</h4>
-                                <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                                    <span className="px-2 py-1 bg-white/5 rounded border border-white/10">Web</span>
-                                    <span className="px-2 py-1 bg-white/5 rounded border border-white/10">API</span>
-                                </div>
-                            </div>
-                        </div>
+                        )}
 
                         {/* Tags */}
                         {tool.tags && tool.tags.length > 0 && (
@@ -183,7 +201,7 @@ export default function ToolContent({ tool }) {
                                 <div className="flex flex-col items-center justify-center h-40 text-gray-500 gap-3">
                                     <Layers className="h-10 w-10 opacity-30" />
                                     <p className="text-sm">No pros &amp; cons data yet for this tool.</p>
-                                    <p className="text-xs text-gray-600">Enrichment data is sourced via Browse AI imports — check the Admin → Enrichment tab.</p>
+                                    <p className="text-xs text-gray-500 italic">Be the first to review this tool and share your experience.</p>
                                 </div>
                             )}
                         </div>
@@ -197,9 +215,25 @@ export default function ToolContent({ tool }) {
 
                 {/* 4. ALTERNATIVES TAB */}
                 {activeTab === 'alternatives' && (
-                    <div className="flex flex-col items-center justify-center h-48 text-gray-400 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <p>AI is analyzing similar tools to compare...</p>
-                        {/* This is where we'd list direct competitors */}
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <h3 className="text-xl font-semibold text-white mb-6">
+                            Alternatives to {tool.name}
+                        </h3>
+                        {(relatedBuckets?.alternatives || []).length > 0 ? (
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                {relatedBuckets.alternatives.map(t => (
+                                    <ToolCard key={t._id} tool={t} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-40 text-gray-500 gap-3">
+                                <Layers className="h-10 w-10 opacity-30" />
+                                <p className="text-sm">No alternatives found for this tool yet.</p>
+                                <Link to={`/alternatives/${tool.slug}`} className="text-purple-400 hover:text-purple-300 text-xs">
+                                    View all alternatives &rarr;
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

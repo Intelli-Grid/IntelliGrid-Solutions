@@ -74,8 +74,8 @@ export const paymentService = {
         apiClient.post('/payment/paypal/capture', { paymentId, payerId }),
 
     // ── Cashfree ───────────────────────────────────────────────────────────────
-    createCashfreeOrder: (plan, couponCode = null) => {
-        const body = { plan }
+    createCashfreeOrder: (plan, couponCode = null, customerPhone = null) => {
+        const body = { plan, customerPhone }
         if (couponCode) body.couponCode = couponCode
         return apiClient.post('/payment/cashfree/create-order', body)
     },
@@ -103,9 +103,6 @@ export const adminService = {
     approveReview: (id) => apiClient.put(`/admin/reviews/${id}/approve`),
     rejectReview: (id) => apiClient.put(`/admin/reviews/${id}/reject`),
     getPayments: (params = {}) => apiClient.get('/admin/payments', { params }),
-    getPendingClaims: () => apiClient.get('/admin/claims/pending'),
-    approveClaim: (id) => apiClient.put(`/admin/claims/${id}/approve`),
-    rejectClaim: (id) => apiClient.put(`/admin/claims/${id}/reject`),
     // Claims — full list with status filter
     getClaims: (params = {}) => apiClient.get('/admin/claims', { params }),
     approveClaimById: (id) => apiClient.put(`/admin/claims/${id}/approve`),

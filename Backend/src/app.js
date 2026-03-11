@@ -225,7 +225,7 @@ app.get('/health', async (req, res) => {
             clerk: process.env.CLERK_SECRET_KEY ? 'Active' : 'Missing'
         },
         paypal_mode: process.env.PAYPAL_MODE || 'live',
-        cashfree_env: process.env.CASHFREE_ENVIRONMENT || 'PROD'
+        cashfree_env: process.env.CASHFREE_ENV || 'TEST'
     })
 })
 

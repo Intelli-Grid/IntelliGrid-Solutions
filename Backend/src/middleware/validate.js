@@ -61,6 +61,7 @@ export const validationRules = {
     createTool: () => [
         body('name')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Tool name is required')
             .isLength({ max: 200 })
@@ -73,6 +74,7 @@ export const validationRules = {
             .withMessage('Invalid URL format'),
         body('shortDescription')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Short description is required')
             .isLength({ max: 500 })
@@ -103,12 +105,14 @@ export const validationRules = {
             .withMessage('Rating must be between 1 and 5'),
         body('title')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Review title is required')
             .isLength({ max: 100 })
             .withMessage('Title cannot exceed 100 characters'),
         body('content')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Review content is required')
             .isLength({ max: 2000 })
@@ -119,10 +123,12 @@ export const validationRules = {
     createCategory: () => [
         body('name')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Category name is required'),
         body('description')
             .trim()
+            .escape()
             .notEmpty()
             .withMessage('Category description is required'),
     ],
@@ -132,16 +138,19 @@ export const validationRules = {
         body('firstName')
             .optional()
             .trim()
+            .escape()
             .isLength({ max: 50 })
             .withMessage('First name cannot exceed 50 characters'),
         body('lastName')
             .optional()
             .trim()
+            .escape()
             .isLength({ max: 50 })
             .withMessage('Last name cannot exceed 50 characters'),
         body('profile.bio')
             .optional()
             .trim()
+            .escape()
             .isLength({ max: 500 })
             .withMessage('Bio cannot exceed 500 characters'),
         body('profile.website')

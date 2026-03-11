@@ -7,6 +7,7 @@
     @apply bg-gray-900 text-white antialiased;
     min-height: 100vh;
     scroll-behavior: smooth;
+    overflow-x: hidden; /* Added to prevent mobile horizontal scroll */
   }
 
   /* Custom scrollbar — dark themed */

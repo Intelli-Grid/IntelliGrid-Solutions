@@ -12,7 +12,7 @@ function PostCard({ post, featured = false }) {
     return (
         <Link
             to={`/blog/${post.slug}`}
-            className={`group flex flex-col rounded-2xl border border-white/8 bg-[#0d0d0d] overflow-hidden hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-0.5 ${featured ? 'md:flex-row' : ''}`}
+            className={`group flex flex-col rounded-2xl border border-white/8 bg-[#0d0d0d] overflow-hidden hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-0.5 h-full ${featured ? 'md:flex-row' : ''}`}
         >
             {/* Cover */}
             {post.featuredImage ? (

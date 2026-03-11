@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
+import { getOptimizedImageUrl } from '../../utils/helpers'
 
 export default function ToolScreenshots({ tool }) {
     if (!tool) return null
@@ -8,8 +9,10 @@ export default function ToolScreenshots({ tool }) {
     const screenshotList = (tool.screenshots || tool.metadata?.screenshots || []).filter(Boolean)
 
     // Screenshots preferred, logo as final fallback
-    const allImages = screenshotList.length > 0 ? screenshotList : (logoSrc ? [logoSrc] : [])
+    const allImages = React.useMemo(() => screenshotList.length > 0 ? screenshotList : (logoSrc ? [logoSrc] : []), [screenshotList, logoSrc])
     const hasImages = allImages.length > 0
+
+    if (!hasImages) return null
 
     const [activeIdx, setActiveIdx] = useState(0)
     const mainSrc = hasImages ? allImages[activeIdx] : null
@@ -39,7 +42,7 @@ export default function ToolScreenshots({ tool }) {
                         <>
                             <img
                                 key={mainSrc}
-                                src={mainSrc}
+                                src={getOptimizedImageUrl(mainSrc, 800)}
                                 alt={`${tool.name} preview`}
                                 loading="lazy"
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 hover:scale-[1.02]"
@@ -84,12 +87,12 @@ export default function ToolScreenshots({ tool }) {
                             key={i}
                             onClick={() => setActiveIdx(i)}
                             className={`flex-shrink-0 h-14 w-20 rounded-lg border overflow-hidden transition-all duration-200 ${i === activeIdx
-                                    ? 'border-purple-500/80 ring-2 ring-purple-500/30 opacity-100'
-                                    : 'border-white/10 hover:border-purple-500/40 opacity-60 hover:opacity-90'
+                                ? 'border-purple-500/80 ring-2 ring-purple-500/30 opacity-100'
+                                : 'border-white/10 hover:border-purple-500/40 opacity-60 hover:opacity-90'
                                 }`}
                         >
                             <img
-                                src={src}
+                                src={getOptimizedImageUrl(src, 150)}
                                 alt={`${tool.name} ${i + 1}`}
                                 className="w-full h-full object-cover"
                                 onError={(e) => { e.target.onerror = null; e.target.style.opacity = '0.2' }}

@@ -49,12 +49,19 @@ export default function DashboardPage() {
             setLoading(true)
             setError(null)
 
-            const [statsResponse, favoritesResponse, collectionsResponse, managedResponse] = await Promise.allSettled([
+            const [statsResponse, favoritesResponse, collectionsResponse, managedResponse, historyResponse] = await Promise.allSettled([
                 userService.getStats(),
                 userService.getFavorites(),
                 collectionService.getMyCollections(),
-                toolService.getManagedTools()
+                toolService.getManagedTools(),
+                userService.getHistory(20)
             ])
+
+            if (historyResponse.status === 'fulfilled') {
+                setViewHistory(historyResponse.value.history || [])
+            } else {
+                setViewHistory([])
+            }
 
             if (statsResponse.status === 'fulfilled') {
                 setStats(statsResponse.value.stats)
@@ -343,15 +350,57 @@ export default function DashboardPage() {
                     <div className="space-y-6">
                         <div className="grid gap-6 md:grid-cols-2">
                             {/* Recent Activity */}
-                            <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                                <h2 className="mb-4 text-xl font-bold text-white">Recent Activity</h2>
-                                {collections.length > 0 || managedTools.length > 0 ? (
-                                    <div className="text-gray-300">
-                                        You have {collections.length} collections, {favorites.length} saved tools, and {managedTools.length} managed tools.
+                            <div className="rounded-lg border border-white/10 bg-white/5 p-6 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-xl font-bold text-white">Recent Activity</h2>
+                                        {viewHistory && viewHistory.length > 3 && (
+                                            <button
+                                                onClick={() => setActiveTab('history')}
+                                                className="text-xs font-semibold text-purple-400 hover:text-purple-300 transition"
+                                            >
+                                                View All
+                                            </button>
+                                        )}
                                     </div>
-                                ) : (
-                                    <p className="text-center text-gray-400">No recent activity to display.</p>
-                                )}
+                                    
+                                    <div className="space-y-4">
+                                        {viewHistory && viewHistory.length > 0 ? (
+                                            viewHistory.slice(0, 3).map((entry) => entry.tool && (
+                                                <div key={entry._id} className="flex items-center justify-between border-b border-white/5 pb-3 pt-1 last:border-0 last:pb-0">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-800 flex items-center justify-center">
+                                                            {entry.tool.logo || entry.tool.imageUrl ? (
+                                                                <img
+                                                                    src={entry.tool.logo || entry.tool.imageUrl}
+                                                                    alt={entry.tool.name || entry.tool.toolName}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span className="text-xs font-bold text-gray-400">
+                                                                    {(entry.tool.name || entry.tool.toolName || '?').charAt(0).toUpperCase()}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <Link to={`/tool/${entry.tool.slug}`} className="text-sm font-semibold text-white transition hover:text-purple-400">
+                                                                {entry.tool.name || entry.tool.toolName}
+                                                            </Link>
+                                                            <div className="text-xs text-gray-400">
+                                                                {new Date(entry.viewedAt).toLocaleDateString()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <Link to={`/tool/${entry.tool.slug}`} className="rounded bg-white/5 px-3 py-1 text-xs text-gray-300 hover:bg-white/10 transition whitespace-nowrap">
+                                                        Visit
+                                                    </Link>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-center text-gray-400 mt-4 text-sm">No recent activity to display.</p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Current Plan card */}
@@ -970,14 +1019,6 @@ function MySubmissionsTab() {
                 </div>
             )}
 
-            {/* Cancellation Rescue Modal — intercepts cancel intent when CANCELLATION_RESCUE flag is ON */}
-            <CancellationRescueModal
-                isOpen={rescueOpen}
-                onClose={() => setRescueOpen(false)}
-                onConfirmCancel={executeCancelSubscription}
-                planName={subscription?.tier || 'Pro'}
-                isLoading={cancellingSubscription}
-            />
         </div>
     )
 }

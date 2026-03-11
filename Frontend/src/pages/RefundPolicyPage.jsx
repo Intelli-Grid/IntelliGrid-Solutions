@@ -44,7 +44,7 @@ function RefundPolicyPage() {
 
                     <h3 className="text-xl font-semibold mt-6 mb-3 text-white">How to Request a Refund</h3>
                     <ol className="list-decimal pl-6 space-y-2 text-gray-300">
-                        <li>Email us at: <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></li>
+                        <li>Email us at: <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></li>
                         <li>Include your order ID and reason for refund</li>
                         <li>We'll process your request within 3-5 business days</li>
                     </ol>
@@ -67,11 +67,11 @@ function RefundPolicyPage() {
                     <p className="text-gray-300">You can cancel your subscription anytime from your dashboard. Cancellation takes effect at the end of your current billing period.</p>
 
                     <h2 className="text-2xl font-bold mt-8 mb-4 text-white">Questions?</h2>
-                    <p className="text-gray-300">Contact us at <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></p>
+                    <p className="text-gray-300">Contact us at <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></p>
 
                     <div className="bg-white/5 p-6 rounded-lg mt-8 border border-white/10">
                         <p className="font-semibold mb-2 text-white">IntelliGrid Solutions</p>
-                        <p className="text-gray-300">Email: <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></p>
+                        <p className="text-gray-300">Email: <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></p>
                         <p className="text-gray-300">Website: <a href="https://www.intelligrid.online" className="text-accent-cyan hover:underline">www.intelligrid.online</a></p>
                     </div>
 

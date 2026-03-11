@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Calendar, Eye, Tag, ArrowRight, ArrowLeft, Sparkles, Loader2, Share2 } from 'lucide-react'
 import SEO from '../components/common/SEO'
 import apiClient from '../services/api'
+import DOMPurify from 'dompurify'
 
 function formatDate(date) {
     return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(date))
@@ -90,6 +91,27 @@ export default function BlogPostPage() {
                 keywords={post.tags?.join(', ')}
                 ogImage={post.featuredImage || 'https://www.intelligrid.online/og-image.jpg'}
                 ogType="article"
+                structuredData={{
+                    "@context": "https://schema.org",
+                    "@type": "BlogPosting",
+                    "headline": post.title,
+                    "image": post.featuredImage ? [post.featuredImage] : [],
+                    "datePublished": post.publishedAt || post.createdAt,
+                    "dateModified": post.updatedAt || post.publishedAt || post.createdAt,
+                    "author": {
+                        "@type": "Person",
+                        "name": post.author?.firstName ? `${post.author.firstName} ${post.author.lastName}`.trim() : "IntelliGrid Team"
+                    },
+                    "publisher": {
+                        "@type": "Organization",
+                        "name": "IntelliGrid",
+                        "logo": {
+                            "@type": "ImageObject",
+                            "url": "https://www.intelligrid.online/logo.png"
+                        }
+                    },
+                    "description": post.excerpt || (post.content ? post.content.replace(/<[^>]+>/g, '').slice(0, 160) : '')
+                }}
             />
 
             {/* Cover image */}
@@ -158,7 +180,7 @@ export default function BlogPostPage() {
                                 )}
                                 <div>
                                     <p className="text-sm font-medium text-white">{post.author.firstName} {post.author.lastName}</p>
-                                    <p className="text-xs text-gray-600">IntelliGrid Team</p>
+                                    <p className="text-xs text-gray-600">{post.author.role || 'IntelliGrid Contributor'}</p>
                                 </div>
                                 <button
                                     onClick={handleShare}
@@ -182,7 +204,7 @@ export default function BlogPostPage() {
                                 prose-blockquote:border-l-purple-500 prose-blockquote:text-gray-500
                                 prose-li:text-gray-400
                                 prose-img:rounded-xl"
-                            dangerouslySetInnerHTML={{ __html: post.content }}
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
                         />
 
                         {/* Tags */}
@@ -230,7 +252,7 @@ export default function BlogPostPage() {
                             <div className="rounded-xl border border-white/8 bg-[#0d0d0d] p-5">
                                 <p className="text-sm font-semibold text-white mb-1">📬 Weekly AI digest</p>
                                 <p className="text-xs text-gray-600 mb-4">Get the best AI tools and guides delivered to your inbox every week.</p>
-                                <Link to="/#newsletter" className="block w-full text-center py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors">
+                                <Link to="/newsletter" className="block w-full text-center py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors">
                                     Subscribe Free
                                 </Link>
                             </div>

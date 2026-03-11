@@ -18,6 +18,12 @@ export default function NewsletterForm({ source = 'website', className = '' }) {
         e.preventDefault()
         if (!email) return
 
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+            toast.error('Please enter a valid email address.')
+            return
+        }
+
         try {
             setLoading(true)
             await newsletterService.subscribe(email, source)

@@ -14,6 +14,8 @@ import Order from '../models/Order.js'
 import Collection from '../models/Collection.js'
 import Submission from '../models/Submission.js'
 import ClaimRequest from '../models/ClaimRequest.js'
+import AnalyticsEvent from '../models/AnalyticsEvent.js'
+import ClickEvent from '../models/ClickEvent.js'
 import clerkClient from '../config/clerk.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
@@ -138,6 +140,8 @@ export const deleteUserData = asyncHandler(async (req, res) => {
         Collection.deleteMany({ owner: userId }),
         Submission.deleteMany({ 'submittedBy.user': userId }),
         ClaimRequest.deleteMany({ user: userId }),
+        AnalyticsEvent.deleteMany({ user: userId }),
+        ClickEvent.deleteMany({ userId: userId }),
     ])
 
     // Delete User document from MongoDB

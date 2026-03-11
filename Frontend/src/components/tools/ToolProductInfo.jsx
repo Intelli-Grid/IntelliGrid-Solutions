@@ -1,6 +1,6 @@
 import { ExternalLink, Heart, Share2, Check, TrendingUp, Star, Loader2, ArrowRight, Sparkles, BadgePercent } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getPricingDisplay, formatNumber, formatDate, getInitials } from '../../utils/helpers';
+import { getPricingDisplay, formatNumber, formatDate, getInitials, getOptimizedImageUrl } from '../../utils/helpers';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useUser } from '@clerk/clerk-react';
@@ -62,7 +62,8 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
         } catch { return '' }
     })()
 
-    const logoSrc = tool.logo || tool.metadata?.logo || ''
+    const rawLogoSrc = tool.logo || tool.metadata?.logo || ''
+    const logoSrc = getOptimizedImageUrl(rawLogoSrc, 150)
 
     // Determine visit href:
     // - When AFFILIATE_TRACKING flag is ON → use the tracked redirect route
@@ -242,6 +243,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
                 </Link>
+                {/* Compare link hidden until launch
                 <Link
                     to={`/compare/${tool.slug}-vs-chatgpt`}
                     className="group flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/6 hover:border-cyan-500/20 transition-all duration-200"
@@ -252,6 +254,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
                 </Link>
+                */}
             </div>
 
             {/* Claim Tool Link */}

@@ -188,7 +188,7 @@ export default function ToolDetailsPage() {
 
                 {/* 3. Middle Section: Detailed Content Tabs */}
                 <div className="mt-24">
-                    <ToolContent tool={tool} />
+                    <ToolContent tool={tool} relatedBuckets={relatedBuckets} />
                 </div>
 
                 {/* 4. Bottom Section: Related Tools — 4 enriched buckets (Phase 3.2) */}

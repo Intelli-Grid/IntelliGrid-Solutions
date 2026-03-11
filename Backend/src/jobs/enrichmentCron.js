@@ -109,84 +109,86 @@ export async function computeAndSaveTrendingScores() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Enrichment cron — Mon/Wed/Fri at 08:00 UTC
 // ─────────────────────────────────────────────────────────────────────────────
-export function startEnrichmentCron() {
-    cron.schedule(CRON_SCHEDULE, async () => {
-        console.log('🔄 [enrichmentCron] Starting scheduled enrichment run...')
-        const runStart = Date.now()
+export async function runEnrichmentCheck({ batchSize = BATCH_SIZE } = {}) {
+    console.log('🔄 [enrichmentCron] Starting enrichment run...')
+    const runStart = Date.now()
 
-        try {
-            // ── Task 1: AI enrichment batch ──────────────────────────────────
-            const batch = await getEnrichmentBatch(BATCH_SIZE)
+    try {
+        // ── Task 1: AI enrichment batch ──────────────────────────────────
+        const batch = await getEnrichmentBatch(batchSize)
 
-            if (batch.length === 0) {
-                console.log('[enrichmentCron] No tools need enrichment — database is fresh ✅')
-            } else {
-                console.log(`[enrichmentCron] Enriching ${batch.length} tools...`)
-                let batchSucceeded = 0, batchFailed = 0
+        if (batch.length === 0) {
+            console.log('[enrichmentCron] No tools need enrichment — database is fresh ✅')
+        } else {
+            console.log(`[enrichmentCron] Enriching ${batch.length} tools...`)
+            let batchSucceeded = 0, batchFailed = 0
 
-                for (let i = 0; i < batch.length; i++) {
-                    const tool = batch[i]
-                    try {
-                        const result = await enrichTool(tool)
-                        if (result.success) {
-                            batchSucceeded++
-                            console.log(`  ✅ [${i + 1}/${batch.length}] ${tool.name} → score: ${result.score}`)
-                        } else {
-                            batchFailed++
-                            console.warn(`  ⚠️  [${i + 1}/${batch.length}] ${tool.name} — ${result.reason}`)
-                        }
-                    } catch (err) {
+            for (let i = 0; i < batch.length; i++) {
+                const tool = batch[i]
+                try {
+                    const result = await enrichTool(tool)
+                    if (result.success) {
+                        batchSucceeded++
+                        console.log(`  ✅ [${i + 1}/${batch.length}] ${tool.name} → score: ${result.score}`)
+                    } else {
                         batchFailed++
-                        console.error(`  ❌ Error enriching ${tool.name}:`, err.message)
+                        console.warn(`  ⚠️  [${i + 1}/${batch.length}] ${tool.name} — ${result.reason}`)
                     }
-                    if (i < batch.length - 1) await sleep(ENRICHMENT_DELAY_MS)
+                } catch (err) {
+                    batchFailed++
+                    console.error(`  ❌ Error enriching ${tool.name}:`, err.message)
                 }
-                console.log(`✅ [enrichmentCron] Batch done: ${batchSucceeded} ok, ${batchFailed} failed`)
+                if (i < batch.length - 1) await sleep(ENRICHMENT_DELAY_MS)
             }
-
-            // ── Task 2: trendingScore + isTrending ──────────────────────────
-            await computeAndSaveTrendingScores()
-
-            // ── Task 3: Reset isNew for tools older than 30 days ────────────
-            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-            const expiredResult = await Tool.updateMany(
-                { isNew: true, createdAt: { $lt: thirtyDaysAgo } },
-                { $set: { isNew: false } }
-            )
-            if (expiredResult.modifiedCount > 0) {
-                console.log(`✅ [enrichmentCron] Cleared isNew for ${expiredResult.modifiedCount} tools`)
-            }
-
-            // ── Task 4: Flag stale tools ─────────────────────────────────────
-            const staleDate = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000)
-            const staleResult = await Tool.updateMany(
-                {
-                    status: 'active',
-                    isActive: { $ne: false },
-                    $or: [{ lastEnrichedAt: { $lt: staleDate } }, { lastEnriched: { $lt: staleDate } }],
-                },
-                { $set: { needsEnrichment: true } }
-            )
-            if (staleResult.modifiedCount > 0) {
-                console.log(`✅ [enrichmentCron] Flagged ${staleResult.modifiedCount} stale tools`)
-            }
-
-            // ── Task 5: [Monday only] Reset weekly counters ──────────────────
-            if (new Date().getDay() === 1) {
-                await Tool.updateMany(
-                    { isActive: { $ne: false } },
-                    { $set: { weeklyViews: 0, weeklyBookmarks: 0 } }
-                )
-                console.log('✅ [enrichmentCron] Weekly counters reset (Monday)')
-            }
-
-            const elapsed = ((Date.now() - runStart) / 1000).toFixed(1)
-            console.log(`✅ [enrichmentCron] Full run complete in ${elapsed}s`)
-
-        } catch (err) {
-            console.error('[enrichmentCron] Run failed:', err.message)
+            console.log(`✅ [enrichmentCron] Batch done: ${batchSucceeded} ok, ${batchFailed} failed`)
         }
-    })
+
+        // ── Task 2: trendingScore + isTrending ──────────────────────────
+        await computeAndSaveTrendingScores()
+
+        // ── Task 3: Reset isNew for tools older than 30 days ────────────
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const expiredResult = await Tool.updateMany(
+            { isNew: true, createdAt: { $lt: thirtyDaysAgo } },
+            { $set: { isNew: false } }
+        )
+        if (expiredResult.modifiedCount > 0) {
+            console.log(`✅ [enrichmentCron] Cleared isNew for ${expiredResult.modifiedCount} tools`)
+        }
+
+        // ── Task 4: Flag stale tools ─────────────────────────────────────
+        const staleDate = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000)
+        const staleResult = await Tool.updateMany(
+            {
+                status: 'active',
+                isActive: { $ne: false },
+                $or: [{ lastEnrichedAt: { $lt: staleDate } }, { lastEnriched: { $lt: staleDate } }],
+            },
+            { $set: { needsEnrichment: true } }
+        )
+        if (staleResult.modifiedCount > 0) {
+            console.log(`✅ [enrichmentCron] Flagged ${staleResult.modifiedCount} stale tools`)
+        }
+
+        // ── Task 5: [Monday only] Reset weekly counters ──────────────────
+        if (new Date().getDay() === 1) {
+            await Tool.updateMany(
+                { isActive: { $ne: false } },
+                { $set: { weeklyViews: 0, weeklyBookmarks: 0 } }
+            )
+            console.log('✅ [enrichmentCron] Weekly counters reset (Monday)')
+        }
+
+        const elapsed = ((Date.now() - runStart) / 1000).toFixed(1)
+        console.log(`✅ [enrichmentCron] Full run complete in ${elapsed}s`)
+
+    } catch (err) {
+        console.error('[enrichmentCron] Run failed:', err.message)
+    }
+}
+
+export function startEnrichmentCron() {
+    cron.schedule(CRON_SCHEDULE, () => runEnrichmentCheck())
 
     // Also run trendingScore computation daily at 3AM (lightweight, no Groq calls)
     cron.schedule(DAILY_SCORE_SCHEDULE, async () => {

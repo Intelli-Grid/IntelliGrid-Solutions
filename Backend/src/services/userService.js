@@ -40,6 +40,7 @@ class UserService {
                 lastName: clerkData.last_name,
                 username: clerkData.username,
                 avatar: clerkData.image_url,
+                role: clerkData.public_metadata?.role || 'USER',
                 referralCode: nanoid(10),
             })
 
@@ -98,7 +99,7 @@ class UserService {
      * Get user profile
      */
     async getUserProfile(userId) {
-        const user = await User.findById(userId).select('-__v')
+        const user = await User.findById(userId).select('-__v -clerkId -subscription.paypalSubscriptionId')
 
         if (!user) {
             throw ApiError.notFound('User not found')
@@ -111,8 +112,8 @@ class UserService {
      * Update user profile
      */
     async updateUserProfile(userId, updates) {
-        // avatar and email are allowed when called from Clerk webhook (authController)
-        const allowedUpdates = ['firstName', 'lastName', 'username', 'profile', 'avatar', 'email']
+        // avatar, email, and role are allowed when called from Clerk webhook (authController)
+        const allowedUpdates = ['firstName', 'lastName', 'username', 'profile', 'avatar', 'email', 'role']
         const filteredUpdates = {}
 
         Object.keys(updates).forEach(key => {

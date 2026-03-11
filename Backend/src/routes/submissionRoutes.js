@@ -1,4 +1,5 @@
 import express from 'express'
+import { body, validationResult } from 'express-validator'
 import Submission from '../models/Submission.js'
 import Tool from '../models/Tool.js'
 import Category from '../models/Category.js'
@@ -6,6 +7,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import emailService from '../services/emailService.js'
+import toolService from '../services/toolService.js'
 
 const router = express.Router()
 
@@ -14,15 +16,26 @@ const router = express.Router()
  * @desc    Submit a new tool (public or authenticated)
  * @access  Public (optionally authenticated)
  */
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', 
+    [
+        body('toolName').trim().escape().notEmpty().withMessage('Tool name is required'),
+        body('officialUrl').trim().notEmpty().isURL().withMessage('Valid official URL is required'),
+        body('shortDescription').trim().escape().notEmpty().withMessage('Short description is required'),
+        body('fullDescription').trim().optional(), // Do not escape to allow markdown
+        body('submitterName').trim().escape().optional(),
+        body('submitterEmail').trim().isEmail().optional()
+    ],
+    asyncHandler(async (req, res) => {
+    
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        throw ApiError.badRequest(errors.array()[0].msg)
+    }
+
     const {
         toolName, officialUrl, shortDescription, fullDescription,
         category, pricing, features, submitterName, submitterEmail
     } = req.body
-
-    if (!toolName || !officialUrl || !shortDescription) {
-        throw ApiError.badRequest('toolName, officialUrl, and shortDescription are required')
-    }
 
     // Basic URL validation
     try { new URL(officialUrl) } catch { throw ApiError.badRequest('Invalid officialUrl') }
@@ -160,14 +173,12 @@ router.patch('/:id/review', requireAuth, requireAdmin, asyncHandler(async (req, 
             categoryId = cat?._id || null
         }
 
-        const tool = await Tool.create({
+        const tool = await toolService.createTool({
             name: submission.toolName,
             slug,
             officialUrl: submission.officialUrl,
-            // sourceUrl is no longer required — fall back to officialUrl for submissions
             sourceUrl: submission.officialUrl,
             shortDescription: submission.shortDescription,
-            // fullDescription is optional — fall back to shortDescription if not provided
             fullDescription: submission.fullDescription || submission.shortDescription,
             category: categoryId,
             pricing: pricingNorm,

@@ -25,7 +25,7 @@ function PrivacyPolicyPage() {
                     </div>
 
                     <h1 className="text-5xl font-extrabold text-white mb-4">Privacy Policy</h1>
-                    <p className="text-gray-400 text-lg">Last updated: February 07, 2026</p>
+                    <p className="text-gray-400 text-lg">Last updated: March 12, 2026</p>
                 </div>
 
                 <div className="prose prose-lg prose-invert max-w-none space-y-6">
@@ -208,7 +208,7 @@ function PrivacyPolicyPage() {
                     <h3 className="text-xl font-semibold mt-6 mb-3 text-white">9.5 How to Exercise Your Rights</h3>
                     <p className="text-gray-300">To exercise any of your privacy rights:</p>
                     <ul className="list-disc pl-6 space-y-2 text-gray-300">
-                        <li><strong>Email:</strong> <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></li>
+                        <li><strong>Email:</strong> <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></li>
                         <li><strong>Account Settings:</strong> Manage preferences in your dashboard</li>
                         <li><strong>Response Time:</strong> We respond within 30 days (45 days for complex requests)</li>
                         <li><strong>Verification:</strong> We may verify your identity before processing requests</li>
@@ -218,7 +218,7 @@ function PrivacyPolicyPage() {
 
                     <p className="font-semibold text-white">Our Service is NOT intended for children under 13 years of age.</p>
 
-                    <p className="text-gray-300">We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately at <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a>.</p>
+                    <p className="text-gray-300">We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately at <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a>.</p>
 
                     <p className="text-gray-300">If we discover we have collected personal information from a child under 13 without parental consent, we will:</p>
                     <ul className="list-disc pl-6 space-y-2 text-gray-300">
@@ -243,7 +243,7 @@ function PrivacyPolicyPage() {
                     <ul className="list-disc pl-6 space-y-2 text-gray-300">
                         <li>Clicking "Unsubscribe" in any marketing email</li>
                         <li>Updating preferences in your account settings</li>
-                        <li>Emailing <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></li>
+                        <li>Emailing <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></li>
                     </ul>
 
                     <p className="mt-4 text-gray-300">Note: You will still receive transactional emails (subscription confirmations, password resets, etc.) even if you opt out of marketing.</p>
@@ -266,12 +266,12 @@ function PrivacyPolicyPage() {
 
                     <div className="bg-white/5 p-6 rounded-lg mt-4 border border-white/10">
                         <p className="font-semibold mb-2 text-white">IntelliGrid Solutions</p>
-                        <p className="text-gray-300">Email: <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></p>
+                        <p className="text-gray-300">Email: <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></p>
                         <p className="text-gray-300">Website: <a href="https://www.intelligrid.online" className="text-accent-cyan hover:underline">www.intelligrid.online</a></p>
                         <p className="mt-2 text-sm text-gray-400">Location: Maharashtra, India</p>
                     </div>
 
-                    <p className="mt-6 text-gray-300"><strong>Data Protection Officer:</strong> For GDPR-related inquiries, contact our DPO at <a href="mailto:support@intelligrid.store" className="text-accent-cyan hover:underline">support@intelligrid.store</a></p>
+                    <p className="mt-6 text-gray-300"><strong>Data Protection Officer:</strong> For GDPR-related inquiries, contact our DPO at <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">support@intelligrid.online</a></p>
 
                     <div className="mt-12 pt-6 border-t border-white/10">
                         <p className="text-sm text-gray-400">

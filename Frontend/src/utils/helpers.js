@@ -97,7 +97,7 @@ export function isPremiumUser(user) {
  * string → normalized label
  */
 export function getPricingDisplay(pricing) {
-    if (pricing === null || pricing === undefined || pricing === '') return 'Contact'
+    if (pricing === null || pricing === undefined || pricing === '') return 'Unknown'
 
     if (typeof pricing === 'string') {
         const lower = pricing.toLowerCase()
@@ -116,7 +116,7 @@ export function getPricingDisplay(pricing) {
         if (pricing.price) return `$${pricing.price}`
         return 'Paid'
     }
-    return 'Contact'
+    return 'Unknown'
 }
 
 /**
@@ -139,4 +139,21 @@ export function formatToolName(name) {
     formatted = formatted.replace(/\w\S*/g, (w) => (w.replace(/^\w/, (c) => c.toUpperCase())))
 
     return formatted.trim()
+}
+
+/**
+ * Optimize Cloudinary URLs for WebP format and compression
+ */
+export function getOptimizedImageUrl(url, width = 400) {
+    if (!url || typeof url !== 'string') return url;
+    if (url.includes('res.cloudinary.com')) {
+        // Handle URLs that already have transformations
+        if (url.match(/\/upload\/(v\d+)\//)) {
+            return url.replace(/\/upload\/(v\d+)\//, `/upload/f_auto,q_auto,w_${width}/$1/`);
+        }
+        if (url.includes('/upload/') && !url.includes('f_auto,q_auto')) {
+            return url.replace('/upload/', `/upload/f_auto,q_auto,w_${width}/`);
+        }
+    }
+    return url;
 }

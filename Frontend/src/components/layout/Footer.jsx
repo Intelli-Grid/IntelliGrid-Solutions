@@ -60,7 +60,7 @@ export default function Footer() {
                                 <span className="text-xs font-semibold text-purple-400 uppercase tracking-widest">Weekly Newsletter</span>
                             </div>
                             <h3 className="text-white font-bold text-xl mb-1">Stay ahead of the AI curve</h3>
-                            <p className="text-sm text-gray-400">The best new AI tools, curated every week. 5,000+ readers.</p>
+                            <p className="text-sm text-gray-400">The best new AI tools, curated every week. Free, forever.</p>
                         </div>
                         <div className="md:min-w-[320px]">
                             <NewsletterForm source="footer" />
@@ -81,7 +81,7 @@ export default function Footer() {
                         </p>
                         <div className="flex gap-4">
                             {[
-                                { href: 'https://twitter.com/intelligrid_ai', icon: <Twitter className="h-4 w-4" />, label: 'Twitter' },
+                                { href: 'https://twitter.com/IntelliGridHQ', icon: <Twitter className="h-4 w-4" />, label: 'Twitter' },
                                 { href: 'https://linkedin.com/company/intelligrid', icon: <Linkedin className="h-4 w-4" />, label: 'LinkedIn' },
                                 { href: 'https://github.com/intelligrid', icon: <Github className="h-4 w-4" />, label: 'GitHub' },
                                 { href: 'mailto:support@intelligrid.online', icon: <Mail className="h-4 w-4" />, label: 'Email' },

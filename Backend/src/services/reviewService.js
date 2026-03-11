@@ -167,10 +167,8 @@ class ReviewService {
             throw ApiError.notFound('Review not found')
         }
 
-        // If approved, update tool ratings
-        if (status === 'approved') {
-            await this.updateToolRatings(review.tool)
-        }
+        // Always update tool ratings because status might have changed from/to approved
+        await this.updateToolRatings(review.tool)
 
         return review
     }

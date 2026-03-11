@@ -5,7 +5,7 @@ const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`
 
 export default function SEO({
     title = 'IntelliGrid - Discover the Best AI Tools',
-    description = 'Explore 3,690+ curated AI tools for every need. Find, compare, and discover the perfect AI solutions for your business. Updated daily with the latest AI innovations.',
+    description = 'Explore 4,000+ curated AI tools for every need. Find, compare, and discover the perfect AI solutions for your business. Updated daily with the latest AI innovations.',
     keywords = 'AI tools, artificial intelligence, AI directory, AI software, machine learning tools, AI solutions, AI platforms, AI applications',
     ogImage = DEFAULT_OG_IMAGE,
     ogType = 'website',
@@ -44,8 +44,8 @@ export default function SEO({
 
             {/* Twitter / X */}
             <meta name="twitter:card" content={twitterCard} />
-            <meta name="twitter:site" content="@intelligrid_ai" />
-            <meta name="twitter:creator" content="@intelligrid_ai" />
+            <meta name="twitter:site" content="@IntelliGridHQ" />
+            <meta name="twitter:creator" content="@IntelliGridHQ" />
             <meta name="twitter:url" content={fullUrl} />
             <meta name="twitter:title" content={title} />
             <meta name="twitter:description" content={description} />

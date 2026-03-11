@@ -149,7 +149,7 @@ class PaymentController {
      * POST /api/v1/payment/cashfree/create-order
      */
     createCashfreeOrder = asyncHandler(async (req, res) => {
-        const { plan, couponCode } = req.body
+        const { plan, couponCode, customerPhone } = req.body
 
         // Uses module-level PLAN_MAP constant
         const planData = PLAN_MAP[plan]
@@ -161,7 +161,7 @@ class PaymentController {
 
         const result = await paymentService.createCashfreeOrder(
             req.user._id,
-            { tier, duration },
+            { tier, duration, customerPhone },
             couponMeta
         )
 
@@ -372,12 +372,13 @@ class PaymentController {
                     break
                 }
 
-                case 'BILLING.SUBSCRIPTION.SUSPENDED': {
-                    // Payment failed — subscription suspended by PayPal
-                    const subscriptionId = resource.id
+                case 'BILLING.SUBSCRIPTION.SUSPENDED':
+                case 'BILLING.SUBSCRIPTION.PAYMENT.FAILED':
+                case 'PAYMENT.SALE.DENIED': {
+                    const subscriptionId = resource.id || resource.billing_agreement_id
                     const userId = resource.custom_id
 
-                    console.warn(`⚠️  PayPal subscription suspended: ${subscriptionId} for user ${userId}`)
+                    console.warn(`⚠️  PayPal payment failed/suspended: ${subscriptionId} for user ${userId}`)
 
                     if (userId) {
                         await User.findByIdAndUpdate(userId, {
@@ -392,6 +393,12 @@ class PaymentController {
                                     .catch(e => console.error('Payment fail email error:', e))
                             )
                         }
+                    }
+                    if (resource.id && event_type === 'PAYMENT.SALE.DENIED') {
+                         await Order.findOneAndUpdate(
+                             { 'paymentDetails.transactionId': resource.id, status: 'pending' },
+                             { status: 'failed' }
+                         )
                     }
                     break
                 }

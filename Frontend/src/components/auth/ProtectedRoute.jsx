@@ -42,9 +42,9 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
         )
     }
 
-    // Not signed in → redirect to homepage (Clerk sign-in is modal-based in the header)
+    // Not signed in → redirect to dedicated sign-in page
     if (!isSignedIn) {
-        return <Navigate to="/" state={{ from: location }} replace />
+        return <Navigate to="/sign-in" state={{ from: location }} replace />
     }
 
     // Role check (if a role is required)

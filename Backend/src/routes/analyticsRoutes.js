@@ -1,7 +1,7 @@
 import express from 'express'
 import analyticsService from '../services/analyticsService.js'
 import { getRevenueAnalytics, getUserGrowthAnalytics, getToolAnalytics } from '../controllers/analyticsController.js'
-import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ClickEvent from '../models/ClickEvent.js'
@@ -9,14 +9,21 @@ import Tool from '../models/Tool.js'
 
 const router = express.Router()
 
-// Track event (requires authentication)
+// Track event (optional authentication)
 router.post(
     '/track',
-    requireAuth,
+    optionalAuth,
     asyncHandler(async (req, res) => {
+        const metadata = {
+            ip: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            userAgent: req.headers['user-agent'],
+            ...req.body.metadata,
+        }
+
         await analyticsService.trackEvent({
             ...req.body,
-            user: req.user._id,
+            user: req.user?._id,
+            metadata,
         })
 
         res.status(200).json(

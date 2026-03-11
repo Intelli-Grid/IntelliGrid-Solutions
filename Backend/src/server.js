@@ -7,6 +7,12 @@ import { startWinBackCron } from './jobs/winBackCron.js'
 import { startEnrichmentCron } from './jobs/enrichmentCron.js'
 import './jobs/linkHealthCron.js'   // Phase 6: registers Sunday 04:00 UTC cron on import
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason)
+    // Don't auto-exit for now, but log it clearly
+})
+
 // Start Server
 const PORT = process.env.PORT || 10000
 app.listen(PORT, () => {

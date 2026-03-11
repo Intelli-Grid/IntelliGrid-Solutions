@@ -86,6 +86,8 @@ class AuthController {
                             avatar: data.image_url || '',
                             // Sync primary email if changed
                             email: data.email_addresses?.find(e => e.id === data.primary_email_address_id)?.email_address,
+                            // Sync admin role from public metadata
+                            role: data.public_metadata?.role || user.role,
                         })
                         console.log('✅ User updated from Clerk webhook:', data.id)
                     } else {

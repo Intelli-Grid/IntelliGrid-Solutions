@@ -119,7 +119,7 @@ function TermsOfServicePage() {
                     <p>You may cancel your subscription at any time:</p>
                     <ul className="list-disc pl-6 space-y-2">
                         <li>Via your account settings dashboard</li>
-                        <li>By contacting support@intelligrid.store</li>
+                        <li>By contacting support@intelligrid.online</li>
                         <li>Cancellation takes effect at the end of your current billing period</li>
                         <li>You retain access until the end of the paid period</li>
                         <li>No refund for the current billing period (see Refund Policy for exceptions)</li>
@@ -193,7 +193,7 @@ function TermsOfServicePage() {
                     <p>Tool logos, descriptions, and screenshots are owned by their respective providers. We display this content under license for the purpose of operating the directory.</p>
 
                     <h3 className="text-xl font-semibold mt-6 mb-3">7.3 DMCA Policy</h3>
-                    <p>If you believe content on our platform infringes your copyright, contact us at support@intelligrid.store with:</p>
+                    <p>If you believe content on our platform infringes your copyright, contact us at support@intelligrid.online with:</p>
                     <ul className="list-disc pl-6 space-y-2">
                         <li>Description of the copyrighted work</li>
                         <li>URL of the infringing content</li>
@@ -268,7 +268,7 @@ function TermsOfServicePage() {
                     <p>You may terminate your account at any time by:</p>
                     <ul className="list-disc pl-6 space-y-2">
                         <li>Cancelling your subscription via account settings</li>
-                        <li>Contacting support@intelligrid.store to request account deletion</li>
+                        <li>Contacting support@intelligrid.online to request account deletion</li>
                     </ul>
 
                     <h3 className="text-xl font-semibold mt-6 mb-3">12.2 Termination by Us</h3>
@@ -296,7 +296,7 @@ function TermsOfServicePage() {
                     <p>These Terms are governed by the laws of Maharashtra, India, without regard to conflict of law principles.</p>
 
                     <h3 className="text-xl font-semibold mt-6 mb-3">13.2 Dispute Resolution</h3>
-                    <p>If you have a dispute, you agree to first contact us at support@intelligrid.store to attempt informal resolution.</p>
+                    <p>If you have a dispute, you agree to first contact us at support@intelligrid.online to attempt informal resolution.</p>
 
                     <h3 className="text-xl font-semibold mt-6 mb-3">13.3 Jurisdiction</h3>
                     <p>Any legal action must be brought in the courts of Maharashtra, India. You consent to the exclusive jurisdiction of these courts.</p>
@@ -337,7 +337,7 @@ function TermsOfServicePage() {
 
                     <div className="bg-gray-50 p-6 rounded-lg mt-4">
                         <p className="font-semibold mb-2">IntelliGrid Solutions</p>
-                        <p>Email: <a href="mailto:support@intelligrid.store" className="text-blue-600 hover:underline">support@intelligrid.store</a></p>
+                        <p>Email: <a href="mailto:support@intelligrid.online" className="text-blue-600 hover:underline">support@intelligrid.online</a></p>
                         <p>Website: <a href="https://www.intelligrid.online" className="text-blue-600 hover:underline">www.intelligrid.online</a></p>
                         <p className="mt-2 text-sm text-gray-600">Location: Maharashtra, India</p>
                     </div>

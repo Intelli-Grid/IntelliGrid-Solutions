@@ -18,7 +18,7 @@ export default function SignInPage() {
                 fallbackRedirectUrl="/"
                 appearance={{
                     variables: {
-                        colorPrimary: '#6366f1',
+                        colorPrimary: '#9333ea',
                         colorBackground: '#0f1117',
                         colorInputBackground: '#1a1d27',
                         colorInputText: '#e2e8f0',
@@ -34,11 +34,11 @@ export default function SignInPage() {
                         socialButtonsBlockButton: 'bg-[#1a1d27] border border-[#2a2d3a] text-slate-200 hover:bg-[#2a2d3a]',
                         dividerLine: 'bg-[#2a2d3a]',
                         dividerText: 'text-slate-500',
-                        formFieldInput: 'bg-[#1a1d27] border-[#2a2d3a] text-slate-200 focus:border-indigo-500',
+                        formFieldInput: 'bg-[#1a1d27] border-[#2a2d3a] text-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50',
                         formFieldLabel: 'text-slate-400',
-                        footerActionLink: 'text-indigo-400 hover:text-indigo-300',
+                        footerActionLink: 'text-purple-400 hover:text-purple-300',
                         identityPreviewText: 'text-slate-300',
-                        identityPreviewEditButton: 'text-indigo-400',
+                        identityPreviewEditButton: 'text-purple-400',
                     },
                 }}
             />

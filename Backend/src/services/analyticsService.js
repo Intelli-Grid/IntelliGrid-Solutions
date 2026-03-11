@@ -1,5 +1,4 @@
 import AnalyticsEvent from '../models/AnalyticsEvent.js'
-import SearchLog from '../models/SearchLog.js'
 import Tool from '../models/Tool.js'
 import User from '../models/User.js'
 import Order from '../models/Order.js'
@@ -20,36 +19,6 @@ class AnalyticsService {
             sessionId,
             data,
             metadata,
-        })
-    }
-
-    /**
-     * Log search query
-     */
-    async logSearch(searchData) {
-        const { query, user, sessionId, filters, resultsCount, metadata } = searchData
-
-        await SearchLog.create({
-            query,
-            user,
-            sessionId,
-            filters,
-            resultsCount,
-            metadata,
-        })
-    }
-
-    /**
-     * Log search click
-     */
-    async logSearchClick(searchLogId, toolId, position) {
-        await SearchLog.findByIdAndUpdate(searchLogId, {
-            $push: {
-                clickedResults: {
-                    tool: toolId,
-                    position,
-                },
-            },
         })
     }
 

@@ -169,7 +169,7 @@ class PaymentService {
      * Create Cashfree order
      */
     async createCashfreeOrder(userId, subscriptionData, couponMeta = null) {
-        const { tier, duration } = subscriptionData
+        const { tier, duration, customerPhone } = subscriptionData
 
         // Calculate amount (INR for Cashfree)
         const pricing = this.getSubscriptionPricing(tier, duration, 'INR')
@@ -198,8 +198,8 @@ class PaymentService {
             customer_details: {
                 customer_id: userId.toString(),
                 customer_email: userRecord?.email || 'noreply@intelligrid.online',
-                // Cashfree requires a 10-digit phone; use a placeholder only as last resort
-                customer_phone: '9999999999',
+                // Cashfree requires a 10-digit phone; use provided phone or fallback
+                customer_phone: customerPhone || '9999999999',
             },
             order_meta: {
                 return_url: `${process.env.FRONTEND_URL}/payment/success?orderId={order_id}&method=cashfree`,
@@ -270,7 +270,7 @@ class PaymentService {
                 order,
             }
         } catch (error) {
-            console.error('Cashfree order creation error:', error.response?.data || error.message)
+            console.error('Cashfree order creation error:', error.response?.data?.message || error.message)
             throw ApiError.internal(`Failed to create Cashfree order: ${error.response?.data?.message || error.message}`)
         }
     }
@@ -548,42 +548,6 @@ class PaymentService {
         }
     }
 
-    /**
-     * Apply coupon to an existing order (legacy endpoint — kept for backwards compat)
-     * Prefer resolveCoupon() at order-creation time instead.
-     */
-    async applyCoupon(orderId, couponCode) {
-        const order = await Order.findById(orderId)
-        if (!order) throw ApiError.notFound('Order not found')
-
-        const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true })
-        if (!coupon) throw ApiError.notFound('Invalid coupon code')
-
-        const now = new Date()
-        if (coupon.expiresAt && now > coupon.expiresAt) {
-            throw ApiError.badRequest('Coupon has expired')
-        }
-        if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
-            throw ApiError.badRequest('Coupon usage limit reached')
-        }
-
-        let discount = 0
-        if (coupon.discountType === 'percentage') {
-            discount = (order.amount.subtotal * coupon.discountValue) / 100
-            if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount)
-        } else {
-            discount = coupon.discountValue
-        }
-
-        order.amount.discount = discount
-        order.amount.total = Math.max(0, order.amount.subtotal - discount)
-        order.coupon = coupon._id
-        await order.save()
-
-        await Coupon.findByIdAndUpdate(coupon._id, { $inc: { usedCount: 1 } })
-
-        return order
-    }
 }
 
 export default new PaymentService()

@@ -214,8 +214,20 @@ router.get(
     toolController.getToolById
 )
 
+import rateLimit from 'express-rate-limit'
+
+// Limit views to 60 per 15 minutes per IP to prevent fake view botting
+const viewLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 min
+    max: 60,
+    message: { status: 'error', message: 'Too many view requests.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
 router.post(
     '/:id/view',
+    viewLimiter,
     validationRules.objectId('id'),
     validate,
     toolController.incrementViews

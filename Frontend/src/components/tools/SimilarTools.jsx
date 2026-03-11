@@ -84,7 +84,7 @@ function ToolMiniCard({ tool, currentToolSlug }) {
             {/* Details */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <h3 className="truncate text-sm font-semibold text-white group-hover:text-purple-300 transition-colors">
+                    <h3 title={tool.name} className="truncate text-sm font-semibold text-white group-hover:text-purple-300 transition-colors">
                         {tool.name}
                     </h3>
                     {tool.ratings?.average > 0 && (
@@ -107,7 +107,7 @@ function ToolMiniCard({ tool, currentToolSlug }) {
                         </span>
                     )}
 
-                    {/* Compare link */}
+                    {/* Compare link - hidden until launch
                     {currentToolSlug && (
                         <Link
                             to={`/compare/${currentToolSlug}-vs-${tool.slug}`}
@@ -117,6 +117,7 @@ function ToolMiniCard({ tool, currentToolSlug }) {
                             Compare <ArrowRight size={10} />
                         </Link>
                     )}
+                    */}
 
                     {/* Visit link */}
                     <a

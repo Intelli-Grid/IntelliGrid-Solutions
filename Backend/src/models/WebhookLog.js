@@ -26,6 +26,7 @@ const webhookLogSchema = new mongoose.Schema(
     }
 )
 
+webhookLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }) // 90 days TTL
 webhookLogSchema.index({ source: 1, eventType: 1, createdAt: -1 })
 webhookLogSchema.index({ status: 1 })
 

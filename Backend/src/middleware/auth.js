@@ -56,6 +56,10 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
             })
         }
 
+        if (user.isActive === false) {
+            throw ApiError.forbidden('Your account has been suspended.')
+        }
+
         // Attach MongoDB user to request — avoid attaching clerkUser to not leak data
         req.user = user
 
@@ -148,7 +152,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
             if (session) {
                 // DB-only lookup — no Clerk API call on the hot path
                 const user = await User.findOne({ clerkId: session.sub })
-                if (user) {
+                if (user && user.isActive !== false) {
                     req.user = user
                 }
             }

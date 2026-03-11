@@ -15,7 +15,7 @@ const SAMPLE_TOOLS = [
 const BENEFITS = [
     { icon: Zap, title: '5 tools every Tuesday', desc: 'Curated picks — not a firehose. Only tools worth your time.' },
     { icon: Star, title: 'Practical breakdowns', desc: 'We test each tool and tell you exactly who it is and isn\'t for.' },
-    { icon: Users, title: '5,000+ builders read it', desc: 'Founders, engineers, and creators who ship things.' },
+    { icon: Users, title: 'Built for builders', desc: 'Founders, engineers, and creators who ship things and need to stay sharp.' },
     { icon: Calendar, title: 'Free, forever', desc: 'No paywalls. No upsells in the newsletter itself.' },
 ]
 
@@ -46,7 +46,7 @@ export default function NewsletterPage() {
                 <title>The IntelliGrid Brief — Weekly AI Tools Digest</title>
                 <meta
                     name="description"
-                    content="5 AI tools worth your attention every Tuesday. Join 5,000+ founders, engineers and creators who stay ahead of the curve with IntelliGrid."
+                    content="5 AI tools worth your attention every Tuesday. Join thousands of founders, engineers and creators who stay ahead of the curve with IntelliGrid."
                 />
             </Helmet>
 
@@ -86,12 +86,12 @@ export default function NewsletterPage() {
                                 <p className="text-sm text-gray-400">
                                     🚀 The newsletter is launching soon. Check back shortly or follow us on{' '}
                                     <a
-                                        href="https://twitter.com/intelligrid_ai"
+                                        href="https://twitter.com/IntelliGridHQ"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-purple-400 hover:text-purple-300"
                                     >
-                                        @intelligrid_ai
+                                        @IntelliGridHQ
                                     </a>{' '}
                                     for the launch announcement.
                                 </p>
@@ -145,7 +145,7 @@ export default function NewsletterPage() {
                 {/* Benefits grid */}
                 <section className="mx-auto max-w-5xl px-4 py-20">
                     <h2 className="mb-12 text-center text-2xl font-bold text-white">
-                        Why 5,000+ builders read every issue
+                        Why thousands of builders read every issue
                     </h2>
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                         {BENEFITS.map(({ icon: Icon, title, desc }) => (
@@ -227,7 +227,7 @@ export default function NewsletterPage() {
                     <section className="py-20">
                         <div className="mx-auto max-w-xl px-4 text-center">
                             <h2 className="mb-2 text-2xl font-bold text-white">Ready to stay ahead?</h2>
-                            <p className="mb-8 text-gray-500">Join 5,000+ people who get the brief every Tuesday.</p>
+                            <p className="mb-8 text-gray-500">Join thousands of people who get the brief every Tuesday.</p>
                             <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
                                 <input
                                     type="email"

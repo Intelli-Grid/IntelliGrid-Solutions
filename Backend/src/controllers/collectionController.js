@@ -53,11 +53,7 @@ class CollectionController {
             collection = await collectionService.getCollectionBySlug(idOrSlug, req.user?._id)
         }
 
-        // Increment views counter — fire-and-forget (don't await)
-        if (collection?._id) {
-            const Collection = (await import('../models/Collection.js')).default
-            Collection.findByIdAndUpdate(collection._id, { $inc: { views: 1 } }).catch(() => { })
-        }
+
 
         res.status(200).json(new ApiResponse(200, collection, 'Collection retrieved successfully'))
     })

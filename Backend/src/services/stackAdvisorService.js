@@ -149,19 +149,39 @@ Rules:
 - Focus on the most impactful tools for their specific use cases
 - Mark as "must-have" only tools that are clearly essential for their role`
 
-    // ── Groq API call ─────────────────────────────────────────────────────────
-    const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-    })
+    // ── Groq API call with Exponential Backoff ────────────────────────────────
+    let completion = null
+    let retries = 0
+    const maxRetries = 3
 
-    const responseText = completion.choices[0]?.message?.content
+    while (retries <= maxRetries && !completion) {
+        try {
+            completion = await groq.chat.completions.create({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt },
+                ],
+                temperature: 0.3,
+                max_tokens: 2000,
+                response_format: { type: 'json_object' },
+            })
+        } catch (err) {
+            if (err.status === 429 && retries < maxRetries) {
+                retries++
+                const delayMs = Math.pow(2, retries) * 1000 // 2s, 4s, 8s
+                console.warn(`[StackAdvisor] Groq rate limit hit (429). Retrying in ${delayMs}ms (Attempt ${retries}/${maxRetries})`)
+                await new Promise(res => setTimeout(res, delayMs))
+            } else {
+                console.error('[StackAdvisor] Groq API error:', err.message)
+                const apiError = new Error('AI service temporarily unavailable. Please try again later.')
+                apiError.statusCode = 503
+                throw apiError
+            }
+        }
+    }
+
+    const responseText = completion?.choices?.[0]?.message?.content
     if (!responseText) {
         throw new Error('No response from AI model')
     }

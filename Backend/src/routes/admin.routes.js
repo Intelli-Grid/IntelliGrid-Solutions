@@ -404,6 +404,7 @@ router.get('/users', async (req, res) => {
         }
 
         const users = await User.find(query)
+            .select('-clerkId -__v -subscription.paypalSubscriptionId')
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(parseInt(limit))
@@ -519,78 +520,6 @@ router.post('/users/:id/subscription', async (req, res) => {
     } catch (error) {
         console.error('Subscription override error:', error)
         res.status(500).json({ success: false, message: 'Failed to override subscription' })
-    }
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Claim Management Routes
-// ─────────────────────────────────────────────────────────────────────────────
-
-router.get('/claims/pending', async (req, res) => {
-    try {
-        const { page = 1, limit = 50 } = req.query
-        const claims = await ClaimRequest.find({ status: 'pending' })
-            .populate('tool', 'name slug')
-            .populate('user', 'firstName lastName email avatar')
-            .sort({ createdAt: -1 })
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .limit(parseInt(limit))
-            .lean()
-
-        const total = await ClaimRequest.countDocuments({ status: 'pending' })
-
-        res.json({
-            success: true,
-            claims,
-            pagination: { total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) }
-        })
-    } catch (error) {
-        console.error('Pending claims error:', error)
-        res.status(500).json({ success: false, message: 'Failed to fetch pending claims' })
-    }
-})
-
-router.put('/claims/:id/approve', async (req, res) => {
-    try {
-        const claim = await ClaimRequest.findById(req.params.id)
-        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
-
-        let userId = claim.user
-
-        if (!userId) {
-            const user = await User.findOne({ email: claim.email })
-            if (!user) return res.status(400).json({ success: false, message: 'User not registered with this email' })
-            userId = user._id
-        }
-
-        // Update Tool
-        await Tool.findByIdAndUpdate(claim.tool, { isVerified: true, owner: userId })
-
-        // Update Claim
-        claim.status = 'approved'
-        claim.reviewedAt = new Date()
-        await claim.save()
-
-        res.json({ success: true, message: 'Claim approved' })
-    } catch (error) {
-        console.error('Claim approval error:', error)
-        res.status(500).json({ success: false, message: 'Failed to approve claim' })
-    }
-})
-
-router.put('/claims/:id/reject', async (req, res) => {
-    try {
-        const claim = await ClaimRequest.findByIdAndUpdate(
-            req.params.id,
-            { status: 'rejected', reviewedAt: new Date() },
-            { new: true }
-        )
-        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' })
-
-        res.json({ success: true, message: 'Claim rejected' })
-    } catch (error) {
-        console.error('Claim rejection error:', error)
-        res.status(500).json({ success: false, message: 'Failed to reject claim' })
     }
 })
 
@@ -1202,91 +1131,6 @@ router.post('/enrichment/trigger', async (req, res) => {
 })
 
 /**
- * GET /api/v1/admin/activity/recent
- * Returns the last N significant events across the platform.
- * Used by the Admin Activity Feed widget (polls every 30s).
- */
-router.get('/activity/recent', async (req, res) => {
-    try {
-        const limit = Math.min(parseInt(req.query.limit) || 20, 50)
-
-        const [recentTools, recentUsers, recentClaims, recentOrders, recentReviews] = await Promise.all([
-            Tool.find({ status: 'active' })
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .select('name slug createdAt status')
-                .lean(),
-            User.find({})
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .select('firstName lastName email createdAt subscription')
-                .lean(),
-            ClaimRequest.find({})
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .populate('tool', 'name slug')
-                .select('status email createdAt tool')
-                .lean(),
-            Order.find({})
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .select('amount currency status planId createdAt')
-                .lean(),
-            Review.find({})
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .populate('tool', 'name slug')
-                .select('rating status createdAt tool')
-                .lean(),
-        ])
-
-        // Normalise into unified event shape
-        const events = [
-            ...recentTools.map(t => ({
-                _id: t._id,
-                eventType: 'tool_added',
-                description: `Tool added: ${t.name}`,
-                href: `/tools/${t.slug}`,
-                createdAt: t.createdAt,
-            })),
-            ...recentUsers.map(u => ({
-                _id: u._id,
-                eventType: 'user_signup',
-                description: `New user: ${u.firstName || ''} ${u.lastName || ''} (${u.email})`.trim(),
-                createdAt: u.createdAt,
-            })),
-            ...recentClaims.map(c => ({
-                _id: c._id,
-                eventType: 'claim_submitted',
-                description: `Claim ${c.status}: "${c.tool?.name || 'Unknown tool'}" by ${c.email}`,
-                href: c.tool?.slug ? `/tools/${c.tool.slug}` : null,
-                createdAt: c.createdAt,
-            })),
-            ...recentOrders.map(o => ({
-                _id: o._id,
-                eventType: 'payment',
-                description: `Payment ${o.status}: $${o.amount} ${o.currency?.toUpperCase() || ''} — ${o.planId || 'plan'}`,
-                createdAt: o.createdAt,
-            })),
-            ...recentReviews.map(r => ({
-                _id: r._id,
-                eventType: 'review_submitted',
-                description: `Review (${r.rating}★) on "${r.tool?.name || 'Unknown'}" — ${r.status}`,
-                href: r.tool?.slug ? `/tools/${r.tool.slug}` : null,
-                createdAt: r.createdAt,
-            })),
-        ]
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, limit)
-
-        res.json({ success: true, events })
-    } catch (err) {
-        console.error('[Admin] Recent activity error:', err.message)
-        res.status(500).json({ success: false, message: 'Failed to fetch recent activity' })
-    }
-})
-
-/**
  * GET /api/v1/admin/affiliate/report
  * Affiliate click breakdown by tool, for the AffiliateDashboard.
  * Query params: from (ISO date), to (ISO date)
@@ -1388,71 +1232,6 @@ router.get('/activity/recent', async (req, res) => {
         console.error('[Admin] Activity feed error:', err.message)
         res.status(500).json({ success: false, message: 'Failed to fetch activity feed' })
     }
-})
-
-/**
- * @route   POST /api/v1/admin/enrichment/trigger
- * @desc    Manually trigger AI enrichment for a batch of tools (or a specific tool)
- * @body    { toolId?: string, batchSize?: number, recomputeScores?: boolean }
- * @access  Admin only
- */
-router.post('/enrichment/trigger', async (req, res) => {
-    const { toolId, batchSize = 10, recomputeScores = false } = req.body
-
-    if (batchSize > 50) {
-        return res.status(400).json({ success: false, message: 'batchSize max is 50 to protect rate limits' })
-    }
-
-    // Respond immediately — enrichment runs async in background
-    res.json({
-        success: true,
-        message: toolId
-            ? `Enrichment triggered for tool ${toolId}`
-            : `Batch enrichment triggered (up to ${batchSize} tools)`,
-        async: true,
-    })
-
-        // Fire and forget — don't block the response
-        ; (async () => {
-            try {
-                const DELAY_MS = 2500  // 24 req/min — safe under Groq 30 req/min limit
-                const sleep = ms => new Promise(r => setTimeout(r, ms))
-
-                let batch
-                if (toolId) {
-                    const tool = await Tool.findById(toolId).lean()
-                    if (!tool) { console.warn(`[enrichment/trigger] Tool ${toolId} not found`); return }
-                    batch = [tool]
-                } else {
-                    batch = await getEnrichmentBatch(batchSize)
-                }
-
-                console.log(`🔧 [enrichment/trigger] Starting manual enrichment for ${batch.length} tools (by ${req.user?.email || 'admin'})`)
-
-                let succeeded = 0, failed = 0
-                for (let i = 0; i < batch.length; i++) {
-                    const tool = batch[i]
-                    try {
-                        const result = await enrichTool(tool)
-                        result.success ? succeeded++ : failed++
-                        console.log(`  [${i + 1}/${batch.length}] ${tool.name} — ${result.success ? '✅' : '⚠️ ' + result.reason}`)
-                    } catch (err) {
-                        failed++
-                        console.error(`  [${i + 1}/${batch.length}] ${tool.name} failed:`, err.message)
-                    }
-                    if (i < batch.length - 1) await sleep(DELAY_MS)
-                }
-
-                if (recomputeScores) {
-                    console.log('📊 [enrichment/trigger] Recomputing trending scores...')
-                    await computeAndSaveTrendingScores()
-                }
-
-                console.log(`✅ [enrichment/trigger] Done — ${succeeded} ok, ${failed} failed`)
-            } catch (err) {
-                console.error('[enrichment/trigger] Background run failed:', err.message)
-            }
-        })()
 })
 
 export default router

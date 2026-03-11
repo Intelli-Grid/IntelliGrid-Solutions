@@ -157,6 +157,7 @@ export default function SubmitToolPage() {
                             value={form.toolName}
                             onChange={handleChange}
                             required
+                            maxLength={100}
                             placeholder="e.g. ChatGPT, Midjourney, Notion AI"
                             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/15 transition-all"
                         />
@@ -175,6 +176,7 @@ export default function SubmitToolPage() {
                                 onChange={handleChange}
                                 required
                                 type="url"
+                                maxLength={500}
                                 placeholder="https://example.com"
                                 className="w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/15 transition-all"
                             />
@@ -201,14 +203,16 @@ export default function SubmitToolPage() {
 
                     {/* Full Description */}
                     <div>
-                        <label className="mb-1.5 block text-sm font-medium text-gray-300">
-                            Full Description <span className="text-gray-600 font-normal">(optional)</span>
+                        <label className="mb-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm font-medium text-gray-300">
+                            <span>Full Description <span className="text-gray-600 font-normal">(optional)</span></span>
+                            <span className="text-xs text-gray-600 mt-1 sm:mt-0">{form.fullDescription.length}/2000</span>
                         </label>
                         <textarea
                             name="fullDescription"
                             value={form.fullDescription}
                             onChange={handleChange}
                             rows={5}
+                            maxLength={2000}
                             placeholder="Describe what makes this tool unique, its key features, who it's for, etc."
                             className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/15 transition-all"
                         />

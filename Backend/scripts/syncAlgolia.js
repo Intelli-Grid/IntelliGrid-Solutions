@@ -46,34 +46,63 @@ async function syncToolsToAlgolia() {
         console.log('🔄 Preparing tools for Algolia...')
         const algoliaObjects = tools.map(tool => ({
             objectID: tool._id.toString(),
+            // Core identity
             name: tool.name,
             slug: tool.slug,
-            shortDescription: tool.shortDescription,
-            fullDescription: tool.fullDescription,
             officialUrl: tool.officialUrl || '',
-            // Image fields
+            shortDescription: tool.shortDescription,
+            longDescription: tool.longDescription || '',
+            fullDescription: tool.fullDescription || '',
+
+            // Media
             logo: tool.logo || tool.metadata?.logo || '',
-            // Category — both ID (for faceting) and name (for search)
-            category: tool.category?._id?.toString() || null,
+            screenshotUrl: tool.screenshotUrl || '',
+
+            // Category
+            category: tool.category?._id?.toString() || tool.category?.toString() || null,
             categoryName: tool.category?.name || null,
+
+            // Existing tags + enrichment tags
             tags: tool.tags || [],
-            pricing: tool.pricing,
+            useCaseTags: tool.useCaseTags || [],
+            audienceTags: tool.audienceTags || [],
+            industryTags: tool.industryTags || [],
+            integrationTags: tool.integrationTags || [],
+            keyFeatures: tool.keyFeatures || [],
+            alternativeTo: tool.alternativeTo || [],
+
+            // Pricing (existing + enrichment)
+            pricing: tool.pricing || 'Unknown',
+            hasFreeTier: tool.hasFreeTier ?? null,
+            startingPrice: tool.startingPrice || '',
+
+            // Platform availability
+            platforms: tool.platforms || [],
+
+            // Engagement
             ratings: {
                 average: tool.ratings?.average || 0,
                 count: tool.ratings?.count || 0,
             },
             views: tool.views || 0,
+            weeklyViews: tool.weeklyViews || 0,
             favorites: tool.favorites || 0,
+            totalBookmarks: tool.totalBookmarks || 0,
+            trendingScore: tool.trendingScore || 0,
+
+            // Status flags
             isFeatured: tool.isFeatured || false,
             isTrending: tool.isTrending || false,
+            isNew: tool.isNew || false,
             status: tool.status,
             linkStatus: tool.linkStatus || 'unknown',
             isActive: tool.isActive !== false,
-            // Batch 2 enrichment
-            hasFreeTier: tool.hasFreeTier ?? null,
-            startingPrice: tool.startingPrice || null,
-            targetAudience: tool.targetAudience || null,
-            launchedAt: tool.launchedAt || null,
+            humanVerified: tool.humanVerified || false,
+
+            // Quality
+            enrichmentScore: tool.enrichmentScore || 0,
+
+            // Audit date
             createdAt: tool.createdAt,
         }))
 
