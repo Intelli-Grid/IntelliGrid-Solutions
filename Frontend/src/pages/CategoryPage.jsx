@@ -19,13 +19,17 @@ export default function CategoryPage() {
             try {
                 setLoading(true)
 
-                // categoryService returns already-unwrapped payload: { category, tools, pagination }
-                // (Axios interceptor strips response.data, service does return response.data)
                 const response = await categoryService.getToolsByCategory(slug)
 
-                if (response && response.category) {
-                    setCategory(response.category)
-                    setTools(response.tools || [])
+                // The apiClient interceptor returns the raw ApiResponse body:
+                // { statusCode, data: { category, tools, pagination }, message, success }
+                // So the actual payload is nested inside response.data.
+                // We safely handle both shapes (direct or nested) for resilience.
+                const payload = response?.data ?? response
+
+                if (payload && payload.category) {
+                    setCategory(payload.category)
+                    setTools(payload.tools || [])
                 } else {
                     setError('Category not found')
                 }
