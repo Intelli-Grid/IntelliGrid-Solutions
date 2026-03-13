@@ -8,103 +8,97 @@ import {
 import { useUser } from '@clerk/clerk-react'
 import { paymentService, couponService } from '../services'
 import SEO from '../components/common/SEO'
+import { useGeoLocation } from '../hooks/useGeoLocation'
 
-// ─── Checkout plan catalogue (mirrors PricingPage plans) ────────────────────
+// ─── Checkout plan catalogue — per currency ────────────────────────────────────
 const PLAN_CATALOGUE = {
-    pro_monthly: {
-        name: 'Professional',
-        price: 9.99,
-        priceDisplay: '$9.99',
-        billingLabel: 'per month',
-        billing: 'monthly',
-        icon: Zap,
-        features: [
-            'Unlimited favourites & collections',
-            'Advanced search filters',
-            'Ad-free experience',
-            'Priority in search results',
-            'Weekly curated AI digest',
-            'Export favourites and collections',
-        ],
+    USD: {
+        pro_monthly: {
+            name: 'Professional', price: 9.99,    display: '$9.99',   billingLabel: 'per month',
+            billing: 'monthly', icon: Zap,
+            features: ['Unlimited favourites & collections','Advanced search filters','Ad-free experience','Priority in search results','Weekly curated AI digest','Export favourites and collections'],
+        },
+        pro_yearly: {
+            name: 'Professional', price: 79.99,   display: '$79.99',  billingLabel: 'per year · just $6.67/mo',
+            billing: 'annual', monthlyEquivalent: 6.67, savings: 'Save $39.89 vs monthly', icon: Zap,
+            features: ['Unlimited favourites & collections','Advanced search filters','Ad-free experience','Priority in search results','Weekly curated AI digest','Export favourites and collections'],
+        },
+        enterprise_monthly: {
+            name: 'Team', price: 24.99, display: '$24.99', billingLabel: 'per month',
+            billing: 'monthly', icon: Users,
+            features: ['Everything in Professional','Team workspace (up to 10 members)','Shared collections and favourites','API access (1,000 calls/month)','Verified Business badge','Dedicated support — 24h SLA'],
+        },
+        enterprise_yearly: {
+            name: 'Team', price: 249.99, display: '$249.99', billingLabel: 'per year · $20.83/mo',
+            billing: 'annual', monthlyEquivalent: 20.83, savings: 'Save $49.89 vs monthly', icon: Users,
+            features: ['Everything in Professional','Team workspace (up to 10 members)','Shared collections and favourites','API access (1,000 calls/month)','Verified Business badge','Dedicated support — 24h SLA'],
+        },
     },
-    pro_yearly: {
-        name: 'Professional',
-        price: 79.99,
-        priceDisplay: '$79.99',
-        billingLabel: 'per year · just $6.67/mo',
-        billing: 'annual',
-        monthlyEquivalent: 6.67,
-        icon: Zap,
-        features: [
-            'Unlimited favourites & collections',
-            'Advanced search filters',
-            'Ad-free experience',
-            'Priority in search results',
-            'Weekly curated AI digest',
-            'Export favourites and collections',
-        ],
-        savings: 'Save $39.89 vs monthly',
-    },
-    enterprise_monthly: {
-        name: 'Team',
-        price: 24.99,
-        priceDisplay: '$24.99',
-        billingLabel: 'per month',
-        billing: 'monthly',
-        icon: Users,
-        features: [
-            'Everything in Professional',
-            'Team workspace (up to 10 members)',
-            'Shared collections and favourites',
-            'API access (1,000 calls/month)',
-            'Verified Business badge',
-            'Dedicated support — 24h SLA',
-        ],
-    },
-    enterprise_yearly: {
-        name: 'Team',
-        price: 249.99,
-        priceDisplay: '$249.99',
-        billingLabel: 'per year · $20.83/mo',
-        billing: 'annual',
-        monthlyEquivalent: 20.83,
-        icon: Users,
-        features: [
-            'Everything in Professional',
-            'Team workspace (up to 10 members)',
-            'Shared collections and favourites',
-            'API access (1,000 calls/month)',
-            'Verified Business badge',
-            'Dedicated support — 24h SLA',
-        ],
-        savings: 'Save $49.89 vs monthly',
+    INR: {
+        pro_monthly: {
+            name: 'Professional', price: 999,   display: '₹999',    billingLabel: 'per month',
+            billing: 'monthly', icon: Zap,
+            features: ['Unlimited favourites & collections','Advanced search filters','Ad-free experience','Priority in search results','Weekly curated AI digest','Export favourites and collections'],
+        },
+        pro_yearly: {
+            name: 'Professional', price: 7999,  display: '₹7,999',  billingLabel: 'per year · just ₹666/mo',
+            billing: 'annual', monthlyEquivalent: 666, savings: 'Save ₹3,989 vs monthly', icon: Zap,
+            features: ['Unlimited favourites & collections','Advanced search filters','Ad-free experience','Priority in search results','Weekly curated AI digest','Export favourites and collections'],
+        },
+        enterprise_monthly: {
+            name: 'Team', price: 2499, display: '₹2,499', billingLabel: 'per month',
+            billing: 'monthly', icon: Users,
+            features: ['Everything in Professional','Team workspace (up to 10 members)','Shared collections and favourites','API access (1,000 calls/month)','Verified Business badge','Dedicated support — 24h SLA'],
+        },
+        enterprise_yearly: {
+            name: 'Team', price: 24999, display: '₹24,999', billingLabel: 'per year · ₹2,083/mo',
+            billing: 'annual', monthlyEquivalent: 2083, savings: 'Save ₹4,989 vs monthly', icon: Users,
+            features: ['Everything in Professional','Team workspace (up to 10 members)','Shared collections and favourites','API access (1,000 calls/month)','Verified Business badge','Dedicated support — 24h SLA'],
+        },
     },
 }
 
-// ─── Plan upgrade/switch map (monthly ↔ yearly pairs) ───────────────────────
+// ─── Monthly ↔ Annual switch map ──────────────────────────────────────────────
 const BILLING_SWITCH = {
-    pro_monthly: 'pro_yearly',
-    pro_yearly: 'pro_monthly',
-    enterprise_monthly: 'enterprise_yearly',
-    enterprise_yearly: 'enterprise_monthly',
+    pro_monthly: 'pro_yearly',   pro_yearly: 'pro_monthly',
+    enterprise_monthly: 'enterprise_yearly', enterprise_yearly: 'enterprise_monthly',
 }
 
-// ─── Helper: compute first charge date (14 days from today) ─────────────────
+// ─── Currency symbol helper ────────────────────────────────────────────────────
+const sym = (currency) => currency === 'INR' ? '₹' : '$'
+
+// ─── Format price for display ─────────────────────────────────────────────────
+function formatPrice(amount, currency) {
+    if (currency === 'INR') return `₹${amount.toLocaleString('en-IN')}`
+    return `$${amount.toFixed(2)}`
+}
+
+// ─── First charge date (14 days from today) ───────────────────────────────────
 function getTrialEndDate() {
     const d = new Date()
     d.setDate(d.getDate() + 14)
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-// ─── Helper: discount calculator ────────────────────────────────────────────
-function applyDiscount(basePrice, couponData) {
+// ─── Discount calculator (currency-aware) ─────────────────────────────────────
+function applyDiscount(basePrice, couponData, currency) {
     if (!couponData || basePrice === 0) return basePrice
     if (couponData.discountType === 'percentage') {
         const off = basePrice * (couponData.discountValue / 100)
-        const capped = couponData.maxDiscount ? Math.min(off, couponData.maxDiscount) : off
+        let cap = null
+        if (currency === 'INR' && couponData.maxDiscountINR != null) {
+            cap = couponData.maxDiscountINR
+        } else if (couponData.maxDiscount) {
+            cap = currency === 'INR' ? couponData.maxDiscount * 83 : couponData.maxDiscount
+        }
+        const capped = cap !== null ? Math.min(off, cap) : off
         return Math.max(0, basePrice - capped)
     }
-    return Math.max(0, basePrice - couponData.discountValue)
+    // Fixed discount
+    const fixedOff = (currency === 'INR' && couponData.discountValueINR != null)
+        ? couponData.discountValueINR
+        : (currency === 'INR' ? couponData.discountValue * 83 : couponData.discountValue)
+    return Math.max(0, basePrice - fixedOff)
 }
 
 export default function CheckoutPage() {
@@ -112,26 +106,50 @@ export default function CheckoutPage() {
     const location = useLocation()
     const { user, isSignedIn, isLoaded } = useUser()
 
-    // ── Resolve plan from router state (primary) or sessionStorage (fallback) ──
-    const stateplanId = location.state?.planId
-    const stateBilling = location.state?.billing
-    const storedPlanId = sessionStorage.getItem('checkoutPlan')
+    // ── Geo-detection — reads from sessionStorage instantly if cached ─────────
+    const { isIndia, currency: geoCurrency, loading: geoLoading, override: overrideCurrency } = useGeoLocation()
+
+    // ── Resolve plan + currency from router state (primary) or sessionStorage ─
+    const statePlanId   = location.state?.planId
+    const stateBilling  = location.state?.billing
+    const stateCurrency = location.state?.currency
+    const stateGateway  = location.state?.defaultPaymentMethod
+
+    const storedPlanId  = sessionStorage.getItem('checkoutPlan')
     const storedBilling = sessionStorage.getItem('checkoutBilling')
+    const storedCurrency = sessionStorage.getItem('checkoutCurrency')
 
-    const initialPlanId = stateplanId || storedPlanId
-    const initialBilling = stateBilling || storedBilling || 'annual'
+    const initialPlanId  = statePlanId  || storedPlanId
+    const initialCurrency = stateCurrency || storedCurrency || (!geoLoading ? geoCurrency : 'USD')
 
-    // ── Redirect if no plan found (direct URL access) ───────────────────────
+    // ── Redirect if no plan found (direct URL access) ────────────────────────
     useEffect(() => {
-        if (isLoaded && !initialPlanId) {
-            navigate('/pricing', { replace: true })
-        }
+        if (isLoaded && !initialPlanId) navigate('/pricing', { replace: true })
     }, [isLoaded, initialPlanId, navigate])
 
     const [planId, setPlanId] = useState(initialPlanId || 'pro_yearly')
-    const [paymentMethod, setPaymentMethod] = useState('paypal')
+    const [currency, setCurrency] = useState(initialCurrency)
 
-    // Coupon state
+    // Keep currency in sync with geo if not yet resolved
+    useEffect(() => {
+        if (!geoLoading && !stateCurrency && !storedCurrency) setCurrency(geoCurrency)
+    }, [geoLoading, geoCurrency, stateCurrency, storedCurrency])
+
+    // Payment method — initialise from PricingPage recommendation or geo
+    const [paymentMethod, setPaymentMethod] = useState(stateGateway || null)
+    useEffect(() => {
+        if (paymentMethod === null && !geoLoading) {
+            setPaymentMethod(isIndia ? 'cashfree' : 'paypal')
+        }
+    }, [paymentMethod, geoLoading, isIndia])
+
+    // When payment method changes, sync currency display
+    useEffect(() => {
+        if (paymentMethod === 'cashfree') setCurrency('INR')
+        else if (paymentMethod === 'paypal') setCurrency('USD')
+    }, [paymentMethod])
+
+    // ── Coupon state ─────────────────────────────────────────────────────────
     const [couponExpanded, setCouponExpanded] = useState(false)
     const [couponInput, setCouponInput] = useState('')
     const [couponCode, setCouponCode] = useState('')
@@ -139,22 +157,25 @@ export default function CheckoutPage() {
     const [couponError, setCouponError] = useState(null)
     const [couponLoading, setCouponLoading] = useState(false)
 
-    // Order summary collapsed on mobile
+    // ── Mobile summary accordion ─────────────────────────────────────────────
     const [summaryExpanded, setSummaryExpanded] = useState(false)
 
-    // Payment loading / error
+    // ── Payment loading / error ───────────────────────────────────────────────
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
 
-    const plan = PLAN_CATALOGUE[planId]
+    // ── Derived values ────────────────────────────────────────────────────────
+    const catalogue = PLAN_CATALOGUE[currency] || PLAN_CATALOGUE['USD']
+    const plan = catalogue[planId]
     const trialEndDate = getTrialEndDate()
-    const discountedPrice = couponData ? applyDiscount(plan?.price, couponData) : null
+    const discountedPrice = couponData ? applyDiscount(plan?.price, couponData, currency) : null
     const finalPrice = discountedPrice !== null ? discountedPrice : plan?.price
     const isBillingAnnual = plan?.billing === 'annual'
     const switchPlanId = BILLING_SWITCH[planId]
-    const switchPlan = PLAN_CATALOGUE[switchPlanId]
+    const switchPlan = catalogue[switchPlanId]
+    const currSym = sym(currency)
 
-    // ── Coupon handlers ──────────────────────────────────────────────────────
+    // ── Coupon handlers ───────────────────────────────────────────────────────
     const handleApplyCoupon = async () => {
         if (!couponInput.trim()) return
         setCouponLoading(true)
@@ -182,16 +203,23 @@ export default function CheckoutPage() {
         setCouponError(null)
     }
 
-    // ── Billing period switch ────────────────────────────────────────────────
+    // ── Billing period switch ─────────────────────────────────────────────────
     const handleBillingSwitch = (newPlanId) => {
         setPlanId(newPlanId)
         sessionStorage.setItem('checkoutPlan', newPlanId)
-        // Reset coupon on plan switch as price changes
         handleRemoveCoupon()
         setCouponExpanded(false)
     }
 
-    // ── Main payment trigger ─────────────────────────────────────────────────
+    // ── Discount display string ───────────────────────────────────────────────
+    const discountDisplay = (data) => {
+        if (!data) return ''
+        if (data.discountType === 'percentage') return `${data.discountValue}% off`
+        const inrVal = data.discountValueINR != null ? data.discountValueINR : data.discountValue * 83
+        return currency === 'INR' ? `₹${inrVal.toLocaleString('en-IN')} off` : `$${data.discountValue} off`
+    }
+
+    // ── Main payment trigger ──────────────────────────────────────────────────
     const handleSubscribe = async () => {
         if (!isSignedIn || !plan) return
         setLoading(true)
@@ -201,7 +229,6 @@ export default function CheckoutPage() {
             if (paymentMethod === 'paypal') {
                 const response = await paymentService.createPayPalSubscription(planId)
                 const result = response?.data || response
-
                 if (result?.approveUrl) {
                     sessionStorage.setItem('pendingPlan', planId)
                     window.location.href = result.approveUrl
@@ -216,14 +243,13 @@ export default function CheckoutPage() {
 
                 if (result?.paymentSessionId || result?.payment_session_id) {
                     const sessionId = result.paymentSessionId || result.payment_session_id
-
                     if (window.Cashfree) {
                         try {
                             const isProd =
                                 window.location.hostname === 'www.intelligrid.online' ||
                                 window.location.hostname === 'intelligrid.online'
                             const cashfree = window.Cashfree({ mode: isProd ? 'production' : 'sandbox' })
-                            cashfree.checkout({ paymentSessionId: sessionId })
+                            cashfree.checkout({ paymentSessionId: sessionId, redirectTarget: '_self' })
                         } catch (err) {
                             console.error('Cashfree SDK Error:', err)
                             setError('Error initializing Cashfree checkout. Please try again.')
@@ -231,7 +257,7 @@ export default function CheckoutPage() {
                     } else if (result?.payment_link || result?.paymentUrl) {
                         window.location.href = result.payment_link || result.paymentUrl
                     } else {
-                        setError('Cashfree SDK is not available. Please refresh the page and try again.')
+                        setError('Cashfree SDK is not available. Please refresh and try again.')
                     }
                 } else if (result?.payment_link || result?.paymentUrl) {
                     window.location.href = result.payment_link || result.paymentUrl
@@ -247,7 +273,7 @@ export default function CheckoutPage() {
         }
     }
 
-    // ── Loading guard ────────────────────────────────────────────────────────
+    // ── Loading guard ─────────────────────────────────────────────────────────
     if (!isLoaded || !plan) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space flex items-center justify-center">
@@ -257,6 +283,7 @@ export default function CheckoutPage() {
     }
 
     const PlanIcon = plan.icon
+    const isINR = currency === 'INR'
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
@@ -300,13 +327,12 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="font-bold text-white">
-                            {discountedPrice !== null ? `$${discountedPrice.toFixed(2)}` : plan.priceDisplay}
+                            {discountedPrice !== null ? formatPrice(discountedPrice, currency) : plan.display}
                         </span>
-                        {summaryExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-gray-400" />
-                        ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                        )}
+                        {summaryExpanded
+                            ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                            : <ChevronDown className="w-4 h-4 text-gray-400" />
+                        }
                     </div>
                 </button>
                 {summaryExpanded && (
@@ -322,7 +348,7 @@ export default function CheckoutPage() {
                         <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
                             <div className="flex justify-between text-sm text-gray-400">
                                 <span>14-day free trial</span>
-                                <span className="text-accent-emerald font-medium">$0.00 today</span>
+                                <span className="text-accent-emerald font-medium">{isINR ? '₹0' : '$0.00'} today</span>
                             </div>
                             <div className="flex justify-between text-sm text-gray-400">
                                 <span>First charge</span>
@@ -337,9 +363,9 @@ export default function CheckoutPage() {
             <div className="container mx-auto px-4 sm:px-6 py-8 md:py-12">
                 <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8 md:gap-10">
 
-                    {/* ─────────────────────────────────────────────────────── */}
-                    {/* LEFT PANEL — Order Summary (sticky on desktop)          */}
-                    {/* ─────────────────────────────────────────────────────── */}
+                    {/* ───────────────────────────────────────── */}
+                    {/* LEFT PANEL — Order Summary (sticky)       */}
+                    {/* ───────────────────────────────────────── */}
                     <div className="hidden md:block md:w-2/5 flex-shrink-0">
                         <div className="sticky top-8">
                             <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
@@ -355,8 +381,6 @@ export default function CheckoutPage() {
                                             <p className="text-xs text-gray-400">{plan.billingLabel}</p>
                                         </div>
                                     </div>
-
-                                    {/* Features */}
                                     <ul className="space-y-2.5">
                                         {plan.features.map((feature, i) => (
                                             <li key={i} className="flex items-start gap-2.5">
@@ -392,12 +416,12 @@ export default function CheckoutPage() {
                                     )}
                                 </div>
 
-                                {/* Price breakdown */}
+                                {/* Price breakdown — currency-aware */}
                                 <div className="p-6 space-y-2">
                                     <div className="flex justify-between text-sm text-gray-400">
                                         <span>Subtotal</span>
                                         <span className={discountedPrice !== null ? 'line-through text-gray-600' : 'text-gray-300'}>
-                                            {plan.priceDisplay}
+                                            {plan.display}
                                         </span>
                                     </div>
                                     {couponData && discountedPrice !== null && (
@@ -406,7 +430,7 @@ export default function CheckoutPage() {
                                                 <Tag className="w-3 h-3" />
                                                 {couponCode}
                                             </span>
-                                            <span>−${(plan.price - discountedPrice).toFixed(2)}</span>
+                                            <span>−{formatPrice(plan.price - discountedPrice, currency)}</span>
                                         </div>
                                     )}
                                     {!couponData && (
@@ -417,16 +441,26 @@ export default function CheckoutPage() {
                                     )}
                                     <div className="border-t border-white/10 pt-2 mt-1 flex justify-between font-bold">
                                         <span className="text-white">Total</span>
-                                        <span className="text-white text-lg">
-                                            {discountedPrice !== null
-                                                ? `$${discountedPrice.toFixed(2)}`
-                                                : plan.priceDisplay}
-                                            {isBillingAnnual ? '/yr' : '/mo'}
-                                        </span>
+                                        <div className="text-right">
+                                            <span className="text-white text-lg">
+                                                {discountedPrice !== null
+                                                    ? formatPrice(discountedPrice, currency)
+                                                    : plan.display}
+                                                {isBillingAnnual ? '/yr' : '/mo'}
+                                            </span>
+                                            <p className="text-xs text-gray-500 font-normal">{isINR ? 'INR' : 'USD'}</p>
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-gray-600 text-center pt-1">
-                                        Billed after 14-day free trial
-                                    </p>
+                                    {/* Currency-specific trust copy */}
+                                    {isINR ? (
+                                        <p className="text-xs text-gray-500 text-center pt-1">
+                                            Charged in <strong className="text-gray-400">Indian Rupees (INR)</strong> via Cashfree — no foreign exchange fees
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-gray-500 text-center pt-1">
+                                            Billed after 14-day free trial in <strong className="text-gray-400">USD</strong> via PayPal
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Security badge */}
@@ -440,9 +474,9 @@ export default function CheckoutPage() {
                         </div>
                     </div>
 
-                    {/* ─────────────────────────────────────────────────────── */}
-                    {/* RIGHT PANEL — Payment Form                              */}
-                    {/* ─────────────────────────────────────────────────────── */}
+                    {/* ───────────────────────────────────────── */}
+                    {/* RIGHT PANEL — Payment Form                */}
+                    {/* ───────────────────────────────────────── */}
                     <div className="flex-1 min-w-0">
 
                         {/* STEP 1 — Account */}
@@ -481,7 +515,7 @@ export default function CheckoutPage() {
                                         <span className="text-sm font-semibold text-white">Monthly</span>
                                     </div>
                                     <span className="text-xs text-gray-400 pl-5">
-                                        {PLAN_CATALOGUE[isBillingAnnual ? switchPlanId : planId]?.priceDisplay}/month
+                                        {catalogue[isBillingAnnual ? switchPlanId : planId]?.display}/month
                                     </span>
                                 </button>
 
@@ -502,123 +536,165 @@ export default function CheckoutPage() {
                                         </span>
                                     </div>
                                     <span className="text-xs text-gray-400 pl-5">
-                                        {PLAN_CATALOGUE[isBillingAnnual ? planId : switchPlanId]?.priceDisplay}/year
+                                        {catalogue[isBillingAnnual ? planId : switchPlanId]?.display}/year
                                     </span>
                                 </button>
                             </div>
                         </div>
 
-                        {/* STEP 3 — Payment Method */}
+                        {/* STEP 3 — Payment Method (geo-aware) */}
                         <div className="mb-8">
                             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                                 Step 3 · Payment Method
                             </h2>
-                            <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
-                                <button
-                                    id="payment-paypal"
-                                    onClick={() => setPaymentMethod('paypal')}
-                                    className={`flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-all ${paymentMethod === 'paypal'
-                                        ? 'bg-white/15 text-white border border-white/20 shadow-sm'
-                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                        }`}
-                                >
-                                    <div className="font-semibold text-sm">🔵 PayPal</div>
-                                    <div className="text-xs text-gray-500 mt-0.5">Cards & PayPal · Worldwide</div>
-                                </button>
-                                <button
-                                    id="payment-cashfree"
-                                    onClick={() => setPaymentMethod('cashfree')}
-                                    className={`flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-all ${paymentMethod === 'cashfree'
-                                        ? 'bg-white/15 text-white border border-white/20 shadow-sm'
-                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                        }`}
-                                >
-                                    <div className="font-semibold text-sm">🟢 Cashfree</div>
-                                    <div className="text-xs text-gray-500 mt-0.5">UPI · Net Banking · India</div>
-                                </button>
-                            </div>
 
-                            {/* Context note */}
-                            <div className="mt-3 text-xs text-gray-500 text-center">
-                                {paymentMethod === 'paypal'
-                                    ? 'PayPal supports international credit/debit cards and PayPal balance'
-                                    : 'Cashfree supports UPI, net banking, cards, and wallets (India)'}
-                            </div>
-                        </div>
+                            {/* India: Cashfree primary (recommended) + PayPal secondary with FX warning */}
+                            {isIndia ? (
+                                <div className="space-y-3">
+                                    <button
+                                        id="payment-cashfree"
+                                        onClick={() => setPaymentMethod('cashfree')}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 ${paymentMethod === 'cashfree'
+                                            ? 'border-orange-500/50 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                                            : 'border-white/10 bg-white/5 hover:border-white/20'
+                                            }`}
+                                    >
+                                        <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-lg font-bold text-orange-400">₹</span>
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="text-sm font-semibold text-white">Cashfree</span>
+                                                <span className="text-xs font-bold px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full border border-green-500/20">
+                                                    Recommended
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400">UPI · Net Banking · Debit/Credit Cards · Wallets</p>
+                                            <p className="text-xs text-emerald-400 font-medium mt-0.5">Pay in INR — no foreign transaction fees</p>
+                                        </div>
+                                        {paymentMethod === 'cashfree' && <Check className="w-5 h-5 text-orange-400 flex-shrink-0" />}
+                                    </button>
 
-                        {/* STEP 4 — Coupon (collapsed by default) */}
-                        <div className="mb-8">
-                            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                                Step 4 · Coupon <span className="normal-case font-normal">(optional)</span>
-                            </h2>
-
-                            {couponData ? (
-                                <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-                                    <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-emerald-400">{couponCode} applied!</p>
-                                        <p className="text-xs text-gray-500">
-                                            {couponData.description || (couponData.discountType === 'percentage'
-                                                ? `${couponData.discountValue}% off`
-                                                : `$${couponData.discountValue} off`)}
-                                        </p>
-                                    </div>
-                                    <button onClick={handleRemoveCoupon} className="text-gray-500 hover:text-white transition-colors">
-                                        <X className="h-4 w-4" />
+                                    <button
+                                        id="payment-paypal"
+                                        onClick={() => setPaymentMethod('paypal')}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 ${paymentMethod === 'paypal'
+                                            ? 'border-blue-500/50 bg-blue-500/10 shadow-lg shadow-blue-500/10'
+                                            : 'border-white/10 bg-white/5 hover:border-white/20'
+                                            }`}
+                                    >
+                                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-sm font-bold text-blue-400">PP</span>
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <span className="text-sm font-semibold text-white">PayPal (International)</span>
+                                            <p className="text-xs text-gray-400 mt-0.5">PayPal account or international cards</p>
+                                            <p className="text-xs text-amber-400 mt-0.5">⚠ Charged in USD — your bank may apply FX fees</p>
+                                        </div>
+                                        {paymentMethod === 'paypal' && <Check className="w-5 h-5 text-blue-400 flex-shrink-0" />}
                                     </button>
                                 </div>
-                            ) : !couponExpanded ? (
-                                <button
-                                    onClick={() => setCouponExpanded(true)}
-                                    className="text-sm text-accent-cyan hover:text-accent-purple transition-colors flex items-center gap-1.5"
-                                >
-                                    <Tag className="w-3.5 h-3.5" />
-                                    Have a coupon code? Click to apply
-                                </button>
                             ) : (
-                                <div className="animate-fade-in">
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Tag className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                                            <input
-                                                id="coupon-input"
-                                                value={couponInput}
-                                                onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-                                                placeholder="ENTER CODE"
-                                                autoFocus
-                                                className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-4 py-3 text-sm text-white placeholder-gray-600 tracking-widest font-mono focus:border-accent-purple/50 focus:outline-none focus:ring-2 focus:ring-accent-purple/15 transition-all"
-                                            />
+                                /* International: PayPal only */
+                                <div className="space-y-3">
+                                    <button
+                                        id="payment-paypal"
+                                        onClick={() => setPaymentMethod('paypal')}
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl border border-blue-500/50 bg-blue-500/10 shadow-lg shadow-blue-500/10 transition-all duration-200"
+                                    >
+                                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-sm font-bold text-blue-400">PP</span>
                                         </div>
+                                        <div className="flex-1 text-left">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="text-sm font-semibold text-white">PayPal</span>
+                                                <span className="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">
+                                                    Recommended
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400">Visa · Mastercard · Amex · PayPal balance</p>
+                                            <p className="text-xs text-emerald-400 font-medium mt-0.5">Secure recurring billing in USD</p>
+                                        </div>
+                                        <Check className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                                    </button>
+                                    <p className="text-xs text-gray-600 text-center">
+                                        🇮🇳 Paying from India?{' '}
                                         <button
-                                            id="apply-coupon-btn"
-                                            onClick={handleApplyCoupon}
-                                            disabled={couponLoading || !couponInput.trim()}
-                                            className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                                            onClick={() => { overrideCurrency('IN'); setPaymentMethod('cashfree') }}
+                                            className="text-orange-400 hover:text-orange-300 underline transition-colors"
                                         >
-                                            {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                                            Switch to Cashfree (INR)
                                         </button>
-                                        <button
-                                            onClick={() => { setCouponExpanded(false); setCouponInput('') }}
-                                            className="px-3 py-2 rounded-xl text-gray-500 hover:text-white transition-colors"
-                                        >
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* STEP 4 — Coupon (Cashfree only — PayPal subscriptions have fixed prices) */}
+                        {paymentMethod === 'cashfree' && (
+                            <div className="mb-8">
+                                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                    Step 4 · Coupon <span className="normal-case font-normal">(optional)</span>
+                                </h2>
+
+                                {couponData ? (
+                                    <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-emerald-400">{couponCode} applied!</p>
+                                            <p className="text-xs text-gray-500">
+                                                {couponData.description || discountDisplay(couponData)}
+                                            </p>
+                                        </div>
+                                        <button onClick={handleRemoveCoupon} className="text-gray-500 hover:text-white transition-colors">
                                             <X className="h-4 w-4" />
                                         </button>
                                     </div>
-                                    {couponError && <p className="mt-2 text-xs text-red-400">{couponError}</p>}
-                                </div>
-                            )}
+                                ) : !couponExpanded ? (
+                                    <button
+                                        onClick={() => setCouponExpanded(true)}
+                                        className="text-sm text-accent-cyan hover:text-accent-purple transition-colors flex items-center gap-1.5"
+                                    >
+                                        <Tag className="w-3.5 h-3.5" />
+                                        Have a coupon code? Click to apply
+                                    </button>
+                                ) : (
+                                    <div>
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Tag className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                                                <input
+                                                    id="coupon-input"
+                                                    value={couponInput}
+                                                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                                                    placeholder="ENTER CODE"
+                                                    autoFocus
+                                                    className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-4 py-3 text-sm text-white placeholder-gray-600 tracking-widest font-mono focus:border-accent-purple/50 focus:outline-none focus:ring-2 focus:ring-accent-purple/15 transition-all"
+                                                />
+                                            </div>
+                                            <button
+                                                id="apply-coupon-btn"
+                                                onClick={handleApplyCoupon}
+                                                disabled={couponLoading || !couponInput.trim()}
+                                                className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                                            >
+                                                {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setCouponExpanded(false); setCouponInput('') }}
+                                                className="px-3 py-2 rounded-xl text-gray-500 hover:text-white transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                        {couponError && <p className="mt-2 text-xs text-red-400">{couponError}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                            {/* Coupon + PayPal warning */}
-                            {couponData && paymentMethod === 'paypal' && (
-                                <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
-                                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                    Coupon discounts apply to <strong className="mx-1">Cashfree</strong> payments only. Switch payment method to apply your coupon.
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ── Legal ── */}
+                        {/* Legal */}
                         <p className="text-xs text-gray-500 mb-5">
                             By subscribing you agree to our{' '}
                             <Link to="/terms-of-service" className="text-white hover:underline transition-colors">Terms of Service</Link>
@@ -627,7 +703,7 @@ export default function CheckoutPage() {
                             Your subscription starts after the 14-day free trial on {trialEndDate}.
                         </p>
 
-                        {/* ── Error ── */}
+                        {/* Error */}
                         {error && (
                             <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
                                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -638,11 +714,11 @@ export default function CheckoutPage() {
                             </div>
                         )}
 
-                        {/* ── Subscribe button (desktop) ── */}
+                        {/* Subscribe button (desktop) */}
                         <button
                             id="subscribe-btn"
                             onClick={handleSubscribe}
-                            disabled={loading}
+                            disabled={loading || !paymentMethod}
                             className="hidden md:flex w-full items-center justify-center gap-3 rounded-xl py-4 text-sm font-bold tracking-wide transition-all duration-200 bg-gradient-to-r from-accent-cyan to-accent-purple text-white hover:shadow-xl hover:shadow-accent-purple/30 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100"
                         >
                             {loading ? (
@@ -655,7 +731,9 @@ export default function CheckoutPage() {
                                     <Lock className="w-4 h-4" />
                                     <span>
                                         Subscribe Now —{' '}
-                                        {discountedPrice !== null ? `$${discountedPrice.toFixed(2)}` : plan.priceDisplay}
+                                        {discountedPrice !== null
+                                            ? formatPrice(discountedPrice, currency)
+                                            : plan.display}
                                         {isBillingAnnual ? '/yr' : '/mo'}
                                     </span>
                                 </>
@@ -664,7 +742,6 @@ export default function CheckoutPage() {
                         <p className="hidden md:block text-center text-xs text-gray-500 mt-2">
                             🏆 30-day money-back guarantee, no questions asked · Cancel anytime in one click
                         </p>
-
                     </div>
                 </div>
             </div>
@@ -674,7 +751,7 @@ export default function CheckoutPage() {
                 <button
                     id="subscribe-btn-mobile"
                     onClick={handleSubscribe}
-                    disabled={loading}
+                    disabled={loading || !paymentMethod}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-purple py-4 font-bold text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                 >
                     {loading ? (
@@ -687,7 +764,9 @@ export default function CheckoutPage() {
                             <Lock className="w-4 h-4" />
                             <span>
                                 Subscribe Now —{' '}
-                                {discountedPrice !== null ? `$${discountedPrice.toFixed(2)}` : plan.priceDisplay}
+                                {discountedPrice !== null
+                                    ? formatPrice(discountedPrice, currency)
+                                    : plan.display}
                                 {isBillingAnnual ? '/yr' : '/mo'}
                             </span>
                         </>
@@ -696,7 +775,7 @@ export default function CheckoutPage() {
                 <p className="text-center text-xs text-gray-500 mt-1.5">Cancel anytime · 30-day guarantee</p>
             </div>
 
-            {/* Spacer so content is not hidden behind mobile button */}
+            {/* Spacer for mobile sticky button */}
             <div className="h-24 md:hidden" />
         </div>
     )

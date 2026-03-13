@@ -22,6 +22,17 @@ const couponSchema = new mongoose.Schema(
         },
         // For percentage discounts – cap the discount at this value in $
         maxDiscount: Number,
+        // INR-native fixed discount amount for Cashfree payments.
+        // If null, paymentService falls back to discountValue × 83 conversion.
+        discountValueINR: {
+            type: Number,
+            default: null,
+        },
+        // INR cap for percentage discounts (mirrors maxDiscount in rupees)
+        maxDiscountINR: {
+            type: Number,
+            default: null,
+        },
         // Minimum purchase amount to apply coupon
         minPurchase: {
             type: Number,
