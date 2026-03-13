@@ -74,6 +74,7 @@ class PaymentService {
                             subtotal: pricing.amount,
                             discount: discountAmount,
                         },
+                        normalizedAmountUSD: finalAmount,
                         coupon: couponMeta?.couponId || null,
                         paymentGateway: 'paypal',
                         status: 'pending',
@@ -136,10 +137,14 @@ class PaymentService {
                             await this.activateSubscription(order.user._id, order.subscription)
 
                             // Send confirmation emails (async)
+                            const formattedAmount = order.amount.currency === 'INR'
+                                ? `₹${order.amount.total.toLocaleString('en-IN')}`
+                                : `$\${order.amount.total.toFixed(2)}`
+
                             const subscriptionDetails = {
                                 tier: order.subscription.tier,
                                 duration: order.subscription.duration,
-                                amount: `${order.amount.currency} ${order.amount.total}`,
+                                amount: formattedAmount,
                                 nextBillingDate: new Date(Date.now() + (order.subscription.duration === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toLocaleDateString()
                             }
 
@@ -148,7 +153,7 @@ class PaymentService {
                                 createdAt: order.createdAt,
                                 planName: `${order.subscription.tier} ${order.subscription.duration}`,
                                 method: 'PayPal',
-                                amount: `${order.amount.currency} ${order.amount.total}`
+                                amount: formattedAmount
                             }
 
                             emailService.sendSubscriptionConfirmation(order.user, subscriptionDetails)
@@ -240,6 +245,7 @@ class PaymentService {
                     subtotal: pricing.amount,
                     discount: discountAmount,
                 },
+                normalizedAmountUSD: +(finalAmount / 83).toFixed(2),
                 coupon: couponMeta?.couponId || null,
                 paymentGateway: 'cashfree',
                 status: 'pending',
@@ -266,7 +272,7 @@ class PaymentService {
             // NOT the API base URL. getCashfreeBaseUrl() returns the API endpoint.
             const env = (process.env.CASHFREE_ENV || 'PROD').toUpperCase()
             const isProd = env === 'PROD' || env === 'PRODUCTION' || env === 'LIVE'
-            
+
             const checkoutBase = isProd
                 ? 'https://checkout.cashfree.com/pg'
                 : 'https://sandbox.cashfree.com/pg'
@@ -312,11 +318,15 @@ class PaymentService {
                 // Update user subscription
                 await this.activateSubscription(order.user._id, order.subscription)
 
-                // Send Emails
+                // Send confirmation emails (async)
+                const formattedAmount = order.amount.currency === 'INR'
+                    ? `₹${order.amount.total.toLocaleString('en-IN')}`
+                    : `$\${order.amount.total.toFixed(2)}`
+
                 const subscriptionDetails = {
                     tier: order.subscription.tier,
                     duration: order.subscription.duration,
-                    amount: `${order.amount.currency} ${order.amount.total}`,
+                    amount: formattedAmount,
                     nextBillingDate: new Date(Date.now() + (order.subscription.duration === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toLocaleDateString()
                 }
 
@@ -325,7 +335,7 @@ class PaymentService {
                     createdAt: order.createdAt,
                     planName: `${order.subscription.tier} ${order.subscription.duration}`,
                     method: 'Cashfree',
-                    amount: `${order.amount.currency} ${order.amount.total}`
+                    amount: formattedAmount
                 }
 
                 emailService.sendSubscriptionConfirmation(order.user, subscriptionDetails)

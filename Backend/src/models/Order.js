@@ -38,6 +38,10 @@ const orderSchema = new mongoose.Schema(
             discount: Number,
             tax: Number,
         },
+        normalizedAmountUSD: {
+            type: Number,
+            default: 0,
+        },
         paymentGateway: {
             type: String,
             // admin_override = subscription set via admin panel without payment
