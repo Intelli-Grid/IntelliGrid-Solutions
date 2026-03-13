@@ -120,7 +120,17 @@ class PaymentService {
                         console.error('PayPal capture error:', error)
                         reject(ApiError.internal('Failed to capture PayPal payment'))
                     } else {
-                        // Update order status
+                        // ── Guard: only proceed if PayPal approved the payment ──
+                        if (payment.state !== 'approved') {
+                            console.warn(`PayPal payment ${paymentId} not approved — state: ${payment.state}`)
+                            resolve({
+                                success: false,
+                                message: `Payment was not approved by PayPal (state: ${payment.state}).`,
+                                payment,
+                            })
+                            return
+                        }
+
                         // Update order status
                         const order = await Order.findOneAndUpdate(
                             { orderId: paymentId },
@@ -133,13 +143,12 @@ class PaymentService {
                         ).populate('user')
 
                         if (order) {
-                            // Update user subscription
+                            // Activate user subscription
                             await this.activateSubscription(order.user._id, order.subscription)
 
-                            // Send confirmation emails (async)
                             const formattedAmount = order.amount.currency === 'INR'
                                 ? `₹${order.amount.total.toLocaleString('en-IN')}`
-                                : `$\${order.amount.total.toFixed(2)}`
+                                : `$${order.amount.total.toFixed(2)}`
 
                             const subscriptionDetails = {
                                 tier: order.subscription.tier,
@@ -163,11 +172,13 @@ class PaymentService {
                                 .catch(err => console.error('Failed to send receipt email:', err))
                         }
 
-                        resolve({ payment, order })
+                        // ✅ Explicit success flag — frontend trusts only this
+                        resolve({ success: true, payment, order, amount: order?.amount })
                     }
                 }
             )
         })
+
     }
 
     /**
