@@ -11,7 +11,7 @@ dotenv.config()
 const cashfreeConfig = {
     appId: process.env.CASHFREE_APP_ID,
     secretKey: process.env.CASHFREE_SECRET_KEY,
-    environment: process.env.CASHFREE_ENV || 'TEST', // TEST or PROD
+    environment: process.env.CASHFREE_ENV || 'PROD', // PROD for production — never fallback to TEST on live server
     apiVersion: '2023-08-01',
 }
 

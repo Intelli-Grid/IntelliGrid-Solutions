@@ -256,7 +256,7 @@ class PaymentService {
 
             // ✅ BUG-07 fix: Cashfree checkout URL uses payment checkout domain,
             // NOT the API base URL. getCashfreeBaseUrl() returns the API endpoint.
-            const env = (process.env.CASHFREE_ENV || 'TEST').toUpperCase()
+            const env = (process.env.CASHFREE_ENV || 'PROD').toUpperCase()
             const isProd = env === 'PROD' || env === 'PRODUCTION' || env === 'LIVE'
             
             const checkoutBase = isProd
