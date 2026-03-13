@@ -33,7 +33,7 @@ describe('Database Models - Schema Validation', () => {
                 email: 'test@example.com'
             })
 
-            expect(user.subscription.tier).toBe('free')
+            expect(user.subscription.tier).toBe('Free')
             expect(user.subscription.status).toBe('active')
         })
     })
@@ -52,9 +52,7 @@ describe('Database Models - Schema Validation', () => {
                 shortDescription: 'A test tool',
                 category: new mongoose.Types.ObjectId(),
                 officialUrl: 'https://example.com',
-                pricing: {
-                    type: 'Free'
-                }
+                pricing: 'Free'
             }
 
             const tool = new Tool(toolData)
@@ -93,7 +91,8 @@ describe('Database Models - Schema Validation', () => {
                 user: new mongoose.Types.ObjectId(),
                 tool: new mongoose.Types.ObjectId(),
                 rating: 4,
-                comment: 'Good tool'
+                title: 'Great tool',
+                content: 'Good tool'
             })
 
             await expect(review.validate()).resolves.not.toThrow()

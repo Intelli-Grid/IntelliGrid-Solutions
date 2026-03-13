@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
-    Check, X, Sparkles, Star, Zap, TrendingUp, Users, Shield,
-    CreditCard, Clock, Loader2, Tag, CheckCircle2, ToggleLeft, ToggleRight, Gift,
+    Check, Sparkles, Star, Zap, Users, Shield,
+    CreditCard, Clock, Gift, ChevronDown,
 } from 'lucide-react'
 import { useUser } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
-import { paymentService, couponService } from '../services'
 import SEO from '../components/common/SEO'
 import { useFlag } from '../hooks/useFeatureFlags'
 
@@ -28,14 +26,14 @@ const MONTHLY_PLANS = [
             'Submit tools for review',
         ],
         icon: Star,
-        cta: 'Get Started Free',
+        cta: 'Continue with Explorer',
         ctaNote: null,
         highlighted: false,
         badge: null,
         savings: null,
     },
     {
-        id: 'pro_monthly',            // matches backend PLAN_MAP key
+        id: 'pro_monthly',
         name: 'Professional',
         price: 9.99,
         priceDisplay: '$9.99',
@@ -51,14 +49,14 @@ const MONTHLY_PLANS = [
             'Export favourites and collections',
         ],
         icon: Zap,
-        cta: 'Start 14-Day Free Trial',
-        ctaNote: 'No credit card required',
+        cta: 'Try Professional Free',
+        ctaNote: 'No credit card required · 14-day trial',
         highlighted: true,
         badge: 'Most Popular',
         savings: null,
     },
     {
-        id: 'enterprise_monthly',     // matches backend PLAN_MAP key + PAYPAL_PLAN_ENTERPRISE_MONTHLY
+        id: 'enterprise_monthly',
         name: 'Team',
         price: 24.99,
         priceDisplay: '$24.99',
@@ -75,8 +73,8 @@ const MONTHLY_PLANS = [
             'Dedicated support (24h SLA)',
         ],
         icon: Users,
-        cta: 'Start Team Trial',
-        ctaNote: 'No credit card required',
+        cta: 'Try Team for Free',
+        ctaNote: 'No credit card required · 14-day trial',
         highlighted: false,
         badge: null,
         savings: null,
@@ -100,19 +98,19 @@ const ANNUAL_PLANS = [
             'Submit tools for review',
         ],
         icon: Star,
-        cta: 'Get Started Free',
+        cta: 'Continue with Explorer',
         ctaNote: null,
         highlighted: false,
         badge: null,
         savings: null,
     },
     {
-        id: 'pro_yearly',              // matches backend PLAN_MAP key + PAYPAL_PLAN_PRO_YEARLY
+        id: 'pro_yearly',
         name: 'Professional',
         price: 79.99,
         monthlyEquivalent: 6.67,
         priceDisplay: '$79.99',
-        priceNote: 'per year — just $6.67/mo',
+        priceNote: 'per year',
         description: 'For professionals building their AI stack',
         features: [
             'Everything in Explorer',
@@ -124,19 +122,19 @@ const ANNUAL_PLANS = [
             'Export favourites and collections',
         ],
         icon: Zap,
-        cta: 'Start 14-Day Free Trial',
-        ctaNote: 'No credit card required',
+        cta: 'Try Professional Free',
+        ctaNote: 'No credit card required · 14-day trial',
         highlighted: true,
         badge: 'Most Popular',
         savings: '4 months free',
     },
     {
-        id: 'enterprise_yearly',       // matches backend PLAN_MAP key + PAYPAL_PLAN_ENTERPRISE_YEARLY
+        id: 'enterprise_yearly',
         name: 'Team',
         price: 249.99,
         monthlyEquivalent: 20.83,
         priceDisplay: '$249.99',
-        priceNote: 'per year — $20.83/mo',
+        priceNote: 'per year',
         description: 'For teams evaluating AI tools together',
         features: [
             'Everything in Professional',
@@ -149,8 +147,8 @@ const ANNUAL_PLANS = [
             'Dedicated support (24h SLA)',
         ],
         icon: Users,
-        cta: 'Start Team Trial',
-        ctaNote: 'No credit card required',
+        cta: 'Try Team for Free',
+        ctaNote: 'No credit card required · 14-day trial',
         highlighted: false,
         badge: null,
         savings: '2 months free',
@@ -161,11 +159,11 @@ const ANNUAL_PLANS = [
 const FAQS = [
     {
         q: 'What happens after the free trial?',
-        a: "After 14 days, your account moves to the free plan automatically — no charge. You keep all your data (favourites, collections, reviews). To keep Pro access, upgrade anytime from your dashboard or the pricing page.",
+        a: "After 14 days, your account moves to the free Explorer plan automatically — no charge. You keep all your data (favourites, collections, reviews). To keep Pro access, upgrade anytime from your dashboard.",
     },
     {
         q: 'Do I need a credit card for the trial?',
-        a: "No. Your 14-day Pro trial starts the moment you create an account. No payment details required. You only add a card if you decide to upgrade.",
+        a: "No. Your 14-day Pro trial starts the moment you create an account. No payment details required. You only add a payment method if you decide to upgrade.",
     },
     {
         q: 'Can I change plans later?',
@@ -173,116 +171,53 @@ const FAQS = [
     },
     {
         q: 'What payment methods do you accept?',
-        a: "We accept PayPal (credit/debit cards) and Cashfree (UPI, net banking, cards, wallets). All payments are processed securely.",
+        a: "We accept PayPal (credit/debit cards, PayPal balance) and Cashfree (UPI, net banking, credit/debit cards, wallets — ideal for Indian users). All payments are processed securely.",
     },
     {
         q: 'What about refunds?',
-        a: "We offer a 30-day money-back guarantee for first-time subscribers. If you're not satisfied within 30 days of your first payment, contact us for a full refund. See our Refund Policy for details.",
+        a: "We offer a 30-day money-back guarantee, no questions asked, for first-time subscribers. If you're not satisfied within 30 days of your first payment, contact us for a full refund.",
     },
 ]
 
+// ─── Annual savings map ───────────────────────────────────────────────────────
+const ANNUAL_SAVINGS = { pro_yearly: 39.89, enterprise_yearly: 49.89 }
+
 export default function PricingPage() {
-    const { user, isSignedIn } = useUser()
+    const navigate = useNavigate()
+    const { isSignedIn } = useUser()
     const annualV2 = useFlag('ANNUAL_PRICING_V2')
     const [billing, setBilling] = useState('annual')
-    const [loading, setLoading] = useState(null)
-    const [error, setError] = useState(null)
-    const [paymentMethod, setPaymentMethod] = useState('paypal')
     const [openFaq, setOpenFaq] = useState(null)
-
-    // Coupon state
-    const [couponCode, setCouponCode] = useState('')
-    const [couponInput, setCouponInput] = useState('')
-    const [couponData, setCouponData] = useState(null)
-    const [couponError, setCouponError] = useState(null)
-    const [couponLoading, setCouponLoading] = useState(false)
 
     const plans = billing === 'annual' ? ANNUAL_PLANS : MONTHLY_PLANS
 
-    // Annual savings figures
-    // Pro: $9.99 * 12 = $119.88/yr vs $79.99/yr → save $39.89
-    // Enterprise: $24.99 * 12 = $299.88/yr vs $249.99/yr → save $49.89
-    const ANNUAL_SAVINGS = { pro_yearly: 39.89, enterprise_yearly: 49.89 }
+    // Sort plans so the highlighted card appears first on mobile
+    const mobileSortedPlans = [...plans].sort((a, b) => {
+        if (a.highlighted) return -1
+        if (b.highlighted) return 1
+        return 0
+    })
 
-    const applyDiscount = (basePrice) => {
-        if (!couponData || basePrice === 0) return basePrice
-        if (couponData.discountType === 'percentage') {
-            const off = basePrice * (couponData.discountValue / 100)
-            const capped = couponData.maxDiscount ? Math.min(off, couponData.maxDiscount) : off
-            return Math.max(0, basePrice - capped)
-        }
-        return Math.max(0, basePrice - couponData.discountValue)
-    }
-
-    const handleApplyCoupon = async () => {
-        if (!couponInput.trim()) return
-        setCouponLoading(true)
-        setCouponError(null)
-        try {
-            const res = await couponService.validate(couponInput.trim())
-            if (res.success) {
-                setCouponData(res.coupon)
-                setCouponCode(couponInput.trim().toUpperCase())
-                setCouponError(null)
+    const handleSelectPlan = (planId) => {
+        if (planId === 'free') {
+            if (!isSignedIn) {
+                window.location.href = '/sign-up'
+            } else {
+                navigate('/dashboard')
             }
-        } catch (err) {
-            setCouponError(err.response?.data?.message || 'Invalid coupon code')
-            setCouponData(null)
-            setCouponCode('')
-        } finally {
-            setCouponLoading(false)
-        }
-    }
-
-    const handleRemoveCoupon = () => {
-        setCouponData(null)
-        setCouponCode('')
-        setCouponInput('')
-        setCouponError(null)
-    }
-
-    const handleSubscribe = async (planId) => {
-        if (!isSignedIn) {
-            window.location.href = '/sign-in?redirect_url=/pricing'
             return
         }
 
-        if (planId === 'free') return
-
-        try {
-            setLoading(planId)
-            setError(null)
-
-            if (paymentMethod === 'paypal') {
-                const response = await paymentService.createPayPalSubscription(planId)
-                const result = response?.data || response
-
-                if (result?.approveUrl) {
-                    sessionStorage.setItem('pendingPlan', planId)
-                    window.location.href = result.approveUrl
-                } else {
-                    setError('Failed to create PayPal subscription. Please try again.')
-                }
-
-            } else if (paymentMethod === 'cashfree') {
-                const customerPhone = user?.primaryPhoneNumber?.phoneNumber || null
-                const response = await paymentService.createCashfreeOrder(planId, couponCode || null, customerPhone)
-                const result = response?.data || response
-
-                if (result?.payment_link) {
-                    window.location.href = result.payment_link
-                } else if (result?.paymentUrl) {
-                    window.location.href = result.paymentUrl
-                } else {
-                    setError('Failed to create Cashfree order. Please try again.')
-                }
-            }
-        } catch (err) {
-            console.error('Payment error:', err)
-            setError(err.response?.data?.message || 'Failed to initiate payment. Please try again.')
-        } finally {
-            setLoading(null)
+        if (!isSignedIn) {
+            window.location.href = `/sign-in?redirect_url=/checkout?plan=${planId}`
+            return
         }
+
+        // Navigate to the dedicated checkout page with selected plan in router state
+        // Also store in sessionStorage as a fallback for hard refresh
+        sessionStorage.setItem('checkoutPlan', planId)
+        sessionStorage.setItem('checkoutBilling', billing)
+        navigate('/checkout', { state: { planId, billing } })
     }
 
     return (
@@ -294,76 +229,56 @@ export default function PricingPage() {
                 canonicalUrl="https://www.intelligrid.online/pricing"
             />
 
-            <div className="container mx-auto px-6 py-16">
+            <div className="container mx-auto px-6 pt-12 pb-20">
 
-                {/* ── Header ── */}
-                <div className="mx-auto mb-12 max-w-3xl text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-6">
-                        <Sparkles className="w-4 h-4 text-accent-cyan" />
-                        <span className="text-sm font-medium text-white">14-day free trial — no credit card required</span>
+                {/* ── Hero — slim, max vertical footprint ── */}
+                <div className="mx-auto mb-8 max-w-2xl text-center">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-5">
+                        <Sparkles className="w-3.5 h-3.5 text-accent-cyan" />
+                        <span className="text-xs font-medium text-white">14-day free trial · No credit card required</span>
                     </div>
-
-                    <h1 className="mb-4 text-5xl md:text-6xl font-extrabold text-white leading-tight">
-                        Build Your AI Stack
-                        <span className="block mt-2 bg-gradient-to-r from-accent-cyan via-accent-purple to-accent-rose bg-clip-text text-transparent">
-                            Intelligently
-                        </span>
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 leading-tight">
+                        Choose Your Plan
                     </h1>
-                    <p className="text-xl text-gray-400">
-                        Every new account starts with a full 14-day Pro trial. No card, no commitment.
+                    <p className="text-lg text-gray-400">
+                        Every account starts with a full 14-day Pro trial.
                     </p>
                 </div>
 
                 {/* ── Billing Toggle ── */}
-                <div className="flex items-center justify-center gap-4 mb-8">
-                    <span className={`text-sm font-medium transition-colors ${billing === 'monthly' ? 'text-white' : 'text-gray-500'}`}>
+                <div className="flex items-center justify-center gap-4 mb-5">
+                    <button
+                        onClick={() => setBilling('monthly')}
+                        className={`text-sm font-medium transition-colors px-3 py-1.5 rounded-lg ${billing === 'monthly' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
                         Monthly
-                    </span>
+                    </button>
+
                     <button
                         id="billing-toggle"
                         onClick={() => setBilling(b => b === 'annual' ? 'monthly' : 'annual')}
                         className="relative flex items-center"
                         aria-label="Toggle billing period"
                     >
-                        <div className={`w-14 h-7 rounded-full transition-all duration-300 ${billing === 'annual' ? 'bg-accent-purple' : 'bg-white/20'}`}>
-                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${billing === 'annual' ? 'left-8' : 'left-1'}`} />
+                        <div className={`w-12 h-6 rounded-full transition-all duration-300 ${billing === 'annual' ? 'bg-accent-purple' : 'bg-white/20'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${billing === 'annual' ? 'left-7' : 'left-1'}`} />
                         </div>
                     </button>
-                    <span className={`text-sm font-medium transition-colors ${billing === 'annual' ? 'text-white' : 'text-gray-500'}`}>
+
+                    <button
+                        onClick={() => setBilling('annual')}
+                        className={`text-sm font-medium transition-colors px-3 py-1.5 rounded-lg flex items-center gap-2 ${billing === 'annual' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
                         Annual
-                        <span className="ml-2 px-2 py-0.5 bg-accent-emerald/20 text-accent-emerald text-xs font-semibold rounded-full border border-accent-emerald/30">
+                        <span className="px-2 py-0.5 bg-accent-emerald/20 text-accent-emerald text-xs font-bold rounded-full border border-accent-emerald/30">
                             {annualV2 ? '4 Months FREE' : 'Save 33%'}
                         </span>
-                    </span>
+                    </button>
                 </div>
 
-                {/* ── Annual V2: Savings Banner (shown only when flag ON + annual tab active) ── */}
-                {annualV2 && billing === 'annual' && (
-                    <div className="mx-auto mb-10 max-w-2xl">
-                        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/8 to-cyan-500/10 p-5 text-center">
-                            {/* Glow blobs */}
-                            <div className="absolute -left-10 -top-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-                            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-                            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Gift size={18} className="text-emerald-400" />
-                                    <span className="text-sm font-bold text-white">Annual billing = 4 months completely FREE</span>
-                                </div>
-                                <span className="hidden sm:block text-white/20">·</span>
-                                <span className="text-sm text-emerald-300">
-                                    Pro plan saves you <strong className="text-white">$39.89/year</strong> vs monthly
-                                </span>
-                            </div>
-                            <p className="mt-2 text-xs text-gray-500 relative z-10">
-                                Billed as one payment · Cancel anytime · 30-day money-back guarantee
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Annual V2: Switch Nudge (shown when monthly tab is active) ── */}
+                {/* ── Annual V2 — switch nudge when monthly is active ── */}
                 {annualV2 && billing === 'monthly' && (
-                    <div className="mx-auto mb-8 max-w-xl">
+                    <div className="mx-auto mb-6 max-w-xl">
                         <button
                             onClick={() => setBilling('annual')}
                             className="w-full rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 px-5 py-3 text-sm text-emerald-300 hover:border-emerald-500/70 hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
@@ -374,132 +289,49 @@ export default function PricingPage() {
                     </div>
                 )}
 
-                {/* ── Coupon Code ── */}
-                {isSignedIn && (
-                    <div className="mx-auto mb-10 max-w-md">
-                        <label className="mb-2 block text-center text-sm font-medium text-gray-400">
-                            Have a coupon code?
-                        </label>
-                        {couponData ? (
-                            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                                <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="text-sm font-semibold text-emerald-400">{couponCode} applied!</p>
-                                    <p className="text-xs text-gray-500">
-                                        {couponData.description || (couponData.discountType === 'percentage'
-                                            ? `${couponData.discountValue}% off`
-                                            : `$${couponData.discountValue} off`)}
-                                    </p>
-                                </div>
-                                <button onClick={handleRemoveCoupon} className="text-gray-500 hover:text-white transition-colors">
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                    <Tag className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                                    <input
-                                        id="coupon-input"
-                                        value={couponInput}
-                                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-                                        placeholder="ENTER CODE"
-                                        className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-4 py-3 text-sm text-white placeholder-gray-600 tracking-widest font-mono focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/15 transition-all"
-                                    />
-                                </div>
-                                <button
-                                    id="apply-coupon-btn"
-                                    onClick={handleApplyCoupon}
-                                    disabled={couponLoading || !couponInput.trim()}
-                                    className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
-                                >
-                                    {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
-                                </button>
-                            </div>
-                        )}
-                        {couponError && <p className="mt-2 text-center text-xs text-red-400">{couponError}</p>}
+                {/* ── Social proof strip ── */}
+                <div className="flex items-center justify-center gap-5 py-3 mb-8 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                        <span><strong className="text-white">4.9/5</strong> avg rating</span>
                     </div>
-                )}
-
-                {/* ── Payment Method Selection ── */}
-                {isSignedIn && (
-                    <div className="mx-auto mb-10 max-w-md">
-                        <label className="mb-3 block text-center text-sm font-medium text-gray-400">
-                            Payment Method
-                        </label>
-                        <div className="flex gap-4">
-                            <button
-                                id="payment-paypal"
-                                onClick={() => setPaymentMethod('paypal')}
-                                className={`flex-1 rounded-xl border p-4 transition-all duration-300 ${paymentMethod === 'paypal'
-                                    ? 'border-accent-cyan bg-gradient-to-r from-accent-cyan/20 to-accent-purple/20 shadow-glow-cyan'
-                                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                                    }`}
-                            >
-                                <CreditCard className="mx-auto mb-2 h-6 w-6 text-white" />
-                                <div className="text-sm font-semibold text-white">PayPal</div>
-                                <div className="text-xs text-gray-400 mt-1">Cards &amp; PayPal</div>
-                            </button>
-                            <button
-                                id="payment-cashfree"
-                                onClick={() => setPaymentMethod('cashfree')}
-                                className={`flex-1 rounded-xl border p-4 transition-all duration-300 ${paymentMethod === 'cashfree'
-                                    ? 'border-accent-emerald bg-gradient-to-r from-accent-emerald/20 to-accent-cyan/20 shadow-glow-emerald'
-                                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                                    }`}
-                            >
-                                <CreditCard className="mx-auto mb-2 h-6 w-6 text-white" />
-                                <div className="text-sm font-semibold text-white">Cashfree</div>
-                                <div className="text-xs text-gray-400 mt-1">UPI, Cards, Net Banking</div>
-                            </button>
-                        </div>
+                    <div className="w-px h-4 bg-white/10 hidden sm:block" />
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                        <Zap className="w-3.5 h-3.5 text-accent-cyan" />
+                        <span><strong className="text-white">4,000+</strong> AI tools</span>
                     </div>
-                )}
-
-                {/* ── Coupon + PayPal notice ── */}
-                {isSignedIn && couponData && paymentMethod === 'paypal' && (
-                    <div className="mx-auto mb-6 max-w-md rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center text-xs text-amber-300">
-                        ⚠️ Coupon discounts apply to <strong>Cashfree</strong> payments only.
+                    <div className="w-px h-4 bg-white/10 hidden sm:block" />
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                        <Users className="w-3.5 h-3.5 text-accent-purple" />
+                        <span><strong className="text-white">Loved</strong> by builders worldwide</span>
                     </div>
-                )}
-
-                {/* ── Legal Disclaimer ── */}
-                <div className="mx-auto mb-8 max-w-md text-center text-xs text-gray-500">
-                    By proceeding with your payment, you agree to our <Link to="/terms-of-service" className="text-white hover:underline transition-colors">Terms of Service</Link> and <Link to="/privacy-policy" className="text-white hover:underline transition-colors">Privacy Policy</Link>.
                 </div>
 
-                {/* ── Error Message ── */}
-                {error && (
-                    <div className="mx-auto mb-8 max-w-md rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center text-sm text-red-400 animate-fade-in">
-                        {error}
-                    </div>
-                )}
-
-                {/* ── Pricing Cards ── */}
-                <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-3 mb-16">
-                    {plans.map((plan) => {
+                {/* ── Pricing Cards — THE DOMINANT ELEMENT ── */}
+                {/* Desktop: render in original order. Mobile: highlighted card first via CSS order */}
+                <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3 mb-16 items-stretch">
+                    {mobileSortedPlans.map((plan) => {
                         const Icon = plan.icon
-                        const discountedPrice = couponData && plan.price > 0
-                            ? applyDiscount(plan.price)
-                            : null
-
                         return (
                             <div
                                 key={plan.id}
-                                className={`group relative flex flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-2 ${plan.highlighted
-                                    ? 'border-accent-purple bg-gradient-to-br from-accent-purple/10 to-accent-cyan/10 shadow-2xl shadow-accent-purple/20'
-                                    : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/20 hover:shadow-glow-cyan'
-                                    }`}
+                                className={`
+                                    group relative flex flex-col rounded-2xl border p-8 transition-all duration-300
+                                    ${plan.highlighted
+                                        ? 'border-accent-purple bg-gradient-to-br from-accent-purple/10 via-deep-space to-accent-cyan/5 shadow-2xl shadow-accent-purple/20 lg:scale-[1.03] lg:z-10'
+                                        : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/20 hover:-translate-y-1'
+                                    }
+                                `}
+                                style={plan.highlighted ? { marginTop: '-0.5rem', marginBottom: '-0.5rem' } : {}}
                             >
-                                {/* Badge */}
+                                {/* Most Popular badge */}
                                 {plan.badge && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-1.5 text-sm font-semibold text-white shadow-lg bg-gradient-to-r from-accent-purple to-accent-cyan">
-                                        {plan.badge}
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-bold text-white shadow-lg bg-gradient-to-r from-accent-purple to-accent-cyan whitespace-nowrap">
+                                        ✦ {plan.badge}
                                     </div>
                                 )}
 
-                                {/* Savings Badge */}
+                                {/* Savings badge */}
                                 {plan.savings && (
                                     <div className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${annualV2
                                         ? 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse shadow-emerald-500/30'
@@ -510,42 +342,36 @@ export default function PricingPage() {
                                 )}
 
                                 {/* Icon */}
-                                <div className={`mb-6 inline-flex w-fit p-3 rounded-xl ${plan.highlighted
+                                <div className={`mb-5 inline-flex w-fit p-3 rounded-xl ${plan.highlighted
                                     ? 'bg-gradient-to-r from-accent-purple to-accent-cyan'
                                     : 'bg-white/10'
                                     }`}>
-                                    <Icon className="w-6 h-6 text-white" />
+                                    <Icon className="w-5 h-5 text-white" />
                                 </div>
 
                                 {/* Plan name + description */}
                                 <div className="mb-4">
-                                    <h3 className="mb-1 text-2xl font-bold text-white">{plan.name}</h3>
+                                    <h3 className="mb-1 text-xl font-bold text-white">{plan.name}</h3>
                                     <p className="text-sm text-gray-400">{plan.description}</p>
                                 </div>
 
                                 {/* Price */}
-                                <div className="mb-6">
-                                    <div className="flex items-baseline gap-2 flex-wrap">
-                                        {discountedPrice !== null && (
-                                            <span className="text-2xl font-bold text-gray-600 line-through">{plan.priceDisplay}</span>
+                                <div className="mb-6 pb-6 border-b border-white/10">
+                                    <div className="flex items-end gap-2 flex-wrap">
+                                        <span className="text-4xl font-extrabold text-white tracking-tight">{plan.priceDisplay}</span>
+                                        {plan.price > 0 && (
+                                            <span className="text-gray-400 text-sm mb-1">{plan.priceNote}</span>
                                         )}
-                                        <span className="text-5xl font-bold text-white">
-                                            {discountedPrice !== null
-                                                ? `$${discountedPrice.toFixed(2)}`
-                                                : plan.priceDisplay}
-                                        </span>
                                     </div>
-                                    <p className="text-sm text-gray-400 mt-1">{plan.priceNote}</p>
-                                    {plan.monthlyEquivalent && billing === 'annual' && !discountedPrice && (
-                                        <p className="text-sm text-accent-emerald mt-1">
-                                            ${plan.monthlyEquivalent}/mo — billed annually
+                                    {plan.monthlyEquivalent && billing === 'annual' && (
+                                        <p className="text-sm text-accent-emerald mt-1 font-medium">
+                                            ≈ ${plan.monthlyEquivalent}/mo when billed annually
                                         </p>
                                     )}
-                                    {/* V2: explicit dollar savings per card */}
                                     {annualV2 && billing === 'annual' && ANNUAL_SAVINGS[plan.id] && (
-                                        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
+                                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
                                             <Gift size={10} /> You save ${ANNUAL_SAVINGS[plan.id].toFixed(2)}/year
-                                        </p>
+                                        </div>
                                     )}
                                 </div>
 
@@ -553,8 +379,10 @@ export default function PricingPage() {
                                 <ul className="mb-8 space-y-3 flex-1">
                                     {plan.features.map((feature, index) => (
                                         <li key={index} className="flex items-start gap-3">
-                                            <Check className={`mt-0.5 h-5 w-5 flex-shrink-0 ${plan.highlighted ? 'text-accent-cyan' : 'text-accent-emerald'}`} />
-                                            <span className="text-sm text-gray-300">{feature}</span>
+                                            <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${plan.highlighted ? 'bg-accent-purple/30' : 'bg-white/10'}`}>
+                                                <Check className={`w-2.5 h-2.5 ${plan.highlighted ? 'text-accent-cyan' : 'text-accent-emerald'}`} />
+                                            </span>
+                                            <span className="text-sm text-gray-300 leading-snug">{feature}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -563,23 +391,18 @@ export default function PricingPage() {
                                 <div className="mt-auto">
                                     <button
                                         id={`cta-${plan.id}`}
-                                        onClick={() => handleSubscribe(plan.id)}
-                                        disabled={loading === plan.id || plan.id === 'free'}
-                                        className={`w-full rounded-xl py-3.5 font-semibold transition-all duration-300 text-sm ${plan.highlighted
-                                            ? 'bg-gradient-to-r from-accent-cyan to-accent-purple text-white hover:shadow-lg hover:scale-105 disabled:opacity-50'
-                                            : plan.id === 'free'
-                                                ? 'border border-white/20 bg-white/10 text-white cursor-default opacity-70'
-                                                : 'border border-white/20 bg-white/10 text-white hover:bg-white/20 disabled:opacity-50'
-                                            } disabled:cursor-not-allowed`}
+                                        onClick={() => handleSelectPlan(plan.id)}
+                                        className={`
+                                            w-full rounded-xl py-3.5 text-sm font-bold tracking-wide transition-all duration-200
+                                            ${plan.highlighted
+                                                ? 'bg-gradient-to-r from-accent-cyan to-accent-purple text-white hover:shadow-lg hover:shadow-accent-purple/30 hover:scale-[1.02]'
+                                                : plan.id === 'free'
+                                                    ? 'border border-white/15 bg-white/5 text-white hover:bg-white/10'
+                                                    : 'border border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/30'
+                                            }
+                                        `}
                                     >
-                                        {loading === plan.id ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Loader2 className="h-5 w-5 animate-spin" />
-                                                <span>Processing...</span>
-                                            </span>
-                                        ) : (
-                                            plan.cta
-                                        )}
+                                        {plan.cta}
                                     </button>
                                     {plan.ctaNote && (
                                         <p className="mt-2 text-center text-xs text-gray-500">{plan.ctaNote}</p>
@@ -596,17 +419,17 @@ export default function PricingPage() {
                         <div className="text-center p-6 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
                             <Shield className="w-8 h-8 text-accent-emerald mx-auto mb-3" />
                             <h3 className="font-semibold text-white mb-2">30-Day Guarantee</h3>
-                            <p className="text-sm text-gray-400">Full refund if you're not satisfied within 30 days of payment</p>
+                            <p className="text-sm text-gray-400">30-day money-back, no questions asked for first-time subscribers</p>
                         </div>
                         <div className="text-center p-6 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
                             <CreditCard className="w-8 h-8 text-accent-cyan mx-auto mb-3" />
-                            <h3 className="font-semibold text-white mb-2">No Card for Trial</h3>
-                            <p className="text-sm text-gray-400">Full Pro access for 14 days — no payment details needed</p>
+                            <h3 className="font-semibold text-white mb-2">Start free — no card needed</h3>
+                            <p className="text-sm text-gray-400">Full Pro access for 14 days — no payment details required to start</p>
                         </div>
                         <div className="text-center p-6 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
                             <Clock className="w-8 h-8 text-accent-purple mx-auto mb-3" />
-                            <h3 className="font-semibold text-white mb-2">Cancel Anytime</h3>
-                            <p className="text-sm text-gray-400">No lock-in. Cancel from your dashboard in one click</p>
+                            <h3 className="font-semibold text-white mb-2">Cancel in one click</h3>
+                            <p className="text-sm text-gray-400">No lock-in. Cancel from your dashboard in one click, anytime</p>
                         </div>
                     </div>
                 </div>
@@ -628,9 +451,7 @@ export default function PricingPage() {
                                     className="w-full flex items-center justify-between p-6 text-left"
                                 >
                                     <span className="font-semibold text-white text-sm">{faq.q}</span>
-                                    <span className={`text-gray-400 ml-4 flex-shrink-0 transition-transform duration-200 ${openFaq === index ? 'rotate-45' : ''}`}>
-                                        +
-                                    </span>
+                                    <ChevronDown className={`text-gray-400 ml-4 flex-shrink-0 w-4 h-4 transition-transform duration-200 ${openFaq === index ? 'rotate-180' : ''}`} />
                                 </button>
                                 {openFaq === index && (
                                     <div className="px-6 pb-6 pt-0">

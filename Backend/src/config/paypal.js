@@ -28,7 +28,7 @@ dotenv.config()
  * Returns the correct PayPal API base URL for the current environment.
  */
 const getBaseUrl = () => {
-    const mode = process.env.PAYPAL_MODE || 'sandbox'
+    const mode = (process.env.PAYPAL_MODE || 'sandbox').toLowerCase()
     return mode === 'live'
         ? 'https://api-m.paypal.com'
         : 'https://api-m.sandbox.paypal.com'

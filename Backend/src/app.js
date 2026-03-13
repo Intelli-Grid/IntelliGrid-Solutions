@@ -41,7 +41,7 @@ import { timingMiddleware } from './middleware/timing.js'
 const app = express()
 
 console.log(`🚀 INTELLIGRID BACKEND v2.4.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
-console.log(`   PayPal mode: ${process.env.PAYPAL_MODE || 'sandbox'} | Cashfree env: ${process.env.CASHFREE_ENV || 'TEST'}`)
+console.log(`   PayPal mode: ${process.env.PAYPAL_MODE || 'live'} | Cashfree env: ${process.env.CASHFREE_ENV || 'PROD'}`)
 
 // Trust proxy (Railway sits behind a proxy layer)
 app.set('trust proxy', 1)
@@ -225,7 +225,7 @@ app.get('/health', async (req, res) => {
             clerk: process.env.CLERK_SECRET_KEY ? 'Active' : 'Missing'
         },
         paypal_mode: process.env.PAYPAL_MODE || 'live',
-        cashfree_env: process.env.CASHFREE_ENV || 'TEST'
+        cashfree_env: process.env.CASHFREE_ENV || 'PROD'
     })
 })
 

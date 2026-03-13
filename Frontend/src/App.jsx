@@ -27,6 +27,7 @@ const CategoryPage = lazy(() => import('./pages/CategoryPage'))
 const ComparisonPage = lazy(() => import('./pages/ComparisonPage'))
 const CollectionDetailsPage = lazy(() => import('./pages/CollectionDetailsPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
 const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'))
 const PaymentCancelPage = lazy(() => import('./pages/PaymentCancelPage'))
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'))
@@ -117,7 +118,15 @@ function App() {
                             <Route path="/best-ai-tools-for/:useCase" element={<BestToolsForPage />} />
                             <Route path="/industry/:tag" element={<IndustryPage />} />
 
-                            {/* ── Payment Routes ────────────────────────────── */}
+                            {/* ── Payment / Checkout Routes ──────────────────── */}
+                            <Route
+                                path="/checkout"
+                                element={
+                                    <ProtectedRoute>
+                                        <CheckoutPage />
+                                    </ProtectedRoute>
+                                }
+                            />
                             <Route
                                 path="/payment/success"
                                 element={

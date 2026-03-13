@@ -20,7 +20,10 @@ const cashfreeConfig = {
  * @returns {string} Base URL (PROD vs sandbox)
  */
 export const getCashfreeBaseUrl = () => {
-    return cashfreeConfig.environment === 'PROD'
+    const env = (cashfreeConfig.environment || 'TEST').toUpperCase()
+    const isProd = env === 'PROD' || env === 'PRODUCTION' || env === 'LIVE'
+    
+    return isProd
         ? 'https://api.cashfree.com/pg'
         : 'https://sandbox.cashfree.com/pg'
 }
