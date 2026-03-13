@@ -232,6 +232,18 @@ app.get('/health', async (req, res) => {
 // Quick health check for external monitoring (checklist 12.8)
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 
+// ── Geo Detection ──────────────────────────────────────────────────────────────
+// Cloudflare injects CF-IPCountry on every request — free, zero latency.
+// Railway's reverse proxy also preserves this header.
+// Returns { country: 'IN' } | { country: 'US' } etc.
+app.get('/api/v1/geo/country', (req, res) => {
+    const country = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || 'US'
+    // Cloudflare sentinel for unknown countries — treat as US
+    const resolved = country === 'XX' ? 'US' : country.toUpperCase().slice(0, 2)
+    res.set('Cache-Control', 'no-store')
+    res.json({ country: resolved })
+})
+
 // ── API Index ─────────────────────────────────────────────────────────────────
 app.get('/api/v1', (req, res) => {
     res.status(200).json({

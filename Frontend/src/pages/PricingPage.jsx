@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
     Check, Sparkles, Star, Zap, Users, Shield,
@@ -7,163 +7,127 @@ import {
 import { useUser } from '@clerk/clerk-react'
 import SEO from '../components/common/SEO'
 import { useFlag } from '../hooks/useFeatureFlags'
+import { useGeoLocation } from '../hooks/useGeoLocation'
 
-// ─── Plan definitions ──────────────────────────────────────────────────────────
-const MONTHLY_PLANS = [
-    {
-        id: 'free',
-        name: 'Explorer',
-        price: 0,
-        priceDisplay: '$0',
-        priceNote: 'Free forever',
-        description: 'Discover AI tools at your own pace',
-        features: [
-            'Browse all 4,000+ AI tools',
-            'Save up to 10 favourites',
-            'Create up to 2 collections',
-            'Basic search filters',
-            'Write and read reviews',
-            'Submit tools for review',
-        ],
-        icon: Star,
-        cta: 'Continue with Explorer',
-        ctaNote: null,
-        highlighted: false,
-        badge: null,
-        savings: null,
+// ─── Pricing data per currency ─────────────────────────────────────────────────
+const PLAN_PRICING = {
+    USD: {
+        monthly: {
+            free:               { price: 0,     display: '$0',    note: 'Free forever',  monthly: null,        savings: null },
+            pro_monthly:        { price: 9.99,  display: '$9.99',  note: 'per month',    monthly: null,        savings: null },
+            enterprise_monthly: { price: 24.99, display: '$24.99', note: 'per month',    monthly: null,        savings: null },
+        },
+        annual: {
+            free:               { price: 0,      display: '$0',     note: 'Free forever', monthly: null,          savings: null },
+            pro_yearly:         { price: 79.99,  display: '$79.99', note: 'per year',     monthly: '$6.67/mo',    savings: 'Save $39.89/yr' },
+            enterprise_yearly:  { price: 249.99, display: '$249.99',note: 'per year',     monthly: '$20.83/mo',   savings: 'Save $49.89/yr' },
+        },
     },
-    {
-        id: 'pro_monthly',
-        name: 'Professional',
-        price: 9.99,
-        priceDisplay: '$9.99',
-        priceNote: 'per month',
-        description: 'For professionals building their AI stack',
-        features: [
-            'Everything in Explorer',
-            'Unlimited favourites & collections',
-            'Advanced search filters',
-            'Ad-free experience',
-            'Priority in search results',
-            'Weekly curated AI digest',
-            'Export favourites and collections',
-        ],
-        icon: Zap,
-        cta: 'Try Professional Free',
-        ctaNote: 'No credit card required · 14-day trial',
-        highlighted: true,
-        badge: 'Most Popular',
-        savings: null,
+    INR: {
+        monthly: {
+            free:               { price: 0,    display: '₹0',      note: 'Free forever', monthly: null,         savings: null },
+            pro_monthly:        { price: 999,  display: '₹999',    note: 'per month',    monthly: null,         savings: null },
+            enterprise_monthly: { price: 2499, display: '₹2,499',  note: 'per month',    monthly: null,         savings: null },
+        },
+        annual: {
+            free:               { price: 0,     display: '₹0',      note: 'Free forever', monthly: null,           savings: null },
+            pro_yearly:         { price: 7999,  display: '₹7,999',  note: 'per year',     monthly: '₹666/mo',       savings: 'Save ₹3,989/yr' },
+            enterprise_yearly:  { price: 24999, display: '₹24,999', note: 'per year',     monthly: '₹2,083/mo',     savings: 'Save ₹4,989/yr' },
+        },
     },
-    {
-        id: 'enterprise_monthly',
-        name: 'Team',
-        price: 24.99,
-        priceDisplay: '$24.99',
-        priceNote: 'per month',
-        description: 'For teams evaluating AI tools together',
-        features: [
-            'Everything in Professional',
-            'Team workspace (up to 10 members)',
-            'Shared collections and favourites',
-            'Bulk export for stakeholder reviews',
-            'Verified Business badge on your tools',
-            'API access (1,000 calls/month)',
-            'Admin dashboard — manage team',
-            'Dedicated support (24h SLA)',
-        ],
-        icon: Users,
-        cta: 'Try Team for Free',
-        ctaNote: 'No credit card required · 14-day trial',
-        highlighted: false,
-        badge: null,
-        savings: null,
-    },
-]
+}
 
-const ANNUAL_PLANS = [
-    {
-        id: 'free',
-        name: 'Explorer',
-        price: 0,
-        priceDisplay: '$0',
-        priceNote: 'Free forever',
-        description: 'Discover AI tools at your own pace',
-        features: [
-            'Browse all 4,000+ AI tools',
-            'Save up to 10 favourites',
-            'Create up to 2 collections',
-            'Basic search filters',
-            'Write and read reviews',
-            'Submit tools for review',
-        ],
-        icon: Star,
-        cta: 'Continue with Explorer',
-        ctaNote: null,
-        highlighted: false,
-        badge: null,
-        savings: null,
-    },
-    {
-        id: 'pro_yearly',
-        name: 'Professional',
-        price: 79.99,
-        monthlyEquivalent: 6.67,
-        priceDisplay: '$79.99',
-        priceNote: 'per year',
-        description: 'For professionals building their AI stack',
-        features: [
-            'Everything in Explorer',
-            'Unlimited favourites & collections',
-            'Advanced search filters',
-            'Ad-free experience',
-            'Priority in search results',
-            'Weekly curated AI digest',
-            'Export favourites and collections',
-        ],
-        icon: Zap,
-        cta: 'Try Professional Free',
-        ctaNote: 'No credit card required · 14-day trial',
-        highlighted: true,
-        badge: 'Most Popular',
-        savings: '4 months free',
-    },
-    {
-        id: 'enterprise_yearly',
-        name: 'Team',
-        price: 249.99,
-        monthlyEquivalent: 20.83,
-        priceDisplay: '$249.99',
-        priceNote: 'per year',
-        description: 'For teams evaluating AI tools together',
-        features: [
-            'Everything in Professional',
-            'Team workspace (up to 10 members)',
-            'Shared collections and favourites',
-            'Bulk export for stakeholder reviews',
-            'Verified Business badge on your tools',
-            'API access (1,000 calls/month)',
-            'Admin dashboard — manage team',
-            'Dedicated support (24h SLA)',
-        ],
-        icon: Users,
-        cta: 'Try Team for Free',
-        ctaNote: 'No credit card required · 14-day trial',
-        highlighted: false,
-        badge: null,
-        savings: '2 months free',
-    },
-]
+// ─── Plan feature lists ────────────────────────────────────────────────────────
+const FEATURES = {
+    free: [
+        'Browse all 4,000+ AI tools',
+        'Save up to 10 favourites',
+        'Create up to 2 collections',
+        'Basic search filters',
+        'Write and read reviews',
+        'Submit tools for review',
+    ],
+    pro: [
+        'Everything in Explorer',
+        'Unlimited favourites & collections',
+        'Advanced search filters',
+        'Ad-free experience',
+        'Priority in search results',
+        'Weekly curated AI digest',
+        'Export favourites and collections',
+    ],
+    enterprise: [
+        'Everything in Professional',
+        'Team workspace (up to 10 members)',
+        'Shared collections and favourites',
+        'Bulk export for stakeholder reviews',
+        'Verified Business badge on your tools',
+        'API access (1,000 calls/month)',
+        'Admin dashboard — manage team',
+        'Dedicated support (24h SLA)',
+    ],
+}
+
+// ─── Build the 3-plan array dynamically from billing + currency ────────────────
+function buildPlans(billing, currency) {
+    const key = billing === 'annual' ? 'annual' : 'monthly'
+    const p = PLAN_PRICING[currency][key]
+    return [
+        {
+            id: 'free',
+            name: 'Explorer',
+            tier: 'free',
+            ...p.free,
+            description: 'Discover AI tools at your own pace',
+            features: FEATURES.free,
+            icon: Star,
+            cta: 'Continue with Explorer',
+            ctaNote: null,
+            highlighted: false,
+            badge: null,
+        },
+        {
+            id: billing === 'annual' ? 'pro_yearly' : 'pro_monthly',
+            name: 'Professional',
+            tier: 'pro',
+            ...p[billing === 'annual' ? 'pro_yearly' : 'pro_monthly'],
+            description: 'For professionals building their AI stack',
+            features: FEATURES.pro,
+            icon: Zap,
+            cta: 'Try Professional Free',
+            ctaNote: 'No credit card required · 14-day trial',
+            highlighted: true,
+            badge: 'Most Popular',
+        },
+        {
+            id: billing === 'annual' ? 'enterprise_yearly' : 'enterprise_monthly',
+            name: 'Team',
+            tier: 'enterprise',
+            ...p[billing === 'annual' ? 'enterprise_yearly' : 'enterprise_monthly'],
+            description: 'For teams evaluating AI tools together',
+            features: FEATURES.enterprise,
+            icon: Users,
+            cta: 'Try Team for Free',
+            ctaNote: 'No credit card required · 14-day trial',
+            highlighted: false,
+            badge: null,
+        },
+    ]
+}
+
+// ─── Annual savings label ──────────────────────────────────────────────────────
+const ANNUAL_SAVINGS_USD = { pro_yearly: 39.89, enterprise_yearly: 49.89 }
+const ANNUAL_SAVINGS_INR = { pro_yearly: 3989,  enterprise_yearly: 4989 }
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
 const FAQS = [
     {
         q: 'What happens after the free trial?',
-        a: "After 14 days, your account moves to the free Explorer plan automatically — no charge. You keep all your data (favourites, collections, reviews). To keep Pro access, upgrade anytime from your dashboard.",
+        a: "After 14 days, your account moves to the free Explorer plan automatically — no charge. You keep all your data. To keep Pro access, upgrade anytime from your dashboard.",
     },
     {
         q: 'Do I need a credit card for the trial?',
-        a: "No. Your 14-day Pro trial starts the moment you create an account. No payment details required. You only add a payment method if you decide to upgrade.",
+        a: "No. Your 14-day Pro trial starts the moment you create an account. No payment details required.",
     },
     {
         q: 'Can I change plans later?',
@@ -171,27 +135,29 @@ const FAQS = [
     },
     {
         q: 'What payment methods do you accept?',
-        a: "We accept PayPal (credit/debit cards, PayPal balance) and Cashfree (UPI, net banking, credit/debit cards, wallets — ideal for Indian users). All payments are processed securely.",
+        a: "Indian users can pay via Cashfree — UPI, net banking, credit/debit cards, and wallets in Indian Rupees (INR) with no foreign exchange fees. International users pay via PayPal (credit/debit cards and PayPal balance) in USD. All payments are processed securely.",
     },
     {
         q: 'What about refunds?',
-        a: "We offer a 30-day money-back guarantee, no questions asked, for first-time subscribers. If you're not satisfied within 30 days of your first payment, contact us for a full refund.",
+        a: "We offer a 30-day money-back guarantee, no questions asked, for first-time subscribers. Contact us within 30 days of your first payment for a full refund.",
     },
 ]
-
-// ─── Annual savings map ───────────────────────────────────────────────────────
-const ANNUAL_SAVINGS = { pro_yearly: 39.89, enterprise_yearly: 49.89 }
 
 export default function PricingPage() {
     const navigate = useNavigate()
     const { isSignedIn } = useUser()
     const annualV2 = useFlag('ANNUAL_PRICING_V2')
+
+    // ── Geo-detection ──────────────────────────────────────────────────────────
+    const { isIndia, currency, loading: geoLoading, override: currencyOverride } = useGeoLocation()
+
     const [billing, setBilling] = useState('annual')
     const [openFaq, setOpenFaq] = useState(null)
 
-    const plans = billing === 'annual' ? ANNUAL_PLANS : MONTHLY_PLANS
+    // Build plans from current billing + currency
+    const plans = buildPlans(billing, currency)
 
-    // Sort plans so the highlighted card appears first on mobile
+    // Mobile sort — highlighted (Pro) card first
     const mobileSortedPlans = [...plans].sort((a, b) => {
         if (a.highlighted) return -1
         if (b.highlighted) return 1
@@ -213,12 +179,24 @@ export default function PricingPage() {
             return
         }
 
-        // Navigate to the dedicated checkout page with selected plan in router state
-        // Also store in sessionStorage as a fallback for hard refresh
+        // Persist plan + currency to sessionStorage for checkout page fallback
         sessionStorage.setItem('checkoutPlan', planId)
         sessionStorage.setItem('checkoutBilling', billing)
-        navigate('/checkout', { state: { planId, billing } })
+        sessionStorage.setItem('checkoutCurrency', currency)
+
+        // Pass via router state (primary) — checkout reads this first
+        navigate('/checkout', {
+            state: {
+                planId,
+                billing,
+                currency,
+                // Pre-select the correct gateway based on user's country
+                defaultPaymentMethod: isIndia ? 'cashfree' : 'paypal',
+            },
+        })
     }
+
+    const annualSavings = currency === 'INR' ? ANNUAL_SAVINGS_INR : ANNUAL_SAVINGS_USD
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
@@ -231,7 +209,7 @@ export default function PricingPage() {
 
             <div className="container mx-auto px-6 pt-12 pb-20">
 
-                {/* ── Hero — slim, max vertical footprint ── */}
+                {/* ── Hero ── */}
                 <div className="mx-auto mb-8 max-w-2xl text-center">
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-5">
                         <Sparkles className="w-3.5 h-3.5 text-accent-cyan" />
@@ -276,16 +254,43 @@ export default function PricingPage() {
                     </button>
                 </div>
 
-                {/* ── Annual V2 — switch nudge when monthly is active ── */}
+                {/* ── Annual V2 nudge ── */}
                 {annualV2 && billing === 'monthly' && (
-                    <div className="mx-auto mb-6 max-w-xl">
+                    <div className="mx-auto mb-5 max-w-xl">
                         <button
                             onClick={() => setBilling('annual')}
                             className="w-full rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 px-5 py-3 text-sm text-emerald-300 hover:border-emerald-500/70 hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
                         >
                             <Gift size={14} />
-                            Switch to Annual and save $39.89 — that&apos;s 4 months free on Pro
+                            Switch to Annual and save {currency === 'INR' ? '₹3,989' : '$39.89'} — that&apos;s 4 months free on Pro
                         </button>
+                    </div>
+                )}
+
+                {/* ── Currency indicator ── */}
+                {!geoLoading && (
+                    <div className="flex items-center justify-center mb-6">
+                        {isIndia ? (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-full">
+                                <span className="text-sm">🇮🇳</span>
+                                <span className="text-xs font-medium text-orange-300">
+                                    Showing prices in Indian Rupees (INR)
+                                </span>
+                                <button
+                                    onClick={() => currencyOverride('US')}
+                                    className="text-xs text-gray-500 hover:text-gray-300 underline transition-colors ml-1"
+                                >
+                                    View in USD
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => currencyOverride('IN')}
+                                className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                            >
+                                🇮🇳 View prices in INR
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -307,13 +312,10 @@ export default function PricingPage() {
                     </div>
                 </div>
 
-                {/* ── Pricing Cards — THE DOMINANT ELEMENT ── */}
-                {/* Mobile: highlighted (Pro) first via mobileSortedPlans sort  */}
-                {/* Desktop: lg:order-X forces Explorer | Pro (middle) | Team    */}
+                {/* ── Pricing Cards ── */}
                 <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3 mb-16 items-stretch">
                     {mobileSortedPlans.map((plan) => {
                         const Icon = plan.icon
-                        // Determine desktop column order — free=1 (left), highlighted=2 (middle), enterprise=3 (right)
                         const desktopOrder = plan.id === 'free'
                             ? 'lg:order-1'
                             : plan.highlighted
@@ -332,20 +334,22 @@ export default function PricingPage() {
                                 `}
                                 style={plan.highlighted ? { marginTop: '-0.5rem', marginBottom: '-0.5rem' } : {}}
                             >
-                                {/* Most Popular badge */}
+                                {/* Badge — Most Popular */}
                                 {plan.badge && (
                                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-bold text-white shadow-lg bg-gradient-to-r from-accent-purple to-accent-cyan whitespace-nowrap">
                                         ✦ {plan.badge}
                                     </div>
                                 )}
 
-                                {/* Savings badge */}
+                                {/* Badge — Savings */}
                                 {plan.savings && (
                                     <div className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${annualV2
                                         ? 'bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse shadow-emerald-500/30'
                                         : 'bg-gradient-to-r from-accent-emerald to-accent-cyan'
                                         }`}>
-                                        {annualV2 && plan.id === 'pro_yearly' ? '4 Months FREE 🎁' : plan.savings}
+                                        {annualV2 && plan.id === 'pro_yearly'
+                                            ? '4 Months FREE 🎁'
+                                            : plan.savings}
                                     </div>
                                 )}
 
@@ -357,7 +361,7 @@ export default function PricingPage() {
                                     <Icon className="w-5 h-5 text-white" />
                                 </div>
 
-                                {/* Plan name + description */}
+                                {/* Name + description */}
                                 <div className="mb-4">
                                     <h3 className="mb-1 text-xl font-bold text-white">{plan.name}</h3>
                                     <p className="text-sm text-gray-400">{plan.description}</p>
@@ -366,19 +370,20 @@ export default function PricingPage() {
                                 {/* Price */}
                                 <div className="mb-6 pb-6 border-b border-white/10">
                                     <div className="flex items-end gap-2 flex-wrap">
-                                        <span className="text-4xl font-extrabold text-white tracking-tight">{plan.priceDisplay}</span>
+                                        <span className="text-4xl font-extrabold text-white tracking-tight">{plan.display}</span>
                                         {plan.price > 0 && (
-                                            <span className="text-gray-400 text-sm mb-1">{plan.priceNote}</span>
+                                            <span className="text-gray-400 text-sm mb-1">{plan.note}</span>
                                         )}
                                     </div>
-                                    {plan.monthlyEquivalent && billing === 'annual' && (
+                                    {plan.monthly && billing === 'annual' && (
                                         <p className="text-sm text-accent-emerald mt-1 font-medium">
-                                            ≈ ${plan.monthlyEquivalent}/mo when billed annually
+                                            ≈ {plan.monthly} when billed annually
                                         </p>
                                     )}
-                                    {annualV2 && billing === 'annual' && ANNUAL_SAVINGS[plan.id] && (
+                                    {annualV2 && billing === 'annual' && annualSavings[plan.id] && (
                                         <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
-                                            <Gift size={10} /> You save ${ANNUAL_SAVINGS[plan.id].toFixed(2)}/year
+                                            <Gift size={10} />
+                                            You save {currency === 'INR' ? '₹' : '$'}{annualSavings[plan.id].toLocaleString()}/year
                                         </div>
                                     )}
                                 </div>
@@ -419,6 +424,77 @@ export default function PricingPage() {
                             </div>
                         )
                     })}
+                </div>
+
+                {/* ── Payment Method Info — based on country ── */}
+                <div className="mx-auto max-w-3xl mb-16">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-center mb-4">
+                            How you'll pay
+                        </p>
+                        {!geoLoading && isIndia ? (
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {/* Cashfree — Recommended for India */}
+                                <div className="flex-1 flex items-start gap-3 p-4 rounded-xl border border-orange-500/30 bg-orange-500/5">
+                                    <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-lg font-bold text-orange-400">₹</span>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm font-semibold text-white">Cashfree</span>
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full border border-green-500/20">Recommended</span>
+                                        </div>
+                                        <p className="text-xs text-gray-400">UPI · Net Banking · Debit/Credit Cards · Wallets</p>
+                                        <p className="text-xs text-emerald-400 font-medium mt-1">Pay in INR — no foreign transaction fees</p>
+                                    </div>
+                                </div>
+                                {/* PayPal — Secondary for India */}
+                                <div className="flex-1 flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/5">
+                                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-sm font-bold text-blue-400">PP</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-semibold text-white">PayPal (International)</span>
+                                        <p className="text-xs text-gray-400 mt-1">PayPal account or international cards</p>
+                                        <p className="text-xs text-amber-400 mt-1">⚠ Charged in USD — FX fees may apply</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {/* PayPal — Primary for international */}
+                                <div className="flex-1 flex items-start gap-3 p-4 rounded-xl border border-blue-500/30 bg-blue-500/5">
+                                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-sm font-bold text-blue-400">PP</span>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm font-semibold text-white">PayPal</span>
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">Recommended</span>
+                                        </div>
+                                        <p className="text-xs text-gray-400">Visa · Mastercard · Amex · PayPal balance</p>
+                                        <p className="text-xs text-emerald-400 font-medium mt-1">Secure recurring billing in USD</p>
+                                    </div>
+                                </div>
+                                {/* India note */}
+                                <div className="flex-1 flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/5">
+                                    <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0 text-lg">
+                                        🇮🇳
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-semibold text-white">India? Pay via Cashfree</span>
+                                        <p className="text-xs text-gray-400 mt-1">UPI, net banking and wallets in INR</p>
+                                        <button
+                                            onClick={() => currencyOverride('IN')}
+                                            className="text-xs text-orange-400 hover:text-orange-300 transition-colors mt-1 underline"
+                                        >
+                                            Switch to India pricing →
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* ── Trust Signals ── */}
@@ -474,12 +550,8 @@ export default function PricingPage() {
                             </div>
                         ))}
                     </div>
-
                     <div className="mt-8 text-center">
-                        <Link
-                            to="/faq"
-                            className="inline-flex items-center gap-2 text-accent-cyan hover:text-accent-purple transition-colors font-medium"
-                        >
+                        <Link to="/faq" className="inline-flex items-center gap-2 text-accent-cyan hover:text-accent-purple transition-colors font-medium">
                             <span>View all FAQs</span>
                             <span>→</span>
                         </Link>

@@ -179,11 +179,19 @@ class PaymentService {
         let discountAmount = 0
         if (couponMeta) {
             if (couponMeta.discountType === 'percentage') {
+                // Percentage discounts are currency-agnostic — apply directly to INR amount
                 discountAmount = finalAmount * (couponMeta.discountValue / 100)
-                if (couponMeta.maxDiscount) discountAmount = Math.min(discountAmount, couponMeta.maxDiscount)
+                // maxDiscount on percentage coupons is always stored in USD; convert to INR
+                if (couponMeta.maxDiscount) {
+                    const maxDiscountINR = couponMeta.maxDiscountINR ?? Math.round(couponMeta.maxDiscount * 83)
+                    discountAmount = Math.min(discountAmount, maxDiscountINR)
+                }
             } else {
-                // Fixed discount — treat as USD-equivalent ×83 for INR rough conversion
-                discountAmount = couponMeta.discountValue * 83
+                // Fixed-amount discount: use explicit INR value if the coupon has one,
+                // otherwise fall back to USD ×83 conversion until coupons are updated.
+                discountAmount = (couponMeta.discountValueINR != null)
+                    ? couponMeta.discountValueINR
+                    : couponMeta.discountValue * 83
             }
             finalAmount = Math.max(0, +(finalAmount - discountAmount).toFixed(2))
         }
