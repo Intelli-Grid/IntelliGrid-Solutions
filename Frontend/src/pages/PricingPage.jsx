@@ -308,15 +308,23 @@ export default function PricingPage() {
                 </div>
 
                 {/* ── Pricing Cards — THE DOMINANT ELEMENT ── */}
-                {/* Desktop: render in original order. Mobile: highlighted card first via CSS order */}
+                {/* Mobile: highlighted (Pro) first via mobileSortedPlans sort  */}
+                {/* Desktop: lg:order-X forces Explorer | Pro (middle) | Team    */}
                 <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3 mb-16 items-stretch">
                     {mobileSortedPlans.map((plan) => {
                         const Icon = plan.icon
+                        // Determine desktop column order — free=1 (left), highlighted=2 (middle), enterprise=3 (right)
+                        const desktopOrder = plan.id === 'free'
+                            ? 'lg:order-1'
+                            : plan.highlighted
+                                ? 'lg:order-2'
+                                : 'lg:order-3'
                         return (
                             <div
                                 key={plan.id}
                                 className={`
                                     group relative flex flex-col rounded-2xl border p-8 transition-all duration-300
+                                    ${desktopOrder}
                                     ${plan.highlighted
                                         ? 'border-accent-purple bg-gradient-to-br from-accent-purple/10 via-deep-space to-accent-cyan/5 shadow-2xl shadow-accent-purple/20 lg:scale-[1.03] lg:z-10'
                                         : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/20 hover:-translate-y-1'
