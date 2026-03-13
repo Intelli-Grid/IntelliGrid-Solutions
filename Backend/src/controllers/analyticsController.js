@@ -72,7 +72,7 @@ export const getRevenueAnalytics = async (req, res) => {
             {
                 $group: {
                     _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    dailyRevenue: { $sum: "$amount.total" },
+                    dailyRevenue: { $sum: { $ifNull: ["$normalizedAmountUSD", "$amount.total"] } },
                     count: { $sum: 1 }
                 }
             },
@@ -115,7 +115,7 @@ export const getRevenueAnalytics = async (req, res) => {
         // 5. Calculate Total Revenue (All time)
         const totalRevenueResult = await Order.aggregate([
             { $match: { status: 'completed' } },
-            { $group: { _id: null, total: { $sum: '$amount.total' } } }
+            { $group: { _id: null, total: { $sum: { $ifNull: ["$normalizedAmountUSD", "$amount.total"] } } } }
         ])
         const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0
 
@@ -135,7 +135,9 @@ export const getRevenueAnalytics = async (req, res) => {
                     ? (`${order.user.firstName || ''} ${order.user.lastName || ''}`).trim() || order.user.email
                     : 'Deleted User',
                 plan: order.subscription?.tier || 'Pro',
-                amount: order.amount?.total || 0,
+                amount: order.normalizedAmountUSD || order.amount?.total || 0,
+                originalAmount: order.amount?.total || 0,
+                originalCurrency: order.amount?.currency || 'USD',
                 status: order.status,
                 gateway: order.paymentGateway
             })),

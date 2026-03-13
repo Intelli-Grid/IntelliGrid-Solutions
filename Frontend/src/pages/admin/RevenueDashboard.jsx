@@ -62,10 +62,10 @@ export default function RevenueDashboard() {
         }
     }
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
+    const formatCurrency = (amount, currency = 'USD') => {
+        return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
             style: 'currency',
-            currency: 'USD',
+            currency: currency,
             minimumFractionDigits: 2
         }).format(amount)
     }
@@ -411,7 +411,18 @@ export default function RevenueDashboard() {
                                                 <div className="text-xs text-gray-400">{transaction.userEmail}</div>
                                             </td>
                                             <td className="py-3 px-4 text-gray-300">{transaction.plan}</td>
-                                            <td className="py-3 px-4 text-white font-semibold">{formatCurrency(transaction.amount)}</td>
+                                            <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-white font-semibold">
+                                                        {formatCurrency(transaction.originalAmount || transaction.amount, transaction.originalCurrency || 'USD')}
+                                                    </span>
+                                                    {transaction.originalCurrency && transaction.originalCurrency !== 'USD' && (
+                                                        <span className="text-xs text-gray-400">
+                                                            {formatCurrency(transaction.amount, 'USD')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="py-3 px-4 text-gray-400 capitalize">{transaction.gateway}</td>
                                             <td className="py-3 px-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${transaction.status === 'completed'

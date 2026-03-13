@@ -147,8 +147,9 @@ export default function PaymentSuccessPage() {
                         })
                         setPlanName('Professional')
                         setStatus('success')
-                        setMessage("You're all set — welcome to Professional 🎉")
-                        setSubMessage('Your subscription is now active. Redirecting to your dashboard...')
+                        const paidAmount = response.amount?.total ? `$${response.amount.total}` : ''
+                        setMessage(`You're all set — welcome to Professional 🎉`)
+                        setSubMessage(`Your ${paidAmount} subscription is now active. Redirecting to your dashboard...`)
                         startCountdown()
                     } else {
                         setStatus('error')
@@ -183,8 +184,9 @@ export default function PaymentSuccessPage() {
                     })
                     setPlanName('Professional')
                     setStatus('success')
-                    setMessage("You're all set — welcome to Professional 🎉")
-                    setSubMessage('Your subscription is now active. Redirecting to your dashboard...')
+                    const paidAmount = response.amount?.total ? `₹${Number(response.amount.total).toLocaleString('en-IN')} ` : ''
+                    setMessage(`You're all set — welcome to Professional 🎉`)
+                    setSubMessage(`Your ${paidAmount}subscription is now active. Redirecting to your dashboard...`)
                     startCountdown()
                 } else {
                     setStatus('error')
