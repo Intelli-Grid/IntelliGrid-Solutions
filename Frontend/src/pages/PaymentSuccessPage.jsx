@@ -4,10 +4,10 @@ import { paymentService } from '../services'
 import {
     CheckCircle, XCircle, Loader2, RefreshCw,
     Zap, Star, Search, LayoutDashboard, BookOpen,
-    Shield, Clock,
+    Shield, Clock, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { logEvent } from '../utils/analytics'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import SEO from '../components/common/SEO'
 
 // ─── Plan name resolver ───────────────────────────────────────────────────────
@@ -47,11 +47,15 @@ export default function PaymentSuccessPage() {
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
     const { isLoaded, userId } = useAuth()
+    const { user } = useUser()
     const [status, setStatus] = useState('processing')
     const [message, setMessage] = useState('Processing your payment...')
     const [subMessage, setSubMessage] = useState('')
     const [planName, setPlanName] = useState('Professional')
     const [countdown, setCountdown] = useState(8)
+    // Cashfree-specific: backend returns ACTIVE / EXPIRED / CANCELLED — used to
+    // distinguish a user-abandoned checkout from a genuine technical failure.
+    const [paymentStatus, setPaymentStatus] = useState(null)
 
     const isVerifyStarted = useRef(false)
     const countdownRef = useRef(null)
@@ -196,12 +200,15 @@ export default function PaymentSuccessPage() {
                     setSubMessage(`Your ${paidAmount}subscription is now active. Redirecting to your dashboard...`)
                     startCountdown()
                 } else {
+                    // Store the Cashfree order_status so the UI can show the right tone
+                    setPaymentStatus(result?.status || null)
                     setStatus('error')
                     setMessage(result?.message || 'Payment was not completed.')
                     setSubMessage('No charge was made. You can try again or contact support if needed.')
                 }
             } catch (error) {
                 console.error('Payment verification error:', error)
+                // No paymentStatus set = genuine technical failure → red panel shown
                 setStatus('error')
                 setMessage(error.response?.data?.message || 'Payment verification failed.')
                 setSubMessage("We couldn't verify this payment. Please contact support — we'll sort it within 24h.")
@@ -218,6 +225,111 @@ export default function PaymentSuccessPage() {
     }, [isLoaded, userId, searchParams, navigate]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const unlocks = PLAN_UNLOCKS[planName] || PLAN_UNLOCKS['Professional']
+
+    // ── Error card renderer ───────────────────────────────────────────────────
+    // paymentStatus holds the raw Cashfree order_status (ACTIVE / CANCELLED / EXPIRED / null).
+    // null = technical error (axios throw) — always shows the red panel.
+    const renderError = () => {
+        const isSoftCancel = paymentStatus === 'ACTIVE' || paymentStatus === 'CANCELLED'
+        const currentTier = user?.publicMetadata?.subscriptionTier || 'free'
+        const isFreeTier = currentTier === 'free' || currentTier === 'Free'
+
+        if (isSoftCancel) {
+            return (
+                <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden shadow-xl">
+                    {/* Header */}
+                    <div className="p-8 text-center border-b border-white/10 bg-white/5">
+                        <div className="mb-4 flex justify-center">
+                            <div className="rounded-full bg-amber-500/10 p-4 border border-amber-500/20">
+                                <Clock className="h-10 w-10 text-amber-400" />
+                            </div>
+                        </div>
+                        <h1 className="text-2xl font-extrabold text-white mb-2">
+                            {isFreeTier
+                                ? 'No worries — no charge was made'
+                                : `No worries — you're still on ${currentTier}`}
+                        </h1>
+                        <p className="text-sm text-gray-400">
+                            You cancelled the checkout.{' '}
+                            <strong className="text-white">No charge was made.</strong>
+                            <br />
+                            {isFreeTier
+                                ? 'Your free account is untouched.'
+                                : `Your ${currentTier} subscription continues as normal.`}
+                        </p>
+                    </div>
+
+                    {/* Guarantee reminder */}
+                    <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+                        <Shield className="w-5 h-5 text-accent-emerald flex-shrink-0" />
+                        <p className="text-xs text-gray-400">
+                            When you do subscribe, you're protected by our{' '}
+                            <Link to="/refund-policy" className="text-accent-cyan hover:underline">
+                                30-day money-back guarantee
+                            </Link>
+                            , no questions asked.
+                        </p>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="p-6 flex flex-col sm:flex-row gap-3">
+                        <button
+                            onClick={() => navigate('/pricing')}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-purple px-6 py-3 font-bold text-white text-sm hover:opacity-90 hover:scale-[1.01] transition-all"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Try Again
+                        </button>
+                        <button
+                            onClick={() => navigate('/dashboard')}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-medium text-gray-300 text-sm hover:bg-white/10 hover:text-white transition-all"
+                        >
+                            {isFreeTier ? 'Continue with Free Plan' : 'Back to Dashboard'}
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )
+        }
+
+        // Genuine technical failure or EXPIRED session — red panel with support link
+        return (
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 text-center shadow-xl">
+                <div className="mb-6 flex justify-center">
+                    <div className="rounded-full bg-red-500/10 p-5 border border-red-500/20">
+                        <XCircle className="h-14 w-14 text-red-400" />
+                    </div>
+                </div>
+                <h1 className="mb-2 text-2xl font-bold text-white">
+                    {paymentStatus === 'EXPIRED' ? 'Session Expired' : 'Payment Verification Failed'}
+                </h1>
+                <p className="mb-2 text-sm text-gray-300">{message}</p>
+                {subMessage && (
+                    <p className="mb-6 text-xs text-gray-500">{subMessage}</p>
+                )}
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => navigate('/pricing')}
+                        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
+                    >
+                        ← Try Again
+                    </button>
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="flex-1 rounded-xl bg-gradient-to-r from-accent-purple to-accent-cyan px-5 py-3 font-medium text-white transition hover:opacity-90"
+                    >
+                        Dashboard
+                    </button>
+                </div>
+                <p className="mt-4 text-xs text-gray-600">
+                    Need help?{' '}
+                    <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">
+                        Contact support →
+                    </a>
+                </p>
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space flex items-center justify-center px-4 py-16">
@@ -332,40 +444,7 @@ export default function PaymentSuccessPage() {
                 )}
 
                 {/* ── Error ── */}
-                {status === 'error' && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 text-center shadow-xl">
-                        <div className="mb-6 flex justify-center">
-                            <div className="rounded-full bg-red-500/10 p-5 border border-red-500/20">
-                                <XCircle className="h-14 w-14 text-red-400" />
-                            </div>
-                        </div>
-                        <h1 className="mb-2 text-2xl font-bold text-white">Verification Failed</h1>
-                        <p className="mb-2 text-sm text-gray-300">{message}</p>
-                        {subMessage && (
-                            <p className="mb-6 text-xs text-gray-500">{subMessage}</p>
-                        )}
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => navigate('/pricing')}
-                                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
-                            >
-                                ← Try Again
-                            </button>
-                            <button
-                                onClick={() => navigate('/dashboard')}
-                                className="flex-1 rounded-xl bg-gradient-to-r from-accent-purple to-accent-cyan px-5 py-3 font-medium text-white transition hover:opacity-90"
-                            >
-                                Dashboard
-                            </button>
-                        </div>
-                        <p className="mt-4 text-xs text-gray-600">
-                            Need help?{' '}
-                            <a href="mailto:support@intelligrid.online" className="text-accent-cyan hover:underline">
-                                Contact support →
-                            </a>
-                        </p>
-                    </div>
-                )}
+                {status === 'error' && renderError()}
             </div>
         </div>
     )
