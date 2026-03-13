@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Shield, Zap, Clock, CheckCircle2 } from 'lucide-react'
+import { useUser } from '@clerk/clerk-react'
 import SEO from '../components/common/SEO'
 
 // ─── Re-engagement survey options ────────────────────────────────────────────
@@ -12,24 +13,82 @@ const SURVEY_OPTIONS = [
     { id: 'other', label: 'Other' },
 ]
 
+// Features available at each tier (to show what they keep)
+const TIER_FEATURES = {
+    free: [
+        'Browse all 4,000+ AI tools',
+        'Save up to 10 favourites',
+        'Create up to 2 collections',
+        'Write and read reviews',
+    ],
+    Basic: [
+        'All free features',
+        'Unlimited favourites & collections',
+        'Ad-free browsing',
+        'Advanced search filters',
+    ],
+    Pro: [
+        'All Basic features',
+        'AI Advisor access',
+        'Weekly AI digest newsletter',
+        'Priority in search results',
+    ],
+    Enterprise: [
+        'All Pro features',
+        'Dedicated support',
+        'Team collaboration tools',
+        'Custom integrations',
+    ],
+}
+
 export default function PaymentCancelPage() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
+    const { user, isLoaded } = useUser()
     const [selectedReason, setSelectedReason] = useState(null)
     const [submitted, setSubmitted] = useState(false)
 
     const handleSubmit = () => {
-        // Silent submission — we just track the reason locally
-        // In a future iteration this can POST to /api/v1/analytics/event
         if (selectedReason) {
             setSubmitted(true)
         }
     }
 
+    // Determine current subscription tier from Clerk metadata
+    const currentTier = isLoaded
+        ? (user?.publicMetadata?.subscriptionTier || 'free')
+        : 'free'
+
+    const isFreeTier = currentTier === 'free' || currentTier === 'Free'
+    const tierLabel = isFreeTier ? 'free' : currentTier
+
+    // What plan they were trying to buy (from URL param)
+    const paymentMethod = searchParams.get('method') || 'paypal-subscription'
+
+    // Dynamic heading & sub-copy based on actual tier
+    const heading = isFreeTier
+        ? 'No worries — no charge was made'
+        : `No worries — you're still on ${currentTier}`
+
+    const subCopy = isFreeTier
+        ? 'You cancelled the checkout. No charge was made.\nYour free account is untouched.'
+        : `You cancelled the upgrade. No charge was made.\nYour ${currentTier} subscription continues as normal.`
+
+    const keepSectionLabel = isFreeTier
+        ? 'You still have on your free account:'
+        : `What you still have on ${currentTier}:`
+
+    const keepFeatures = TIER_FEATURES[currentTier] || TIER_FEATURES['free']
+
+    const continueButtonLabel = isFreeTier
+        ? 'Continue with Free Plan'
+        : `Back to Dashboard`
+
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space flex items-center justify-center px-4 py-16">
             <SEO
                 title="Payment Cancelled | IntelliGrid"
-                description="Your payment was cancelled. No charges were made. Your free trial continues."
+                description="Your payment was cancelled. No charges were made."
                 noindex={true}
             />
 
@@ -46,12 +105,18 @@ export default function PaymentCancelPage() {
                             </div>
                         </div>
                         <h1 className="text-2xl font-extrabold text-white mb-2">
-                            No worries — your trial is still running
+                            {heading}
                         </h1>
-                        <p className="text-sm text-gray-400">
-                            You cancelled the checkout. <strong className="text-white">No charge was made.</strong>
-                            <br />
-                            Your 14-day free trial continues as normal.
+                        <p className="text-sm text-gray-400 whitespace-pre-line">
+                            {subCopy.split('\n').map((line, i) =>
+                                i === 0
+                                    ? <span key={i}>{line.includes('No charge') ? (
+                                        <>You cancelled the checkout. <strong className="text-white">No charge was made.</strong><br /></>
+                                    ) : (
+                                        <>{line}<br /></>
+                                    )}</span>
+                                    : <span key={i}>{line}</span>
+                            )}
                         </p>
                     </div>
 
@@ -117,18 +182,13 @@ export default function PaymentCancelPage() {
                         )}
                     </div>
 
-                    {/* What you're keeping on free tier */}
+                    {/* What you're keeping */}
                     <div className="px-6 py-5 border-b border-white/10 bg-white/3">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                            You still have on your free account:
+                            {keepSectionLabel}
                         </p>
                         <ul className="space-y-2">
-                            {[
-                                'Browse all 4,000+ AI tools',
-                                'Save up to 10 favourites',
-                                'Create up to 2 collections',
-                                'Write and read reviews',
-                            ].map((item, i) => (
+                            {keepFeatures.map((item, i) => (
                                 <li key={i} className="flex items-center gap-2.5 text-sm text-gray-400">
                                     <Zap className="w-3.5 h-3.5 text-accent-cyan flex-shrink-0" />
                                     {item}
@@ -162,7 +222,7 @@ export default function PaymentCancelPage() {
                             onClick={() => navigate('/dashboard')}
                             className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-medium text-gray-300 text-sm hover:bg-white/10 hover:text-white transition-all"
                         >
-                            Continue with Free Plan
+                            {continueButtonLabel}
                             <ArrowRight className="w-4 h-4" />
                         </button>
                     </div>
