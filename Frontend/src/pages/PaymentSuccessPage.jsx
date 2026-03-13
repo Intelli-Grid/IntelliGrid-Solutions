@@ -132,12 +132,12 @@ export default function PaymentSuccessPage() {
                     }
 
                     const response = await paymentService.capturePayPalPayment(paymentId, payerId)
+
+                    // Trust explicit success flag; fall back to order status as secondary signal
                     const isSuccess =
                         response.success === true ||
-                        response.statusCode === 200 ||
                         response.payment?.state === 'approved' ||
-                        response.order?.status === 'completed' ||
-                        response.status === 'completed'
+                        response.order?.status === 'completed'
 
                     if (isSuccess) {
                         logEvent('purchase', {
@@ -170,13 +170,11 @@ export default function PaymentSuccessPage() {
                 }
 
                 const response = await paymentService.verifyCashfreePayment(orderId)
-                const isSuccess =
-                    response.success === true ||
-                    response.statusCode === 200 ||
-                    response.order?.status === 'completed' ||
-                    response.status === 'completed'
 
-                if (isSuccess) {
+                // ✅ ONLY trust the explicit success flag from the backend.
+                // Never use response.statusCode === 200 — that's true even for
+                // cancelled/failed payments since the HTTP request itself succeeds.
+                if (response.success === true) {
                     logEvent('purchase', {
                         transaction_id: orderId,
                         value: response.amount?.total || 9.99,
@@ -190,8 +188,8 @@ export default function PaymentSuccessPage() {
                     startCountdown()
                 } else {
                     setStatus('error')
-                    setMessage(`Payment verification failed: ${response.message || 'Unknown error'}`)
-                    setSubMessage("We couldn't verify this payment. Please contact support — we'll sort it within 24h.")
+                    setMessage(response.message || 'Payment was not completed.')
+                    setSubMessage('No charge was made. You can try again or contact support if needed.')
                 }
             } catch (error) {
                 console.error('Payment verification error:', error)

@@ -304,7 +304,7 @@ class PaymentService {
 
             const paymentStatus = response.data.order_status
 
-            // Update order in database
+            // Update order in database — mark failed if not PAID
             const order = await Order.findOneAndUpdate(
                 { orderId },
                 {
@@ -314,14 +314,28 @@ class PaymentService {
                 { new: true }
             ).populate('user')
 
-            if (order && paymentStatus === 'PAID') {
-                // Update user subscription
+            // ── Non-PAID path: return explicit failure so frontend shows error UI ──
+            if (paymentStatus !== 'PAID') {
+                const statusMessages = {
+                    ACTIVE: 'Payment was not completed. Please try again.',
+                    EXPIRED: 'Payment session expired. Please initiate a new payment.',
+                    CANCELLED: 'Payment was cancelled. No charge was made.',
+                }
+                return {
+                    success: false,
+                    message: statusMessages[paymentStatus] || `Payment not completed (status: ${paymentStatus}). No charge was made.`,
+                    status: paymentStatus,
+                    order,
+                }
+            }
+
+            // ── PAID path: activate subscription + send emails ──
+            if (order) {
                 await this.activateSubscription(order.user._id, order.subscription)
 
-                // Send confirmation emails (async)
                 const formattedAmount = order.amount.currency === 'INR'
                     ? `₹${order.amount.total.toLocaleString('en-IN')}`
-                    : `$\${order.amount.total.toFixed(2)}`
+                    : `$${order.amount.total.toFixed(2)}`
 
                 const subscriptionDetails = {
                     tier: order.subscription.tier,
@@ -345,7 +359,8 @@ class PaymentService {
                     .catch(err => console.error('Failed to send receipt email:', err))
             }
 
-            return { payment: response.data, order }
+            // ✅ Explicit success flag — frontend should ONLY trust this field
+            return { success: true, payment: response.data, order, amount: order?.amount }
         } catch (error) {
             console.error('Cashfree verification error:', error)
             throw ApiError.internal('Failed to verify Cashfree payment')
