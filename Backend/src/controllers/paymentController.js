@@ -185,7 +185,12 @@ class PaymentController {
         const existingOrder = await Order.findOne({ orderId, status: 'completed' })
         if (existingOrder) {
             return res.status(200).json(
-                new ApiResponse(200, { order: existingOrder, alreadyProcessed: true }, 'Payment already verified')
+                new ApiResponse(200, {
+                    success: true,
+                    order: existingOrder,
+                    amount: existingOrder.amount,
+                    alreadyProcessed: true,
+                }, 'Payment already verified')
             )
         }
 

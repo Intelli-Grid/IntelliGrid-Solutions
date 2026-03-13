@@ -133,28 +133,32 @@ export default function PaymentSuccessPage() {
 
                     const response = await paymentService.capturePayPalPayment(paymentId, payerId)
 
-                    // Trust explicit success flag; fall back to order status as secondary signal
+                    // apiClient interceptor returns response.data (the ApiResponse JSON object).
+                    // The actual service result sits one level deeper at response.data.
+                    // Never read response.success — that is ApiResponse.success which is
+                    // always true for HTTP 200, regardless of payment outcome.
+                    const result = response?.data ?? response  // safety: unwrap if already unwrapped
                     const isSuccess =
-                        response.success === true ||
-                        response.payment?.state === 'approved' ||
-                        response.order?.status === 'completed'
+                        result?.success === true ||
+                        result?.payment?.state === 'approved' ||
+                        result?.order?.status === 'completed'
 
                     if (isSuccess) {
                         logEvent('purchase', {
                             transaction_id: paymentId,
-                            value: response.amount?.total || 9.99,
+                            value: result?.amount?.total || 9.99,
                             currency: 'USD',
                         })
                         setPlanName('Professional')
                         setStatus('success')
-                        const paidAmount = response.amount?.total ? `$${response.amount.total}` : ''
+                        const paidAmount = result?.amount?.total ? `$${result.amount.total}` : ''
                         setMessage(`You're all set — welcome to Professional 🎉`)
                         setSubMessage(`Your ${paidAmount} subscription is now active. Redirecting to your dashboard...`)
                         startCountdown()
                     } else {
                         setStatus('error')
-                        setMessage(`Payment capture failed: ${response.message || 'Unknown error'}`)
-                        setSubMessage('Please try again or contact support.')
+                        setMessage(result?.message || 'Payment capture failed.')
+                        setSubMessage('No charge was made. Please try again or contact support.')
                     }
                     return
                 }
@@ -171,24 +175,29 @@ export default function PaymentSuccessPage() {
 
                 const response = await paymentService.verifyCashfreePayment(orderId)
 
-                // ✅ ONLY trust the explicit success flag from the backend.
-                // Never use response.statusCode === 200 — that's true even for
-                // cancelled/failed payments since the HTTP request itself succeeds.
-                if (response.success === true) {
+                // apiClient interceptor returns response.data (the ApiResponse JSON object).
+                // The actual service result sits one level deeper at response.data.
+                // ApiResponse.success is always true for HTTP 200 — never use it as a
+                // payment success signal. Only trust the inner result.success flag.
+                const result = response?.data ?? response  // safety: unwrap if already unwrapped
+
+                if (result?.success === true) {
                     logEvent('purchase', {
                         transaction_id: orderId,
-                        value: response.amount?.total || 9.99,
+                        value: result?.amount?.total || 9.99,
                         currency: 'INR',
                     })
                     setPlanName('Professional')
                     setStatus('success')
-                    const paidAmount = response.amount?.total ? `₹${Number(response.amount.total).toLocaleString('en-IN')} ` : ''
+                    const paidAmount = result?.amount?.total
+                        ? `₹${Number(result.amount.total).toLocaleString('en-IN')} `
+                        : ''
                     setMessage(`You're all set — welcome to Professional 🎉`)
                     setSubMessage(`Your ${paidAmount}subscription is now active. Redirecting to your dashboard...`)
                     startCountdown()
                 } else {
                     setStatus('error')
-                    setMessage(response.message || 'Payment was not completed.')
+                    setMessage(result?.message || 'Payment was not completed.')
                     setSubMessage('No charge was made. You can try again or contact support if needed.')
                 }
             } catch (error) {
