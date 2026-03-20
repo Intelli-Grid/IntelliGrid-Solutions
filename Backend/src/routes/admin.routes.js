@@ -1104,6 +1104,84 @@ router.put('/claims/:id/reject', async (req, res) => {
 })
 
 /**
+ * POST /api/v1/admin/enrichment/force-reset-all
+ * @desc  One-time pre-launch helper.
+ *        Resets lastEnrichedAt + enrichmentScore on ALL active tools so that
+ *        bulkEnrich.js (and the cron) will re-process every single tool,
+ *        including ones "enriched" during the initial data import months ago.
+ *
+ *        SAFETY: Only clears enrichment metadata — never touches name, slug,
+ *        description, pricing, logo, officialUrl, or any other content fields.
+ *
+ *        Optional: pass { categorySlug: "image-generation" } to reset only
+ *        tools in a specific category (phased approach).
+ *
+ * @body  { confirm: "FORCE_RESET_ALL", categorySlug?: string }
+ * @access Admin only
+ */
+router.post('/enrichment/force-reset-all', async (req, res) => {
+    try {
+        const { confirm, categorySlug } = req.body
+
+        // Require explicit confirmation string to prevent accidental calls
+        if (confirm !== 'FORCE_RESET_ALL') {
+            return res.status(400).json({
+                success: false,
+                message: 'Must send { confirm: "FORCE_RESET_ALL" } in request body to proceed. This is a destructive metadata operation.',
+            })
+        }
+
+        // Build filter — default to all active tools
+        const filter = { status: 'active', isActive: { $ne: false } }
+
+        // Optional: target a single category for phased resets (safer for very large datasets)
+        if (categorySlug) {
+            const mongoose = (await import('mongoose')).default
+            const cat = await mongoose.model('Category').findOne({ slug: categorySlug }).select('_id').lean()
+            if (!cat) {
+                return res.status(404).json({
+                    success: false,
+                    message: `Category with slug "${categorySlug}" not found. Aborting reset.`,
+                })
+            }
+            filter.category = cat._id
+        }
+
+        const matched = await Tool.countDocuments(filter)
+
+        const result = await Tool.updateMany(filter, {
+            $set: {
+                lastEnrichedAt: null,
+                enrichmentScore: 0,
+                needsEnrichment: true,
+            },
+            $unset: {
+                enrichmentVersion: '',
+                enrichmentSource: '',
+            },
+        })
+
+        console.log(
+            `[Admin] force-reset-all: enrichment metadata cleared on ${result.modifiedCount} tools` +
+            (categorySlug ? ` (category: ${categorySlug})` : ' (all active tools)') +
+            ` — requested by ${req.user?.email || 'admin'}`
+        )
+
+        res.json({
+            success: true,
+            message: `Reset enrichment metadata on ${result.modifiedCount} tools. Run bulkEnrich.js locally to begin re-enrichment.`,
+            matched,
+            modified: result.modifiedCount,
+            nextStep: 'Run: node src/scripts/bulkEnrich.js from the Backend/ directory',
+        })
+
+    } catch (err) {
+        console.error('[Admin] force-reset-all error:', err.message)
+        res.status(500).json({ success: false, message: 'Failed to reset enrichment metadata.' })
+    }
+})
+
+/**
  * POST /api/v1/admin/enrichment/trigger
  * Kick off an enrichment run without waiting for the cron.
  * Accepts optional { batchSize, priority } in the request body.
