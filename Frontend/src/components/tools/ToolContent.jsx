@@ -54,19 +54,27 @@ export default function ToolContent({ tool, relatedBuckets = {} }) {
                         {/* Use Cases & Platforms */}
                         {(tool.targetAudience?.length > 0 || tool.platforms?.length > 0) && (
                             <div className="grid md:grid-cols-2 gap-6 pt-4">
-                                {tool.targetAudience?.length > 0 && (
-                                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                                        <h4 className="font-semibold text-white mb-2">Ideal For</h4>
-                                        <ul className="space-y-2 text-sm text-gray-400">
-                                            {tool.targetAudience.map(audience => (
-                                                <li key={audience} className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                                                    {audience}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
+                                {tool.targetAudience?.length > 0 && (() => {
+                                    const safeTargetAudience = Array.isArray(tool.targetAudience) 
+                                        ? tool.targetAudience 
+                                        : (typeof tool.targetAudience === 'string' ? tool.targetAudience.split(',').map(s => s.trim()).filter(Boolean) : []);
+                                    
+                                    if (safeTargetAudience.length === 0) return null;
+
+                                    return (
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                                            <h4 className="font-semibold text-white mb-2">Ideal For</h4>
+                                            <ul className="space-y-2 text-sm text-gray-400">
+                                                {safeTargetAudience.map((audience, i) => (
+                                                    <li key={`${audience}-${i}`} className="flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
+                                                        {audience}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )
+                                })()}
                                 {tool.platforms?.length > 0 && (
                                     <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                                         <h4 className="font-semibold text-white mb-2">Platform</h4>

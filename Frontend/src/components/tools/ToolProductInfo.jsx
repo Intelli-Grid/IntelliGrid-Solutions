@@ -1,7 +1,7 @@
 import { ExternalLink, Heart, Share2, Check, TrendingUp, Star, Loader2, ArrowRight, Sparkles, BadgePercent } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getPricingDisplay, formatNumber, formatDate, getInitials, getOptimizedImageUrl } from '../../utils/helpers';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useUser } from '@clerk/clerk-react';
 import { userService } from '../../services';
@@ -14,6 +14,21 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
     const affiliateTrackingEnabled = useFlag('AFFILIATE_TRACKING');
     const [isFavorite, setIsFavorite] = useState(false);
     const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isSignedIn || !tool?._id) return;
+        const checkFavoriteStatus = async () => {
+            try {
+                const res = await userService.getFavorites();
+                const favs = res?.data || res || [];
+                const isFav = Array.isArray(favs) ? favs.some(f => (f._id || f) === tool._id) : false;
+                setIsFavorite(isFav);
+            } catch (err) {
+                console.error('Failed to load favorite status', err);
+            }
+        };
+        checkFavoriteStatus();
+    }, [isSignedIn, tool?._id]);
 
     if (!tool) return null;
 

@@ -438,7 +438,6 @@ export function buildUpdatePayload(tool, groqData, scrapeData) {
     // Enrichment tracking fields
     updates.enrichmentVersion = (tool.enrichmentVersion || 0) + 1
     updates.lastEnrichedAt = new Date()
-    updates.lastEnriched = new Date() // keep legacy field in sync
     updates.enrichmentSource = 'groq-v1'
     updates.needsEnrichment = false
 
@@ -509,7 +508,6 @@ export async function getEnrichmentBatch(batchSize = 50) {
         isActive: { $ne: false },
         $or: [
             { lastEnrichedAt: null },
-            { lastEnriched: null },
             { enrichmentScore: { $lt: 50 } },
             { lastEnrichedAt: { $lt: thirtyDaysAgo } },
         ],

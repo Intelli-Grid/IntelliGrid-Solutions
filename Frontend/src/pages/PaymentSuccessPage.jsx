@@ -106,6 +106,9 @@ export default function PaymentSuccessPage() {
                     const purchaseValue = PLAN_PRICES[pendingPlan] || 9.99
                     const resolvedPlanName = PLAN_NAMES[pendingPlan] || 'Professional'
                     sessionStorage.removeItem('pendingPlan')
+                    sessionStorage.removeItem('checkoutPlan')
+                    sessionStorage.removeItem('checkoutBilling')
+                    sessionStorage.removeItem('checkoutCurrency')
 
                     logEvent('purchase', {
                         transaction_id: subscriptionId || baToken || 'paypal-sub',
@@ -148,6 +151,10 @@ export default function PaymentSuccessPage() {
                         result?.order?.status === 'completed'
 
                     if (isSuccess) {
+                        sessionStorage.removeItem('checkoutPlan')
+                        sessionStorage.removeItem('checkoutBilling')
+                        sessionStorage.removeItem('checkoutCurrency')
+                        
                         logEvent('purchase', {
                             transaction_id: paymentId,
                             value: result?.amount?.total || 9.99,
@@ -186,6 +193,10 @@ export default function PaymentSuccessPage() {
                 const result = response?.data ?? response  // safety: unwrap if already unwrapped
 
                 if (result?.success === true) {
+                    sessionStorage.removeItem('checkoutPlan')
+                    sessionStorage.removeItem('checkoutBilling')
+                    sessionStorage.removeItem('checkoutCurrency')
+
                     logEvent('purchase', {
                         transaction_id: orderId,
                         value: result?.amount?.total || 9.99,

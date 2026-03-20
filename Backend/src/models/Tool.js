@@ -245,11 +245,7 @@ const toolSchema = new mongoose.Schema(
             type: [String],
             default: [],
         },
-        lastEnriched: {
-            // Timestamp of last enrichment run (Browse AI import or Groq pass)
-            type: Date,
-            default: null,
-        },
+
         enrichmentScore: {
             // 0-100 completeness score: shortDesc + fullDesc + pros + cons + useCases + logo + pricing + affiliateUrl
             type: Number,

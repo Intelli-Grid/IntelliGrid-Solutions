@@ -164,8 +164,8 @@ router.get('/tools/enrichment-stats', async (req, res) => {
             Tool.countDocuments({ enrichmentScore: { $lt: 30 }, status: 'active' }),
             Tool.countDocuments({
                 $or: [
-                    { lastEnriched: { $lt: staleDate } },
-                    { lastEnriched: null },
+                    { lastEnrichedAt: { $lt: staleDate } },
+                    { lastEnrichedAt: null },
                 ],
                 status: 'active',
             }),
@@ -174,7 +174,7 @@ router.get('/tools/enrichment-stats', async (req, res) => {
             Tool.find({ needsEnrichment: true, status: 'active' })
                 .sort({ views: -1 })
                 .limit(20)
-                .select('name slug views enrichmentScore lastEnriched')
+                .select('name slug views enrichmentScore lastEnrichedAt')
                 .lean(),
         ])
 

@@ -212,7 +212,7 @@ async function importEnrichmentCSV(csvFilePath) {
 
         // Only commit if there's something to update
         if (Object.keys(updates).length > 0) {
-            updates.lastEnriched = new Date()
+            updates.lastEnrichedAt = new Date()
             updates.dataSource = tool.dataSource === 'manual' ? 'futurepedia' : 'mixed'
             updates.needsEnrichment = false  // Clear the flag now that we've enriched it
 

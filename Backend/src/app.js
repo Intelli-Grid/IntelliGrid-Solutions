@@ -72,7 +72,6 @@ const ALLOWED_ORIGINS = [
 const ALLOWED_ORIGIN_PATTERNS = [
     /^https:\/\/intelli-grid-solutions[a-z0-9-]*\.vercel\.app$/,  // all Vercel preview URLs
     /^https:\/\/[a-z0-9-]+\.railway\.app$/,                       // Railway internal services
-    /^https:\/\/[a-z0-9-]+\.vercel\.app$/,                        // any other Vercel preview
 ]
 
 const corsOptions = {

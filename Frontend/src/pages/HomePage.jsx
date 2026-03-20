@@ -213,12 +213,12 @@ export default function HomePage() {
                     <div className="flex flex-wrap justify-center items-center gap-6 text-gray-500 text-sm">
                         <div className="flex items-center gap-1.5">
                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                            <span>4.9/5 from 2,000+ users</span>
+                            <span>Trusted by thousands of builders</span>
                         </div>
                         <span className="w-px h-4 bg-white/10" />
                         <div className="flex items-center gap-1.5">
                             <Users className="w-4 h-4 text-purple-400" />
-                            <span>50,000+ monthly visitors</span>
+                            <span>A growing global community</span>
                         </div>
                         <span className="w-px h-4 bg-white/10" />
                         <div className="flex items-center gap-1.5">

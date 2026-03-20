@@ -162,7 +162,7 @@ export async function runEnrichmentCheck({ batchSize = BATCH_SIZE } = {}) {
             {
                 status: 'active',
                 isActive: { $ne: false },
-                $or: [{ lastEnrichedAt: { $lt: staleDate } }, { lastEnriched: { $lt: staleDate } }],
+                $or: [{ lastEnrichedAt: { $lt: staleDate } }, { lastEnrichedAt: null }],
             },
             { $set: { needsEnrichment: true } }
         )

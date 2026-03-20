@@ -143,12 +143,6 @@ export default function CheckoutPage() {
         }
     }, [paymentMethod, geoLoading, isIndia])
 
-    // When payment method changes, sync currency display
-    useEffect(() => {
-        if (paymentMethod === 'cashfree') setCurrency('INR')
-        else if (paymentMethod === 'paypal') setCurrency('USD')
-    }, [paymentMethod])
-
     // ── Coupon state ─────────────────────────────────────────────────────────
     const [couponExpanded, setCouponExpanded] = useState(false)
     const [couponInput, setCouponInput] = useState('')
@@ -156,6 +150,20 @@ export default function CheckoutPage() {
     const [couponData, setCouponData] = useState(null)
     const [couponError, setCouponError] = useState(null)
     const [couponLoading, setCouponLoading] = useState(false)
+
+    // When payment method changes, sync currency display
+    useEffect(() => {
+        if (paymentMethod === 'cashfree') {
+            setCurrency('INR')
+        } else if (paymentMethod === 'paypal') {
+            setCurrency('USD')
+            setCouponData(null)
+            setCouponCode('')
+            setCouponInput('')
+            setCouponError(null)
+            setCouponExpanded(false)
+        }
+    }, [paymentMethod])
 
     // ── Mobile summary accordion ─────────────────────────────────────────────
     const [summaryExpanded, setSummaryExpanded] = useState(false)

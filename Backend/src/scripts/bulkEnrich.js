@@ -88,7 +88,7 @@ async function main() {
 
     // Fetch tools: groq_failed first, then by lowest enrichmentScore
     const tools = await Tool.find(query)
-        .sort({ dataQualityFlags: -1, enrichmentScore: 1, lastEnriched: 1 })
+        .sort({ dataQualityFlags: -1, enrichmentScore: 1, lastEnrichedAt: 1 })
         .limit(MAX_TOOLS_PER_RUN === Infinity ? 999999 : MAX_TOOLS_PER_RUN)
         .lean()
 
