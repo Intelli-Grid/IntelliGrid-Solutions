@@ -1816,7 +1816,7 @@ function SettingsTab() {
                     </h3>
                     <div className="space-y-2 text-sm">
                         {[
-                            { name: 'Backend API', url: 'https://api.intelligrid.online' },
+                            { name: 'Backend API', url: 'https://backend.intelligrid.online' },
                             { name: 'Frontend', url: 'https://www.intelligrid.online' },
                         ].map(({ name, url }) => (
                             <div key={name} className="flex justify-between items-center">

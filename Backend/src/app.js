@@ -105,6 +105,17 @@ app.use(cors(corsOptions))
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be served cross-origin
     crossOriginOpenerPolicy: false, // Do not override CORS headers set by cors()
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://js.clerk.dev", "https://www.googletagmanager.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'", "https://api.intelligrid.online", "https://backend.intelligrid.online", "https://*.algolia.net", "https://*.sentry.io", "https://clerk.intelligrid.online", "https://*.clerk.accounts.dev"],
+            frameSrc: ["'self'", "https://www.paypal.com", "https://js.cashfree.com"],
+        }
+    }
 }))
 app.use(compression())
 

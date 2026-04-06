@@ -173,11 +173,20 @@ class ToolService {
      */
     async getTrendingTools(limit = 10) {
         // Prefer trendingScore; fall back to views if not yet computed
-        const tools = await Tool.find({ status: 'active', isActive: { $ne: false } })
+        let tools = await Tool.find({ status: 'active', isActive: { $ne: false }, isTrending: true })
             .populate('category', 'name slug')
             .sort({ trendingScore: -1, views: -1 })
             .limit(limit)
             .lean()
+
+        // Fallback: return most-viewed tools if no trending tools tagged yet
+        if (tools.length === 0) {
+            tools = await Tool.find({ status: 'active', isActive: { $ne: false } })
+                .sort({ views: -1 })
+                .limit(limit)
+                .populate('category', 'name slug')
+                .lean()
+        }
 
         return tools
     }

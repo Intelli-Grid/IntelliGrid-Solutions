@@ -13,7 +13,7 @@ export default defineConfig({
       '@services': path.resolve(__dirname, './src/services'),
       '@hooks': path.resolve(__dirname, './src/hooks'),
       '@utils': path.resolve(__dirname, './src/utils'),
-      '@providers': path.resolve(__dirname, './src/providers'),
+      '@context': path.resolve(__dirname, './src/context'),
       '@styles': path.resolve(__dirname, './src/styles'),
     },
   },
@@ -28,7 +28,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {

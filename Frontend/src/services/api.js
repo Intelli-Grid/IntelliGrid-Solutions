@@ -1,10 +1,7 @@
 import axios from 'axios'
 import { getAuthToken } from './tokenStore'
 
-let API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1'
-if (API_BASE_URL.includes('intelligrid-solutions-production.up.railway.app')) {
-    API_BASE_URL = 'https://api.intelligrid.online/api/v1'
-}
+let API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1'
 
 // Create axios instance
 const apiClient = axios.create({

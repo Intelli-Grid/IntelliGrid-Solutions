@@ -69,7 +69,7 @@ async function main() {
     // Query: tools that have NOT been enriched yet OR previously failed with groq_failed
     // We do NOT filter on lastEnrichedAt for groq_failed tools → they get retried
     const query = {
-        status: 'active',
+        status: { $in: ['active', 'pending'] }, // include pending so imported tools get enriched
         isActive: { $ne: false },
         $or: [
             { lastEnrichedAt: { $exists: false } },

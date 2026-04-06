@@ -109,11 +109,7 @@ const toolSchema = new mongoose.Schema(
             trim: true,
         }],
         // Metadata sub-document (kept for backward compatibility)
-        metadata: {
-            logo: String,
-            screenshots: [String],
-            videoUrl: String,
-        },
+        // REMOVED - using top-level only
         isVerified: {
             type: Boolean,
             default: false,
@@ -267,10 +263,9 @@ const toolSchema = new mongoose.Schema(
             trim: true,
         },
         targetAudience: {
-            // e.g. 'developers', 'marketers', 'designers'
-            type: String,
-            trim: true,
-            maxlength: 100,
+            // e.g. ['developers', 'marketers', 'designers']
+            type: [String],
+            default: [],
         },
         launchedAt: {
             // When the tool itself publicly launched (not when added to IntelliGrid)

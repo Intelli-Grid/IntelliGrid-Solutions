@@ -107,12 +107,25 @@ class GroqKeyRotator {
 
                     // Per-minute/request limit — wait then retry same key
                     if (tpmRetries < MAX_TPM_RETRIES) {
-                        const waitMatch = msg.match(/try again in (\d+(?:\.\d+)?)m?(\d+(?:\.\d+)?)?s?/i)
                         let waitMs = 65000
-                        if (waitMatch) {
-                            const mins = parseFloat(waitMatch[1]) || 0
-                            const secs = parseFloat(waitMatch[2]) || 0
-                            waitMs = Math.ceil((mins * 60 + secs) * 1000) + 2000
+                        const timeSection = msg.match(/try again in (.*?)$/i)
+                        if (timeSection) {
+                            const timeStr = timeSection[1]
+                            let totalSecs = 0
+                            
+                            const hMatch = timeStr.match(/(\d+(?:\.\d+)?)h/i)
+                            const mMatch = timeStr.match(/(\d+(?:\.\d+)?)m(?!s)/i)
+                            const sMatch = timeStr.match(/(\d+(?:\.\d+)?)s/i)
+                            const msMatch = timeStr.match(/(\d+(?:\.\d+)?)ms/i)
+                            
+                            if (hMatch) totalSecs += parseFloat(hMatch[1]) * 3600
+                            if (mMatch) totalSecs += parseFloat(mMatch[1]) * 60
+                            if (sMatch) totalSecs += parseFloat(sMatch[1])
+                            if (msMatch) totalSecs += parseFloat(msMatch[1]) / 1000
+                            
+                            if (totalSecs > 0) {
+                                waitMs = Math.ceil(totalSecs * 1000) + 2000
+                            }
                         }
                         tpmRetries++
                         console.warn(`  ⏳ TPM limit — waiting ${Math.round(waitMs / 1000)}s (retry ${tpmRetries}/${MAX_TPM_RETRIES})...`)

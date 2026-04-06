@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 const GEO_CACHE_KEY = 'ig_user_country'
 
 // Our own backend geo endpoint (uses CF-IPCountry, zero external API dependency)
-const GEO_BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1') + '/geo/country'
+const GEO_BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1') + '/geo/country'
 
 // ipapi.co fallback — free, no key, CORS-safe (1,000 req/day on free tier)
 const GEO_FALLBACK_URL = 'https://ipapi.co/json/'

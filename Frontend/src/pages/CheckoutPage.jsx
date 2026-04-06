@@ -151,19 +151,39 @@ export default function CheckoutPage() {
     const [couponError, setCouponError] = useState(null)
     const [couponLoading, setCouponLoading] = useState(false)
 
-    // When payment method changes, sync currency display
+    // When payment method changes, sync currency display and CLEAR ANY ACTIVE COUPONS
     useEffect(() => {
         if (paymentMethod === 'cashfree') {
             setCurrency('INR')
         } else if (paymentMethod === 'paypal') {
             setCurrency('USD')
-            setCouponData(null)
-            setCouponCode('')
-            setCouponInput('')
-            setCouponError(null)
-            setCouponExpanded(false)
         }
+        
+        // CF-02 Fix: Always clear coupon state on payment method switch
+        setCouponData(null)
+        setCouponCode('')
+        setCouponInput('')
+        setCouponError(null)
+        setCouponExpanded(false)
+        sessionStorage.removeItem('checkoutCouponCode')
+        sessionStorage.removeItem('checkoutCouponData')
     }, [paymentMethod])
+
+    // Load persisted coupon state just once on mount
+    useEffect(() => {
+        const storedCouponCode = sessionStorage.getItem('checkoutCouponCode')
+        const storedCouponData = sessionStorage.getItem('checkoutCouponData')
+        if (storedCouponCode && storedCouponData) {
+            try {
+                setCouponCode(storedCouponCode)
+                setCouponData(JSON.parse(storedCouponData))
+                setCouponExpanded(true)
+            } catch (e) {
+                sessionStorage.removeItem('checkoutCouponCode')
+                sessionStorage.removeItem('checkoutCouponData')
+            }
+        }
+    }, [])
 
     // ── Mobile summary accordion ─────────────────────────────────────────────
     const [summaryExpanded, setSummaryExpanded] = useState(false)
@@ -194,6 +214,8 @@ export default function CheckoutPage() {
                 setCouponData(res.coupon)
                 setCouponCode(couponInput.trim().toUpperCase())
                 setCouponError(null)
+                sessionStorage.setItem('checkoutCouponCode', couponInput.trim().toUpperCase())
+                sessionStorage.setItem('checkoutCouponData', JSON.stringify(res.coupon))
             }
         } catch (err) {
             setCouponError(err.response?.data?.message || 'Invalid coupon code')
@@ -209,6 +231,8 @@ export default function CheckoutPage() {
         setCouponCode('')
         setCouponInput('')
         setCouponError(null)
+        sessionStorage.removeItem('checkoutCouponCode')
+        sessionStorage.removeItem('checkoutCouponData')
     }
 
     // ── Billing period switch ─────────────────────────────────────────────────

@@ -232,7 +232,7 @@ export const gdprService = {
  * Stack Advisor Service
  * Backend mounts at /api/v1/stack-advisor — use the standard base URL directly.
  */
-const STACK_BASE = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1'
+const STACK_BASE = import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1'
 
 import axios from 'axios'
 import { getAuthToken } from './tokenStore'
