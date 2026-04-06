@@ -230,7 +230,7 @@ app.get('/health', async (req, res) => {
         services: {
             database: dbStatus,
             redis: redisStatus,
-            algolia: process.env.ALGOLIA_API_KEY ? 'Active' : 'Missing',
+            algolia: (process.env.ALGOLIA_ADMIN_KEY || process.env.ALGOLIA_API_KEY) ? 'Active' : 'Missing',
             brevo: process.env.BREVO_API_KEY ? 'Active' : 'Missing',
             clerk: process.env.CLERK_SECRET_KEY ? 'Active' : 'Missing'
         },
