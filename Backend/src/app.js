@@ -32,6 +32,8 @@ import couponRoutes from './routes/couponRoutes.js'
 import blogRoutes from './routes/blogRoutes.js'
 import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
+import telegramRoutes from './routes/telegram.routes.js'
+import { initialiseTelegramBot } from './services/telegramBot.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
 import { timingMiddleware } from './middleware/timing.js'
 
@@ -57,6 +59,11 @@ if (process.env.SENTRY_DSN) {
 // ── Database connections ──────────────────────────────────────────────────────
 connectDB()
 connectRedis()
+
+// ── Telegram Owner Bot ───────────────────────────────────────────────────────
+// Initialised after DB connect so bot commands can query MongoDB immediately.
+// Silently no-ops when TELEGRAM_BOT_TOKEN / OWNER_TELEGRAM_ID are not set.
+initialiseTelegramBot()
 
 // ── CORS — must be before helmet and any other middleware ────────────────────
 const ALLOWED_ORIGINS = [
@@ -314,6 +321,7 @@ app.use('/api/v1/coupons', couponRoutes)
 app.use('/api/v1/blog', blogRoutes)
 app.use('/api/v1/stack-advisor', stackAdvisorRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
+app.use('/api/v1/telegram', telegramRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────
 // Returns only the list of enabled flag keys — no auth required, no sensitive data.

@@ -8,6 +8,7 @@ import Coupon from '../models/Coupon.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
+import { sendOwnerAlert } from '../services/telegramBot.js'
 
 // ── Module-level constants (BUG-11 fix: was copy-pasted 3x) ─────────────────────
 // Maps our plan keys to { tier, duration } — used by create-order + create-subscription routes
@@ -338,8 +339,18 @@ class PaymentController {
 
                         await paymentService.activateSubscription(userId, planData, subscriptionId)
 
+                        // 🔔 Telegram alert — new Pro signup
+                        const activatedUser = await User.findById(userId).lean()
+                        sendOwnerAlert(
+                            `🎉 *New Pro Signup! (PayPal)*\n\n` +
+                            `👤 User: ${activatedUser?.email || userId}\n` +
+                            `📦 Plan: ${planData.tier} / ${planData.duration}\n` +
+                            `🔗 Sub ID: \`${subscriptionId}\``
+                        ).catch(() => {})
+
                         // Send welcome email (non-fatal)
-                        const user = await User.findById(userId)
+                        const user = activatedUser ? await User.findById(userId) : null
+                        if (!user) { break }
                         if (user) {
                             const emailPayload = {
                                 tier: planData.tier,
@@ -384,6 +395,14 @@ class PaymentController {
                     const userId = resource.custom_id
 
                     console.warn(`⚠️  PayPal payment failed/suspended: ${subscriptionId} for user ${userId}`)
+
+                    // 🔔 Telegram alert — payment failure
+                    sendOwnerAlert(
+                        `🚨 *PayPal Payment Failed*\n\n` +
+                        `Event: ${event_type}\n` +
+                        `Sub ID: \`${subscriptionId}\`\n` +
+                        `User ID: ${userId || 'unknown'}`
+                    ).catch(() => {})
 
                     if (userId) {
                         await User.findByIdAndUpdate(userId, {
@@ -533,17 +552,35 @@ class PaymentController {
             switch (type) {
                 case 'PAYMENT_SUCCESS_WEBHOOK': {
                     const orderId = data?.order?.order_id
+                    const amount = data?.payment?.payment_amount
+                    const email = data?.customer_details?.customer_email
                     console.log('✅ Cashfree payment success webhook:', orderId)
                     if (orderId) {
-                        // Verify via service (idempotent)
                         await paymentService.verifyCashfreePayment(orderId)
+
+                        // 🔔 Telegram alert — new payment
+                        sendOwnerAlert(
+                            `🎉 *New Payment! (Cashfree)*\n\n` +
+                            `👤 User: ${email || 'unknown'}\n` +
+                            `💰 Amount: ₹${amount || 'N/A'}\n` +
+                            `🧾 Order: \`${orderId}\``
+                        ).catch(() => {})
                     }
                     break
                 }
 
                 case 'PAYMENT_FAILED_WEBHOOK': {
                     const orderId = data?.order?.order_id
+                    const email = data?.customer_details?.customer_email
                     console.log('❌ Cashfree payment failed:', orderId)
+
+                    // 🔔 Telegram alert — payment failure
+                    sendOwnerAlert(
+                        `🚨 *Cashfree Payment Failed*\n\n` +
+                        `👤 User: ${email || 'unknown'}\n` +
+                        `🧾 Order: \`${orderId || 'N/A'}\``
+                    ).catch(() => {})
+
                     if (orderId) {
                         await Order.findOneAndUpdate(
                             { orderId, status: 'pending' },
