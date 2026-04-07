@@ -33,7 +33,9 @@ import blogRoutes from './routes/blogRoutes.js'
 import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import telegramRoutes from './routes/telegram.routes.js'
+import communityTelegramRoutes from './routes/communityTelegram.routes.js'
 import { initialiseTelegramBot } from './services/telegramBot.js'
+import { initialiseCommunityBot } from './services/communityBot.js'
 import { startCrawlerScheduler } from './jobs/crawlerScheduler.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
 import { timingMiddleware } from './middleware/timing.js'
@@ -65,6 +67,11 @@ connectRedis()
 // Initialised after DB connect so bot commands can query MongoDB immediately.
 // Silently no-ops when TELEGRAM_BOT_TOKEN / OWNER_TELEGRAM_ID are not set.
 initialiseTelegramBot()
+
+// ── Telegram Community Bot ───────────────────────────────────────────────────
+// Public-facing bot — silently no-ops if COMMUNITY_BOT_TOKEN is not set.
+// Set COMMUNITY_BOT_TOKEN + COMMUNITY_CHANNEL_ID in Railway to activate.
+initialiseCommunityBot()
 
 // ── Crawler Scheduler ───────────────────────────────────────────────────────
 // Only starts when CRAWLER_ENABLED=true is set in Railway — off by default in dev.
@@ -331,6 +338,7 @@ app.use('/api/v1/blog', blogRoutes)
 app.use('/api/v1/stack-advisor', stackAdvisorRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
 app.use('/api/v1/telegram', telegramRoutes)
+app.use('/api/v1/telegram', communityTelegramRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────
 // Returns only the list of enabled flag keys — no auth required, no sensitive data.

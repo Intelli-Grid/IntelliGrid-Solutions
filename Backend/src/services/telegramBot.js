@@ -67,21 +67,26 @@ function createBot() {
         ctx.replyWithMarkdown(
             `🔐 *IntelliGrid Owner Panel*\n\n` +
             `Welcome back. All commands are live.\n\n` +
-            `*Analytics*\n` +
+            `*📊 Analytics*\n` +
             `/stats — Live platform stats\n` +
             `/users — User breakdown\n` +
             `/trending — Top trending tools today\n` +
             `/health — System health check\n\n` +
-            `*Database*\n` +
+            `*🗄 Database*\n` +
             `/db\\_stats — DB overview\n` +
             `/sync\\_algolia — Force Algolia re-index\n` +
             `/enrichment\\_status — Enrichment progress\n` +
             `/start\\_enrichment — Trigger next 500 enrichments\n\n` +
-            `*Users*\n` +
+            `*🕷 Crawlers*\n` +
+            `/crawler\\_status — Crawler schedule + DB stats\n` +
+            `/start\\_crawler all — Run all crawlers now\n` +
+            `/start\\_crawler futurepedia — Futurepedia only\n` +
+            `/start\\_crawler taaft — TAAFT only\n\n` +
+            `*👥 Users*\n` +
             `/user <email> — Look up a user\n` +
             `/grant\\_pro <email> — Assign Pro role\n` +
             `/revoke\\_pro <email> — Remove Pro role\n\n` +
-            `*Content*\n` +
+            `*📥 Content*\n` +
             `/submissions — Last 10 pending submissions\n`
         )
     })
