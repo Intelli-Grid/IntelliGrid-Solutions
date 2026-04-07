@@ -34,6 +34,7 @@ import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import telegramRoutes from './routes/telegram.routes.js'
 import { initialiseTelegramBot } from './services/telegramBot.js'
+import { startCrawlerScheduler } from './jobs/crawlerScheduler.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
 import { timingMiddleware } from './middleware/timing.js'
 
@@ -64,6 +65,14 @@ connectRedis()
 // Initialised after DB connect so bot commands can query MongoDB immediately.
 // Silently no-ops when TELEGRAM_BOT_TOKEN / OWNER_TELEGRAM_ID are not set.
 initialiseTelegramBot()
+
+// ── Crawler Scheduler ───────────────────────────────────────────────────────
+// Only starts when CRAWLER_ENABLED=true is set in Railway — off by default in dev.
+if (process.env.CRAWLER_ENABLED === 'true') {
+    startCrawlerScheduler()
+} else {
+    console.log('⚠️  [CrawlerScheduler] Disabled (set CRAWLER_ENABLED=true to activate nightly crawls)')
+}
 
 // ── CORS — must be before helmet and any other middleware ────────────────────
 const ALLOWED_ORIGINS = [

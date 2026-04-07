@@ -417,10 +417,68 @@ function createBot() {
         }
     })
 
+    // ── /start_crawler <source> ───────────────────────────────────────────────
+    instance.command('start_crawler', async (ctx) => {
+        const parts = ctx.message.text.split(' ')
+        const source = parts[1]?.toLowerCase() || 'all'
+        const validSources = ['futurepedia', 'taaft', 'aixploria', 'all']
+
+        if (!validSources.includes(source)) {
+            return ctx.reply(`Usage: /start_crawler <source>\nValid: ${validSources.join(', ')}`)
+        }
+
+        await ctx.replyWithMarkdown(
+            `⏳ *Crawler triggered: ${source}*\n\nRunning in background — you'll get a push alert when done.`
+        )
+
+        Promise.resolve().then(async () => {
+            try {
+                const { runFullCrawl } = await import('../jobs/crawlerScheduler.js')
+                const sources = source === 'all' ? ['futurepedia', 'taaft', 'aixploria'] : [source]
+                const stats = await runFullCrawl({ sources })
+                await sendOwnerAlert(
+                    `✅ *Manual Crawl Complete (${source})*\n\n` +
+                    `🆕 Inserted: *${stats.inserted}*\n` +
+                    `🔄 Updated: *${stats.updated}*\n` +
+                    `⏭ Skipped: *${stats.skipped}*`
+                )
+            } catch (err) {
+                await sendOwnerAlert(`❌ *Crawler error (${source})*\n${err.message}`)
+            }
+        })
+    })
+
+    // ── /crawler_status ───────────────────────────────────────────────────────
+    instance.command('crawler_status', async (ctx) => {
+        try {
+            const { Tool: T } = await getModels()
+            const crawlerEnabled = process.env.CRAWLER_ENABLED === 'true'
+
+            const [total, scraped, enriched] = await Promise.all([
+                T.countDocuments({ status: 'active' }),
+                T.countDocuments({ sourceFoundBy: 'scraper' }),
+                T.countDocuments({ isEnriched: true, status: 'active' }),
+            ])
+
+            await ctx.replyWithMarkdown(
+                `🕷 *Crawler Status*\n\n` +
+                `Schedule: ${crawlerEnabled ? '🟢 Nightly 2AM IST' : '🔴 Disabled'}\n\n` +
+                `📦 Total active: *${total.toLocaleString()}*\n` +
+                `🤖 From scraper: *${scraped.toLocaleString()}*\n` +
+                `✅ Enriched: *${enriched.toLocaleString()}*\n` +
+                `📋 Unenriched: *${(total - enriched).toLocaleString()}*\n\n` +
+                `Use /start\\_crawler all to trigger now`
+            )
+        } catch (err) {
+            ctx.reply(`❌ Error: ${err.message}`)
+        }
+    })
+
     // ── Unknown command fallback ───────────────────────────────────────────────
     instance.on('text', (ctx) => {
         ctx.reply('❓ Unknown command. Type /start to see all commands.')
     })
+
 
     return instance
 }
