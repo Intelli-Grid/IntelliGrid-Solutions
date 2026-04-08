@@ -294,23 +294,36 @@ export function startCrawlerScheduler() {
 
     // ── Nightly crawler: 2:00 AM IST = 20:30 UTC ─────────────────────────────
     cron.schedule('30 20 * * *', async () => {
-        console.log('[Scheduler] Nightly crawler starting...')
-        await sendOwnerAlert('🕐 *Nightly crawler started*\nSources: Futurepedia + TAAFT + AIxploria')
-
+        console.log('[Scheduler] Nightly Pipeline starting via JobManager...')
         try {
-            const stats = await runFullCrawl({ sources: ['futurepedia', 'taaft', 'aixploria'] })
-            await sendOwnerAlert(
-                `✅ *Nightly Crawl Complete*\n\n` +
-                `📥 Futurepedia: ${stats.futurepedia} raw\n` +
-                `📥 TAAFT: ${stats.taaft} raw\n` +
-                `📥 AIxploria: ${stats.aixploria} raw\n\n` +
-                `🆕 Inserted: *${stats.inserted}*\n` +
-                `🔄 Updated: *${stats.updated}*\n` +
-                `⏭ Skipped: *${stats.skipped}*`
-            )
+            await sendOwnerAlert('🕐 *Nightly Pipeline Started*\nSequential Queue: Futurepedia → AIxploria → TAAFT → Importer')
+
+            const runAndWait = async (jobId) => {
+                const { startJob, isRunning } = await import('../services/JobManager.js')
+                try {
+                    await startJob(jobId, { isNightly: true })
+                    // Wait for the job to finish by polling the in-memory registry
+                    while (isRunning(jobId)) {
+                        await new Promise(r => setTimeout(r, 10000)) // check every 10s
+                    }
+                } catch (err) {
+                    console.error(`[Scheduler] Job ${jobId} failed to start:`, err.message)
+                }
+            }
+
+            // Sequential Execution to avoid CPU/RAM spikes on the Railway container
+            await runAndWait('crawler_futurepedia')
+            await runAndWait('crawler_aixploria')
+            await runAndWait('crawler_taaft')
+
+            // After all CSVs are generated, run the Master Importer
+            await runAndWait('importer')
+
+            await sendOwnerAlert('✅ *Nightly Pipeline Complete*\nAll crawlers and the importer have finished. The imported tools are now staged as `pending` inside your database.')
+
         } catch (err) {
-            console.error('[Scheduler] Nightly crawl error:', err.message)
-            await sendOwnerAlert(`❌ *Nightly crawl error*\n${err.message}`)
+            console.error('[Scheduler] Nightly pipeline orchestrator error:', err.message)
+            await sendOwnerAlert(`❌ *Nightly pipeline orchestrator error*\n${err.message}`)
         }
     }, { timezone: 'UTC' })
 
