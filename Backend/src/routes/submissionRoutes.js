@@ -8,6 +8,7 @@ import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import emailService from '../services/emailService.js'
 import toolService from '../services/toolService.js'
+import { sendOwnerAlert } from '../services/telegramBot.js'
 
 const router = express.Router()
 
@@ -63,6 +64,15 @@ router.post('/',
             name: submitterName || (req.user ? `${req.user.firstName} ${req.user.lastName}`.trim() : 'Anonymous'),
         },
     })
+
+    sendOwnerAlert(
+        `📩 *New Tool Submission*\n` +
+        `Name: *${toolName.trim()}*\n` +
+        `URL: ${officialUrl.trim()}\n` +
+        `By: ${submission.submittedBy.name}\n\n` +
+        `👉 Tap to approve instantly:\n` +
+        `/approve\_${submission._id}`
+    )
 
     // Send confirmation email if we have an email
     const confirmEmail = submitterEmail || req.user?.email

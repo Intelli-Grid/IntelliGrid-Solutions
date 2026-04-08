@@ -10,11 +10,12 @@
  *   5. Save to MongoDB + re-sync to Algolia
  */
 
-import * as cheerio from 'cheerio'
+import { scrapeToolWebsite } from './toolWebScraper.js'
 import Groq from 'groq-sdk'
 import Tool from '../models/Tool.js'
 import Category from '../models/Category.js' // register schema for populate()
 import { syncToolToAlgolia } from '../config/algolia.js'
+import { normalizeCategory } from '../jobs/crawlers/normalizer.js'
 
 // ─────────────────────────────────────────────────────────────
 // Groq Key Rotator — supports up to 9 keys
@@ -141,85 +142,6 @@ class GroqKeyRotator {
 
 const groqRotator = new GroqKeyRotator()
 
-
-// ─────────────────────────────────────────────────────────────
-// STEP 1: Website scraper (Cheerio — lightweight, no Puppeteer)
-// ─────────────────────────────────────────────────────────────
-
-export async function scrapeToolWebsite(url) {
-    try {
-        // Hard timeout wrapper — more reliable than AbortController across Node versions
-        const fetchWithTimeout = (targetUrl, timeoutMs = 10000) => {
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
-            )
-            const fetchPromise = fetch(targetUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; IntelliGridBot/1.0; +https://intelligrid.online/bot)',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                },
-            })
-            return Promise.race([fetchPromise, timeoutPromise])
-        }
-
-        const response = await fetchWithTimeout(url, 10000)
-        if (!response.ok) return null
-
-        const html = await response.text()
-        const $ = cheerio.load(html)
-
-        // Strip noise
-        $('script, style, nav, footer, iframe, noscript, [class*="cookie"], [id*="cookie"], [class*="banner"]').remove()
-
-        // Extract pricing signals from raw HTML
-        const pricingSignals = {
-            hasFree: /\bfree\b/i.test(html),
-            hasFreeForever: /free forever|always free|free plan/i.test(html),
-            hasFreeTrial: /free trial|try free|start free|try for free/i.test(html),
-            hasPricing: /pricing|plans & pricing|choose a plan/i.test(html),
-            priceMatches: (html.match(/\$[\d,]+(?:\.?\d{2})?(?:\s*\/\s*mo(?:nth)?)?/gi) || []).slice(0, 5),
-        }
-
-        // Platform signals
-        const platformSignals = {
-            hasWeb: true, // assume web if website exists
-            hasIOS: /app store|ios app|iphone|ipad|download on the app store/i.test(html),
-            hasAndroid: /google play|android app|get it on google play/i.test(html),
-            hasChromeExt: /chrome extension|chrome web store|add to chrome/i.test(html),
-            hasFirefoxExt: /firefox extension|firefox add-on|addons\.mozilla/i.test(html),
-            hasAPI: /\bapi\b.*\bdocumentation\b|\bdocs\.\w+|\/api\/|api reference|developer api/i.test(html),
-            hasVSCode: /visual studio code|vscode extension|vs code marketplace/i.test(html),
-            hasDiscord: /discord bot|discord server|discord\.gg/i.test(html),
-            hasSlack: /slack app|slack integration|add to slack/i.test(html),
-        }
-
-        // Twitter handle extraction
-        const twitterMatch = html.match(/twitter\.com\/([A-Za-z0-9_]{1,20})(?:["'\/\s])/i)
-        const twitterHandle = twitterMatch ? twitterMatch[1].replace(/^@/, '') : ''
-
-        // OG image as logo fallback
-        const ogImage = $('meta[property="og:image"]').attr('content') || ''
-
-        // Body text for Groq context (first 3000 chars)
-        const bodyText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 3000)
-
-        return {
-            title: $('title').text().trim().substring(0, 200),
-            metaDescription: ($('meta[name="description"]').attr('content') || '').substring(0, 500),
-            h1: $('h1').first().text().trim().substring(0, 200),
-            h2s: $('h2').map((_, el) => $(el).text().trim()).get().slice(0, 5),
-            bodyText,
-            ogImage,
-            twitterHandle,
-            pricingSignals,
-            platformSignals,
-        }
-    } catch (err) {
-        // Timeout, DNS failure, 4xx, etc. — non-fatal, return null
-        return null
-    }
-}
 
 // ─────────────────────────────────────────────────────────────
 // STEP 2: Groq AI enrichment
@@ -352,6 +274,69 @@ export function computeEnrichmentScore(tool) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// STEP 3b: Auto-resolve category ObjectId from slug
+// ─────────────────────────────────────────────────────────────
+
+// In-memory cache: categorySlug → ObjectId (avoids repeated DB lookups per batch)
+const _categoryCache = {}
+
+/**
+ * Resolves a category slug string to a MongoDB ObjectId.
+ * Sources (in priority order):
+ *   1. Tool's existing category ObjectId — skip if already categorized
+ *   2. Tool's categorySlug from the crawler normalizer
+ *   3. Groq's suggested useCaseTags (each mapped through normalizeCategory)
+ *   4. Falls back to 'other' category
+ *
+ * Returns the Category ObjectId or null if not found / already set.
+ */
+export async function resolveCategoryId(tool, groqData) {
+    // Priority 1: tool already has a category ObjectId — don't reassign
+    if (tool.category) return null
+
+    // Priority 2: tool has a categorySlug from the crawler normalizer
+    let slug = tool.categorySlug || null
+
+    // Priority 3: infer from Groq's use-case tags
+    if (!slug && groqData) {
+        const allHints = [
+            ...(groqData.useCaseTags || []),
+            ...(groqData.industryTags || []),
+            ...(groqData.audienceTags || []),
+        ]
+        for (const hint of allHints) {
+            const mapped = normalizeCategory(hint)
+            if (mapped && mapped !== 'other') { slug = mapped; break }
+        }
+    }
+
+    // Priority 4: fallback
+    if (!slug) slug = 'other'
+
+    // Check in-memory cache first
+    if (_categoryCache[slug]) return _categoryCache[slug]
+
+    try {
+        const cat = await Category.findOne({ slug }).select('_id').lean()
+        if (cat) {
+            _categoryCache[slug] = cat._id
+            return cat._id
+        }
+        // Fallback to 'other'
+        if (slug !== 'other') {
+            const fallback = await Category.findOne({ slug: 'other' }).select('_id').lean()
+            if (fallback) {
+                _categoryCache['other'] = fallback._id
+                return fallback._id
+            }
+        }
+    } catch {
+        // Non-fatal — enrichment continues without category assignment
+    }
+    return null
+}
+
+// ─────────────────────────────────────────────────────────────
 // STEP 4: Merge Groq output + existing tool data
 // ─────────────────────────────────────────────────────────────
 
@@ -480,6 +465,13 @@ export async function enrichTool(tool) {
         // 3. Build update payload (merge, never overwrite good existing data)
         const updates = buildUpdatePayload(tool, groqData, scrapeData)
 
+        // 3b. Auto-resolve category ObjectId if tool is uncategorized
+        const categoryId = await resolveCategoryId(tool, groqData)
+        if (categoryId) {
+            updates.category = categoryId
+            updates.isEnriched = true
+        }
+
         // 4. Compute enrichment score on the merged document
         const merged = { ...tool.toObject ? tool.toObject() : tool, ...updates }
         updates.enrichmentScore = computeEnrichmentScore(merged)
@@ -517,7 +509,8 @@ export async function enrichTool(tool) {
 export async function getEnrichmentBatch(batchSize = 50) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     return Tool.find({
-        status: 'active',
+        // Include both active AND pending (so freshly imported tools get enriched)
+        status: { $in: ['active', 'pending', 'auto_approved'] },
         isActive: { $ne: false },
         $or: [
             { lastEnrichedAt: null },

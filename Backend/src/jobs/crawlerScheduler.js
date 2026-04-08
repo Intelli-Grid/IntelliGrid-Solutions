@@ -20,6 +20,7 @@ import { crawlTAAFT } from './crawlers/taaftCrawler.js'
 import { normalizeToSchema } from './crawlers/normalizer.js'
 import { deduplicateAndUpsert } from './crawlers/deduplicator.js'
 import { sendOwnerAlert } from '../services/telegramBot.js'
+import { runAutoStage } from '../scripts/autoApprove.js'
 import Tool from '../models/Tool.js'
 import Groq from 'groq-sdk'
 
@@ -47,15 +48,25 @@ async function syncToAlgolia(limit = 500) {
             name: t.name,
             slug: t.slug,
             shortDescription: t.shortDescription,
+            longDescription: (t.longDescription || '').substring(0, 2000), // Algolia 10kb limit safety
             category: t.category?.name || '',
             categorySlug: t.category?.slug || '',
             tags: t.tags || [],
+            useCaseTags: t.useCaseTags || [],         // ← rich long-tail search matching
+            audienceTags: t.audienceTags || [],       // ← filter facet
+            industryTags: t.industryTags || [],       // ← filter facet
+            keyFeatures: t.keyFeatures || [],         // ← boosts keyword matching
+            alternativeTo: t.alternativeTo || [],     // ← 'alternatives to X' searches
             pricing: t.pricing,
             logo: t.logo || null,
             officialUrl: t.officialUrl,
             views: t.views || 0,
+            enrichmentScore: t.enrichmentScore || 0, // ← for ranking rule
             isFeatured: t.isFeatured || false,
             isTrending: t.isTrending || false,
+            isEnriched: t.isEnriched || false,
+            hasFreeTier: t.hasFreeTier || false,
+            platforms: t.platforms || [],
         }))
 
         await index.saveObjects(records)
@@ -66,7 +77,33 @@ async function syncToAlgolia(limit = 500) {
     }
 }
 
-// ── Groq enrichment batch ─────────────────────────────────────────────────────
+// ── Groq enrichment batch ────────────────────────────────────────────────
+/**
+ * Computes a 0–100 quality completeness score from the Groq-returned data.
+ * Used by the auto-staging cron to decide whether a tool is good enough to go
+ * to `auto_approved` (threshold: 60). Must be deterministic — no randomness.
+ */
+function computeEnrichScore(e, tool) {
+    let score = 0
+    // Core text content (total 40 pts)
+    if ((e.shortDescription || tool.shortDescription || '').length >= 60)  score += 10
+    if ((e.fullDescription  || tool.fullDescription  || '').length >= 100) score += 15
+    if ((e.longDescription  || '').length >= 150)                           score += 15
+    // Tagging completeness (total 34 pts)
+    if ((e.useCaseTags       || []).length >= 3) score += 12
+    if ((e.audienceTags      || []).length >= 1) score +=  7
+    if ((e.keyFeatures       || []).length >= 3) score +=  8
+    if ((e.alternativeTo     || []).length >= 1) score +=  7
+    // Discovery signals (total 18 pts)
+    if ((e.integrationTags   || []).length >= 1) score +=  5
+    if ((e.tags              || tool.tags || []).length >= 3) score +=  5
+    if ((e.industryTags      || []).length >= 1) score +=  4
+    if ([e.hasFreeTier] != null)                 score +=  4
+    // Logo / media bonus (8 pts)
+    if (tool.logo && tool.logo.length > 0)       score +=  8
+    return Math.min(Math.round(score), 100)
+}
+
 export async function runEnrichmentBatch({ limit = 200 } = {}) {
     if (!process.env.GROQ_API_KEY) {
         console.warn('[Enrichment] GROQ_API_KEY not set — skipping')
@@ -77,60 +114,107 @@ export async function runEnrichmentBatch({ limit = 200 } = {}) {
 
     const tools = await Tool.find({
         isEnriched: { $ne: true },
-        status: 'active',
+        status: { $in: ['active', 'pending'] },
         isActive: true,
         linkStatus: { $ne: 'dead' },
-    }).limit(limit).lean()
+    }).limit(limit).populate('category', 'name slug').lean()
 
     const stats = { processed: tools.length, enriched: 0, errors: 0 }
     console.log(`[Enrichment] Processing ${tools.length} unenriched tools...`)
 
     for (const tool of tools) {
         try {
-            const prompt = `You are an expert AI tools analyst. Based on the tool info below, provide enriched metadata.
+            const prompt = `You are an expert AI tools analyst. Analyze the tool below and return ONLY a valid JSON object — no markdown, no code fences, no explanation.
 
 Tool Name: ${tool.name}
 Website: ${tool.officialUrl}
-Current Description: ${tool.shortDescription || tool.fullDescription || 'N/A'}
-Category: ${tool.categorySlug || 'Unknown'}
+Category: ${tool.category?.name || tool.categorySlug || 'AI Tools'}
+Existing Description: ${tool.shortDescription || tool.fullDescription || 'Unknown'}
 
-Return ONLY valid JSON with these exact fields (no markdown, no explanation):
+Return exactly this JSON shape (all fields required, use empty arrays [] if you don't know):
 {
-  "shortDescription": "One clear sentence under 160 chars describing what this tool does",
-  "fullDescription": "2-3 sentence markdown description. Highlight the unique value proposition.",
-  "tags": ["up to 6 specific use-case tags"],
-  "targetAudience": ["up to 3 user types e.g. Marketers, Developers, Students"],
-  "useCases": ["up to 4 specific tasks this tool excels at"]
+  "shortDescription": "One sentence, max 160 chars, what this tool does and for whom",
+  "fullDescription": "2-3 sentences highlighting the core value proposition and key differentiator",
+  "longDescription": "150-250 word detailed SEO paragraph covering the tool purpose, unique features, best use cases, and who benefits most",
+  "tags": ["up to 8 relevant search tags"],
+  "useCaseTags": ["3-6 task-based tags like: write blog posts, transcribe audio, generate images"],
+  "audienceTags": ["2-4 audience tags like: Marketers, Developers, Students, Designers, Entrepreneurs"],
+  "industryTags": ["1-3 industry tags like: Healthcare, Finance, Education, E-commerce"],
+  "integrationTags": ["0-4 integration names like: Zapier, Slack, Notion, Google Drive"],
+  "keyFeatures": ["3-5 specific feature bullets, factual not marketing"],
+  "alternativeTo": ["0-3 well-known tool names this replaces, e.g. Jasper, Midjourney"],
+  "pros": ["2-4 genuine advantages"],
+  "cons": ["1-3 genuine limitations or caveats"],
+  "hasFreeTier": true,
+  "platforms": ["Web"],
+  "qualityScore": 75
 }`
 
             const completion = await groq.chat.completions.create({
                 model: 'llama3-8b-8192',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.3,
-                max_tokens: 500,
+                max_tokens: 1200,
             })
 
             const raw = completion.choices[0]?.message?.content || ''
             const jsonMatch = raw.match(/\{[\s\S]*\}/)
-            if (!jsonMatch) continue
+            if (!jsonMatch) {
+                console.warn(`[Enrichment] No JSON in Groq response for ${tool.name}`)
+                continue
+            }
 
-            const enriched = JSON.parse(jsonMatch[0])
+            const e = JSON.parse(jsonMatch[0])
+            const score = computeEnrichScore(e, tool)
+
+            // Valid platform values from the Tool schema enum
+            const VALID_PLATFORMS = ['Web', 'iOS', 'Android', 'Chrome Extension',
+                'Firefox Extension', 'API', 'Desktop (Mac)', 'Desktop (Windows)',
+                'Discord Bot', 'Slack App', 'VS Code Extension']
 
             await Tool.updateOne(
                 { _id: tool._id },
                 {
                     $set: {
-                        ...(enriched.shortDescription ? { shortDescription: enriched.shortDescription.substring(0, 499) } : {}),
-                        ...(enriched.fullDescription ? { fullDescription: enriched.fullDescription } : {}),
-                        ...(enriched.tags?.length ? { tags: enriched.tags.slice(0, 10) } : {}),
+                        // Core text
+                        ...(e.shortDescription ? { shortDescription: e.shortDescription.substring(0, 499) } : {}),
+                        ...(e.fullDescription  ? { fullDescription: e.fullDescription } : {}),
+                        ...(e.longDescription  ? { longDescription: e.longDescription } : {}),
+
+                        // Tagging
+                        ...(e.tags?.length          ? { tags: e.tags.slice(0, 10) } : {}),
+                        ...(e.useCaseTags?.length   ? { useCaseTags: e.useCaseTags.slice(0, 8) } : {}),
+                        ...(e.audienceTags?.length  ? { audienceTags: e.audienceTags.slice(0, 5) } : {}),
+                        ...(e.industryTags?.length  ? { industryTags: e.industryTags.slice(0, 4) } : {}),
+                        ...(e.integrationTags?.length ? { integrationTags: e.integrationTags.slice(0, 8) } : {}),
+                        ...(e.keyFeatures?.length   ? { keyFeatures: e.keyFeatures.slice(0, 6) } : {}),
+                        ...(e.alternativeTo?.length ? { alternativeTo: e.alternativeTo.slice(0, 5) } : {}),
+
+                        // Pros / cons stored in seoContent
+                        ...(e.pros?.length || e.cons?.length ? {
+                            'seoContent.pros': (e.pros || []).slice(0, 5),
+                            'seoContent.cons': (e.cons || []).slice(0, 4),
+                            'seoContent.generatedAt': new Date(),
+                        } : {}),
+
+                        // Discovery signals
+                        ...(e.hasFreeTier != null ? { hasFreeTier: Boolean(e.hasFreeTier) } : {}),
+                        ...(e.platforms?.length ? {
+                            platforms: e.platforms.filter(p => VALID_PLATFORMS.includes(p))
+                        } : {}),
+
+                        // Pipeline state
                         isEnriched: true,
                         enrichedAt: new Date(),
-                        updatedAt: new Date(),
+                        lastEnrichedAt: new Date(),
+                        enrichmentScore: score,
+                        enrichmentSource: 'groq-llama3-v2',
+                        enrichmentVersion: (tool.enrichmentVersion || 0) + 1,
                     }
                 }
             )
             stats.enriched++
-            // Polite delay — Groq free tier: 30 RPM
+            // Groq free tier: 30 RPM — 250ms delay gives headroom
             await new Promise(r => setTimeout(r, 250))
         } catch (err) {
             stats.errors++
@@ -235,8 +319,44 @@ export function startCrawlerScheduler() {
         console.log('[Scheduler] Enrichment batch starting...')
         try {
             const stats = await runEnrichmentBatch({ limit: 200 })
+
             if (stats.enriched > 0) {
-                const remaining = await Tool.countDocuments({ isEnriched: { $ne: true }, status: 'active' })
+                const remaining = await Tool.countDocuments({ isEnriched: { $ne: true }, status: { $in: ['pending', 'auto_approved'] } })
+
+                // ── Re-sync freshly enriched tools to Algolia ─────────────────
+                // Tools now have longDescription, useCaseTags, enrichmentScore that
+                // weren't in Algolia when they were first inserted.
+                try {
+                    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
+                    const justEnriched = await Tool.find({
+                        status: 'active',
+                        isActive: true,
+                        isEnriched: true,
+                        enrichedAt: { $gte: fourHoursAgo },
+                    })
+                        .limit(300)
+                        .select('name slug shortDescription longDescription category tags useCaseTags audienceTags industryTags keyFeatures alternativeTo pricing logo officialUrl views enrichmentScore isFeatured isTrending isEnriched hasFreeTier platforms')
+                        .populate('category', 'name slug')
+                        .lean()
+
+                    if (justEnriched.length > 0) {
+                        const algoliaSync = await syncToAlgolia(justEnriched.length + 10)
+                        console.log(`[Scheduler] Algolia re-synced ${algoliaSync} enriched tools`)
+                    }
+                } catch (algErr) {
+                    console.warn('[Scheduler] Algolia re-sync after enrichment failed:', algErr.message)
+                }
+
+                // ── Auto-stage enriched tools that meet quality threshold ─────
+                // Moves pending tools with score >= 60 to auto_approved.
+                // Owner is notified via Telegram → /reviewbatch to publish.
+                try {
+                    const stageStats = await runAutoStage({ threshold: 60 })
+                    console.log(`[Scheduler] Auto-staged ${stageStats.staged} tools for review`)
+                } catch (stageErr) {
+                    console.warn('[Scheduler] Auto-staging after enrichment failed:', stageErr.message)
+                }
+
                 await sendOwnerAlert(
                     `🤖 *Auto-Enrichment Complete*\n\n` +
                     `✅ Enriched: *${stats.enriched}*\n` +
@@ -249,5 +369,5 @@ export function startCrawlerScheduler() {
         }
     }, { timezone: 'UTC' })
 
-    console.log('✅ [CrawlerScheduler] Cron jobs registered — nightly crawl at 02:00 IST, enrichment every 4h')
+    console.log('✅ [CrawlerScheduler] Cron jobs registered — nightly crawl at 02:00 IST, enrichment every 4h (with auto-stage)')
 }

@@ -98,6 +98,12 @@ async function main() {
     const failures = []
     const startTime = Date.now()
 
+    let isShuttingDown = false
+    process.on('SIGTERM', () => {
+        console.log('\n🛑 SIGTERM received — finishing current tool and shutting down gracefully...')
+        isShuttingDown = true
+    })
+
     for (let i = 0; i < tools.length; i++) {
         const tool = tools[i]
 
@@ -148,8 +154,15 @@ async function main() {
         }
 
         // Rate-limit delay (skip after last tool)
-        if (i < tools.length - 1 && !allKeysExhausted) {
+        if (i < tools.length - 1 && !allKeysExhausted && !isShuttingDown) {
             await sleep(DELAY_MS)
+        }
+
+        console.log(`PROGRESS:processed:${i + 1}:total:${toProcess}`)
+
+        if (isShuttingDown) {
+            console.log('\n🛑 Stopping loop due to SIGTERM')
+            break
         }
     }
 

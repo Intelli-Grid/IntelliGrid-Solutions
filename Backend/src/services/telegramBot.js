@@ -75,19 +75,28 @@ function createBot() {
             `*🗄 Database*\n` +
             `/db\\_stats — DB overview\n` +
             `/sync\\_algolia — Force Algolia re-index\n` +
-            `/enrichment\\_status — Enrichment progress\n` +
-            `/start\\_enrichment — Trigger next 500 enrichments\n\n` +
-            `*🕷 Crawlers*\n` +
-            `/crawler\\_status — Crawler schedule + DB stats\n` +
-            `/start\\_crawler all — Run all crawlers now\n` +
-            `/start\\_crawler futurepedia — Futurepedia only\n` +
-            `/start\\_crawler taaft — TAAFT only\n\n` +
+            `/enrichment\\_status — Enrichment overview\n\n` +
+            `*⚙️ Background Jobs (V2)*\n` +
+            `/jobstatus — View all running/past jobs\n` +
+            `/crawl <source> — Run Python crawler in background\n` +
+            `/enrich — Run bulk enrichment via JobManager\n` +
+            `/stopjob <id> — Gracefully stop a running job\n\n` +
             `*👥 Users*\n` +
             `/user <email> — Look up a user\n` +
             `/grant\\_pro <email> — Assign Pro role\n` +
             `/revoke\\_pro <email> — Remove Pro role\n\n` +
             `*📥 Content*\n` +
-            `/submissions — Last 10 pending submissions\n`
+            `/submissions — Last 10 pending submissions\n` +
+            `/reviewbatch — Review auto-staged tools (✅/❌)\n` +
+            `/approvebatch — Bulk publish ALL staged tools\n\n` +
+            `*📢 Community*\n` +
+            `/publish <slug> — Post to channel\n` +
+            `/announce <text> — Broadcast message\n` +
+            `/digest — Send latest tools digest\n\n` +
+            `*⚙️ System*\n` +
+            `/cache — Redis status (NEW)\n` +
+            `/logs — Log guidance (NEW)\n` +
+            `/restart — App restart guidance (NEW)`
         )
     })
 
@@ -149,6 +158,317 @@ function createBot() {
         } catch (err) {
             ctx.reply(`❌ Health check error: ${err.message}`)
         }
+    })
+
+    // ── /publish ──────────────────────────────────────────────────────────────
+    instance.command('publish', async (ctx) => {
+        try {
+            const args = ctx.message.text.split(' ')
+            if (args.length < 2) return ctx.reply('Usage: /publish <slug>')
+            const slug = args[1]
+            
+            const { Tool: T } = await getModels()
+            const tool = await T.findOne({ slug, status: 'active' }).populate('category')
+            if (!tool) return ctx.reply('❌ Tool not found or not active.')
+
+            if (!process.env.TELEGRAM_COMMUNITY_CHANNEL_ID) {
+                return ctx.reply('❌ TELEGRAM_COMMUNITY_CHANNEL_ID is not set.')
+            }
+
+            const channelMsg = `🚀 *New Tool on IntelliGrid*\n\n🔥 *${tool.name}*\n${tool.shortDescription}\n\n🏷 Category: ${tool.category?.name || 'Various'}\n💰 Pricing: ${tool.pricing}\n\n👉 [View on IntelliGrid](https://www.intelligrid.online/tool/${tool.slug})\n\n@IntelliGrid_Official`
+            
+            await instance.telegram.sendMessage(process.env.TELEGRAM_COMMUNITY_CHANNEL_ID, channelMsg, { parse_mode: 'Markdown', disable_web_page_preview: false })
+            await ctx.reply(`✅ Successfully published ${tool.name} to community channel.`)
+        } catch (err) {
+            ctx.reply(`❌ Publish error: ${err.message}`)
+        }
+    })
+
+    // ── /announce ─────────────────────────────────────────────────────────────
+    instance.command('announce', async (ctx) => {
+        try {
+            const text = ctx.message.text.substring('/announce'.length).trim()
+            if (!text) return ctx.reply('Usage: /announce <message>')
+
+            if (!process.env.TELEGRAM_COMMUNITY_CHANNEL_ID) {
+                return ctx.reply('❌ TELEGRAM_COMMUNITY_CHANNEL_ID is not set.')
+            }
+
+            const channelMsg = `📢 *IntelliGrid Announcement*\n\n${text}\n\n@IntelliGrid_Official`
+            
+            await instance.telegram.sendMessage(process.env.TELEGRAM_COMMUNITY_CHANNEL_ID, channelMsg, { parse_mode: 'Markdown' })
+            await ctx.reply(`✅ Announcement sent.`)
+        } catch (err) {
+            ctx.reply(`❌ Announce error: ${err.message}`)
+        }
+    })
+
+    // ── /digest ───────────────────────────────────────────────────────────────
+    instance.command('digest', async (ctx) => {
+        try {
+            if (!process.env.TELEGRAM_COMMUNITY_CHANNEL_ID) {
+                return ctx.reply('❌ TELEGRAM_COMMUNITY_CHANNEL_ID is not set.')
+            }
+
+            const { Tool: T } = await getModels()
+            // Fetch top 5 recent tools
+            const tools = await T.find({ status: 'active' }).sort({ createdAt: -1 }).limit(5)
+            if (tools.length === 0) return ctx.reply('❌ No active tools to compile.')
+
+            let channelMsg = `🌟 *IntelliGrid Weekly Digest*\nHere are the latest tools added this week:\n\n`
+            tools.forEach((t, i) => {
+                channelMsg += `${i+1}. *${t.name}* - ${t.shortDescription}\n🔗 [Explore](${t.officialUrl})\n\n`
+            })
+            channelMsg += `👉 Discover more tools at [IntelliGrid.online](https://www.intelligrid.online)`
+            
+            await instance.telegram.sendMessage(process.env.TELEGRAM_COMMUNITY_CHANNEL_ID, channelMsg, { parse_mode: 'Markdown', disable_web_page_preview: true })
+            await ctx.reply(`✅ Digest sent.`)
+        } catch (err) {
+            ctx.reply(`❌ Digest error: ${err.message}`)
+        }
+    })
+
+    // ── /dashboard ────────────────────────────────────────────────────────────
+    instance.command('dashboard', async (ctx) => {
+        try {
+            const { Tool: T, User: U } = await getModels()
+            const today = new Date(); today.setHours(0,0,0,0)
+            const [totalTools, pendingTools, totalUsers, proUsers, newUsersToday] = await Promise.all([
+                T.countDocuments({ status: 'active' }),
+                T.countDocuments({ status: 'pending' }),
+                U.countDocuments(),
+                U.countDocuments({ 'subscription.plan': { $in: ['pro', 'pro_yearly'] }, 'subscription.status': 'active' }),
+                U.countDocuments({ createdAt: { $gte: today } })
+            ])
+            const msg = `📊 *IntelliGrid Dashboard*\n━━━━━━━━━━━━━━━━━━━━━\n🛠 Active Tools: *${totalTools.toLocaleString()}*\n⏳ Pending Approval: *${pendingTools}*\n👥 Total Users: *${totalUsers.toLocaleString()}*\n⭐ Pro Subscribers: *${proUsers}*\n🆕 New Today: *${newUsersToday}*\n━━━━━━━━━━━━━━━━━━━━━`
+            await ctx.replyWithMarkdown(msg)
+        } catch (err) {
+            ctx.reply(`❌ Dashboard error: ${err.message}`)
+        }
+    })
+
+    // ── /revenue ──────────────────────────────────────────────────────────────
+    instance.command('revenue', async (ctx) => {
+        try {
+            const { User: U } = await getModels()
+            const today = new Date(); today.setHours(0,0,0,0)
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            const [todayPro, weekPro, totalPro] = await Promise.all([
+                U.countDocuments({ 'subscription.status': 'active', updatedAt: { $gte: today } }),
+                U.countDocuments({ 'subscription.status': 'active', updatedAt: { $gte: weekAgo } }),
+                U.countDocuments({ 'subscription.status': 'active', 'subscription.plan': { $in: ['pro', 'pro_yearly'] } }),
+            ])
+            const msg = `💰 *Revenue Overview*\n━━━━━━━━━━━━━━━\n⭐ Total Active Pro: *${totalPro}*\n📅 New Pro Today: *${todayPro}*\n📆 New Pro This Week: *${weekPro}*\n━━━━━━━━━━━━━━━`
+            await ctx.replyWithMarkdown(msg)
+        } catch (err) {
+            ctx.reply(`❌ Revenue error: ${err.message}`)
+        }
+    })
+
+    // ── /reviewbatch ──────────────────────────────────────────────────────────
+    // Shows the first auto_approved tool with inline Accept/Reject buttons.
+    // Owner taps through them one at a time. Each decision is immediate.
+    instance.command('reviewbatch', async (ctx) => {
+        try {
+            const { Tool: T } = await getModels()
+            const staged = await T.countDocuments({ status: 'auto_approved' })
+            if (staged === 0) {
+                return ctx.reply('ℹ️ No tools are staged for review.\nRun /approvebatch if you want to bulk-publish pending enriched tools.')
+            }
+
+            // Get the oldest staged tool for review
+            const tool = await T.findOne({ status: 'auto_approved' })
+                .sort({ stagedAt: 1 })
+                .populate('category', 'name')
+                .lean()
+
+            if (!tool) return ctx.reply('❌ No staged tools found.')
+
+            const remaining = staged
+            const msg =
+                `🔍 *Review Tool ${remaining} Remaining*\n` +
+                `━━━━━━━━━━━━━━━━━\n` +
+                `🔥 *${tool.name}*\n` +
+                `🏷 Category: ${tool.category?.name || 'Unknown'}\n` +
+                `💰 Pricing: ${tool.pricing}\n` +
+                `📊 Score: ${tool.enrichmentScore || 'N/A'}\n\n` +
+                `📝 ${tool.shortDescription}\n\n` +
+                `🔗 [Visit Tool](${tool.officialUrl})`
+
+            await ctx.replyWithMarkdown(msg, {
+                disable_web_page_preview: true,
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`✅ Accept — Go Live`, `ratool_accept_${tool._id}`),
+                        Markup.button.callback(`❌ Reject — Back to Pending`, `ratool_reject_${tool._id}`),
+                    ],
+                    [
+                        Markup.button.callback(`⏭ Skip (keep staged)`, `ratool_skip_${tool._id}`),
+                    ]
+                ])
+            })
+        } catch (err) {
+            ctx.reply(`❌ Review error: ${err.message}`)
+        }
+    })
+
+    // ── Callback: inline button handler for /reviewbatch ────────────────────────
+    instance.action(/^ratool_(accept|reject|skip)_(.+)$/, async (ctx) => {
+        try {
+            const action = ctx.match[1]  // accept | reject | skip
+            const toolId = ctx.match[2]
+
+            const { Tool: T } = await getModels()
+            const tool = await T.findById(toolId)
+
+            if (!tool) {
+                await ctx.answerCbQuery('❌ Tool not found — may have already been processed.')
+                return ctx.editMessageText('❌ Tool not found. It may have already been reviewed.')
+            }
+
+            if (action === 'accept') {
+                await T.updateOne({ _id: toolId }, {
+                    $set: { status: 'active', isActive: true, approvedAt: new Date(), approvedBy: 'owner-telegram' }
+                })
+                await ctx.answerCbQuery('✅ Accepted — Tool is now LIVE!')
+                await ctx.editMessageText(`✅ *${tool.name}* is now LIVE on IntelliGrid!`, { parse_mode: 'Markdown' })
+            } else if (action === 'reject') {
+                await T.updateOne({ _id: toolId }, {
+                    $set: { status: 'pending', isActive: false, rejectedAt: new Date(), dataQualityFlags: ['owner_rejected'] }
+                })
+                await ctx.answerCbQuery('❌ Rejected — Moved back to pending.')
+                await ctx.editMessageText(`❌ *${tool.name}* moved back to pending.`, { parse_mode: 'Markdown' })
+            } else {
+                await ctx.answerCbQuery('⏭ Skipped.')
+                await ctx.editMessageText(`⏭ *${tool.name}* skipped (still staged).`, { parse_mode: 'Markdown' })
+            }
+
+            // Auto-show next staged tool
+            const remaining = await T.countDocuments({ status: 'auto_approved' })
+            if (remaining > 0 && action !== 'skip') {
+                await ctx.reply(`📥 ${remaining} tool(s) still awaiting review. Type /reviewbatch to continue.`)
+            } else if (remaining === 0) {
+                await ctx.reply('🎉 All staged tools have been reviewed! DB is clean.')
+            }
+        } catch (err) {
+            await ctx.answerCbQuery('❌ Error: ' + err.message.slice(0, 50))
+        }
+    })
+
+    // ── /approvebatch (updated: operates on auto_approved tools) ──────────────
+    instance.command('approvebatch', async (ctx) => {
+        try {
+            const { Tool: T } = await getModels()
+            // Target auto_approved tools (staged by autoApprove.js) — not raw pending
+            const staged = await T.countDocuments({ status: 'auto_approved' })
+            if (staged === 0) {
+                return ctx.reply('ℹ️ No auto_approved tools to publish.\nRun autoApprove.js first, or use /reviewbatch for one-by-one.')
+            }
+            const result = await T.updateMany(
+                { status: 'auto_approved' },
+                { $set: { status: 'active', isActive: true, approvedAt: new Date(), approvedBy: 'owner-approvebatch', dataQualityFlags: [] } }
+            )
+            await ctx.reply(`✅ Bulk published ${result.modifiedCount} tools!\n💡 Run /sync_algolia to push to Algolia search.`)
+        } catch (err) {
+            ctx.reply(`❌ Batch approve error: ${err.message}`)
+        }
+    })
+
+    // ── /approve_<submissionId> ───────────────────────────────────────────────
+    // One-tap submission approval from the Telegram new-submission alert.
+    // The submission._id is embedded in the alert as `/approve_<id>`.
+    // Tapping it converts the Submission into a live Tool and sets status active.
+    instance.hears(/^\/approve_([a-f0-9]{24})$/, async (ctx) => {
+        try {
+            // Lazy-import Submission model (not always loaded at boot)
+            const { default: Submission } = await import('../models/Submission.js')
+            const { Tool: T, Category: Cat } = await getModels()
+
+            const submissionId = ctx.match[1]
+            const sub = await Submission.findById(submissionId)
+
+            if (!sub) {
+                return ctx.reply(`❌ Submission \`${submissionId}\` not found. It may have already been approved or deleted.`, { parse_mode: 'Markdown' })
+            }
+
+            if (sub.status === 'approved') {
+                return ctx.reply(`ℹ️ *${sub.toolName}* was already approved.`, { parse_mode: 'Markdown' })
+            }
+
+            // Resolve category ObjectId if a category slug was provided
+            let categoryId = null
+            if (sub.category) {
+                const cat = await Cat.findOne({
+                    $or: [{ slug: sub.category }, { name: new RegExp(`^${sub.category}$`, 'i') }]
+                }).select('_id').lean()
+                categoryId = cat?._id || null
+            }
+
+            // Create Tool from submission data
+            const slug = sub.toolName
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+
+            const tool = await T.create({
+                name: sub.toolName,
+                slug: `${slug}-${Date.now().toString(36)}`,  // ensure uniqueness
+                officialUrl: sub.officialUrl,
+                shortDescription: sub.shortDescription,
+                fullDescription: sub.fullDescription || sub.shortDescription,
+                category: categoryId,
+                pricing: sub.pricing || 'Free',
+                features: sub.features || [],
+                status: 'active',
+                isActive: true,
+                submittedBy: sub.submittedBy?.user || null,
+                approvedBy: `owner-telegram-${ctx.from.id}`,
+                approvedAt: new Date(),
+                dataSource: 'user_submission',
+            })
+
+            // Mark submission as approved
+            await Submission.findByIdAndUpdate(submissionId, {
+                status: 'approved',
+                reviewedAt: new Date(),
+                toolRef: tool._id,
+            })
+
+            await ctx.reply(
+                `✅ *${sub.toolName}* is now LIVE on IntelliGrid!\n\n` +
+                `🔗 intelligrid.online/tool/${tool.slug}`,
+                { parse_mode: 'Markdown' }
+            )
+
+            console.log(`[TelegramBot] Submission ${submissionId} approved by owner → tool ${tool._id}`)
+        } catch (err) {
+            console.error('[TelegramBot] /approve_ error:', err.message)
+            ctx.reply(`❌ Approval failed: ${err.message.slice(0, 200)}`)
+        }
+    })
+
+    // ── /cache, /logs, /restart ───────────────────────────────────────────────
+    instance.command('cache', async (ctx) => {
+        try {
+            const redisModule = await import('../config/redis.js')
+            const redisClient = redisModule.default || redisModule.redisClient
+            if (!redisClient || !redisClient.isOpen) return ctx.reply('🔴 Redis disconnected or omitted')
+            const memory = await redisClient.info('memory')
+            const dbsize = await redisClient.dbSize()
+            const usedMemoryMatch = memory.match(/used_memory_human:(.*)/)
+            const usedMemory = usedMemoryMatch ? usedMemoryMatch[1].trim() : 'Unknown'
+            await ctx.replyWithMarkdown(`🗄 *Redis Cache Status*\n\nStatus: 🟢 Connected\nKeys: *${dbsize}*\nMemory: *${usedMemory}*`)
+        } catch (err) {
+            ctx.reply(`❌ Cache error: ${err.message}`)
+        }
+    })
+    
+    instance.command('logs', async (ctx) => {
+        await ctx.reply('ℹ️ System running on Railway. Please check Railway dashboard for direct container logs: https://railway.app')
+    })
+    
+    instance.command('restart', async (ctx) => {
+        await ctx.reply('⚠️ Restart via Telegram is disabled unless RAILWAY_API_TOKEN is set. Use Railway dashboard.')
     })
 
     // ── /users ────────────────────────────────────────────────────────────────
@@ -255,22 +575,9 @@ function createBot() {
         }
     })
 
-    // ── /start_enrichment ─────────────────────────────────────────────────────
+    // ── /start_enrichment (Deprecated) ────────────────────────────────────────
     instance.command('start_enrichment', async (ctx) => {
-        try {
-            await ctx.reply('⏳ Triggering enrichment job for next 500 tools...')
-            // Dynamically import the enrichment service to avoid circular deps
-            const enrichMod = await import('./enrichmentService.js')
-            const result = await enrichMod.runEnrichmentBatch({ limit: 500 })
-            await ctx.replyWithMarkdown(
-                `✅ *Enrichment batch complete*\n\n` +
-                `Processed: *${result?.processed || 'N/A'}*\n` +
-                `Enriched: *${result?.enriched || 'N/A'}*\n` +
-                `Errors: *${result?.errors || 0}*`
-            )
-        } catch (err) {
-            ctx.reply(`❌ Enrichment error: ${err.message}`)
-        }
+        await ctx.reply('⚠️ This command is deprecated. Please use /enrich to run enrichment through the JobManager.')
     })
 
     // ── /sync_algolia ─────────────────────────────────────────────────────────
@@ -422,35 +729,9 @@ function createBot() {
         }
     })
 
-    // ── /start_crawler <source> ───────────────────────────────────────────────
+    // ── /start_crawler (Deprecated) ───────────────────────────────────────────
     instance.command('start_crawler', async (ctx) => {
-        const parts = ctx.message.text.split(' ')
-        const source = parts[1]?.toLowerCase() || 'all'
-        const validSources = ['futurepedia', 'taaft', 'aixploria', 'all']
-
-        if (!validSources.includes(source)) {
-            return ctx.reply(`Usage: /start_crawler <source>\nValid: ${validSources.join(', ')}`)
-        }
-
-        await ctx.replyWithMarkdown(
-            `⏳ *Crawler triggered: ${source}*\n\nRunning in background — you'll get a push alert when done.`
-        )
-
-        Promise.resolve().then(async () => {
-            try {
-                const { runFullCrawl } = await import('../jobs/crawlerScheduler.js')
-                const sources = source === 'all' ? ['futurepedia', 'taaft', 'aixploria'] : [source]
-                const stats = await runFullCrawl({ sources })
-                await sendOwnerAlert(
-                    `✅ *Manual Crawl Complete (${source})*\n\n` +
-                    `🆕 Inserted: *${stats.inserted}*\n` +
-                    `🔄 Updated: *${stats.updated}*\n` +
-                    `⏭ Skipped: *${stats.skipped}*`
-                )
-            } catch (err) {
-                await sendOwnerAlert(`❌ *Crawler error (${source})*\n${err.message}`)
-            }
-        })
+        await ctx.reply('⚠️ This command is deprecated. Please use `/crawl <source>` (e.g. `/crawl futurepedia`) to run via the persistent JobManager.', { parse_mode: 'Markdown' })
     })
 
     // ── /crawler_status ───────────────────────────────────────────────────────
@@ -476,6 +757,70 @@ function createBot() {
             )
         } catch (err) {
             ctx.reply(`❌ Error: ${err.message}`)
+        }
+    })
+
+    // ── V2 Job Management Commands ────────────────────────────────────────────
+    instance.command('crawl', async (ctx) => {
+        const parts = ctx.message.text.split(' ')
+        const source = parts[1]?.toLowerCase()
+        const validSources = ['futurepedia', 'taaft', 'aixploria', 'futuretools']
+
+        if (!validSources.includes(source)) {
+            return ctx.reply(`Usage: /crawl <source>\nValid: ${validSources.join(', ')}`)
+        }
+
+        try {
+            const { startJob } = await import('./JobManager.js')
+            await startJob(`crawler_${source}`)
+            await ctx.reply(`🟢 Started crawler_${source}. Check /jobstatus for progress.`)
+        } catch (err) {
+            ctx.reply(`❌ Could not start crawler: ${err.message}`)
+        }
+    })
+
+    instance.command('enrich', async (ctx) => {
+        try {
+            const { startJob } = await import('./JobManager.js')
+            await startJob('enrichment')
+            await ctx.reply(`🟢 Started bulk enrichment job. Check /jobstatus for progress.`)
+        } catch (err) {
+            ctx.reply(`❌ Could not start enrichment: ${err.message}`)
+        }
+    })
+
+    instance.command('stopjob', async (ctx) => {
+        const parts = ctx.message.text.split(' ')
+        const jobId = parts[1]
+        if (!jobId) return ctx.reply('Usage: /stopjob <jobId>')
+
+        try {
+            const { stopJob } = await import('./JobManager.js')
+            await stopJob(jobId)
+            await ctx.reply(`⏳ Sent SIGTERM to ${jobId}. Should stop shortly.`)
+        } catch (err) {
+            ctx.reply(`❌ Stop failed: ${err.message}`)
+        }
+    })
+
+    instance.command('jobstatus', async (ctx) => {
+        try {
+            const { getAllJobStatuses } = await import('./JobManager.js')
+            const jobs = await getAllJobStatuses()
+            if (!jobs || jobs.length === 0) return ctx.reply('ℹ️ No jobs found in history.')
+
+            let msg = `⚙️ *Background Jobs*\n\n`
+            for (const j of jobs) {
+                const icon = j.isRunning ? '🟢' : (j.status === 'failed' ? '🔴' : (j.status === 'completed' ? '✅' : '⚪'))
+                msg += `${icon} *${j.jobId}*\n`
+                msg += `   Status: ${j.status}\n`
+                if (j.totalTools > 0) msg += `   Progress: ${j.toolsProcessed}/${j.totalTools}\n`
+                else msg += `   Processed: ${j.toolsProcessed || 0}\n`
+                msg += `\n`
+            }
+            await ctx.replyWithMarkdown(msg)
+        } catch (err) {
+            ctx.reply(`❌ Error fetching job status: ${err.message}`)
         }
     })
 

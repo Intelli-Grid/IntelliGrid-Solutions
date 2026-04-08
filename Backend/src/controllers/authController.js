@@ -3,6 +3,7 @@ import { verifyWebhookSignature } from '../config/clerk.js'
 import ApiResponse from '../utils/ApiResponse.js'
 import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
+import { sendOwnerAlert } from '../services/telegramBot.js'
 
 /**
  * Auth Controller — handles authentication and Clerk webhook events
@@ -71,6 +72,9 @@ class AuthController {
                     if (!existing) {
                         await userService.createUser(data)
                         console.log('✅ User created from Clerk webhook:', data.id)
+                        const email = data.email_addresses?.[0]?.email_address || 'No email'
+                        const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || 'Unknown'
+                        sendOwnerAlert(`👤 *New User Signup*\nEmail: ${email}\nName: ${name}`)
                     } else {
                         console.log('ℹ️  user.created received but user already exists:', data.id)
                     }

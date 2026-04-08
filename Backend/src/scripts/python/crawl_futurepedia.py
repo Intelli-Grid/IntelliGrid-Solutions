@@ -20,7 +20,17 @@ import time
 import re
 import sys
 import os
+import signal
 from urllib.parse import urljoin, urlparse
+
+is_shutting_down = False
+
+def sigterm_handler(signum, frame):
+    global is_shutting_down
+    print("\n🛑 SIGTERM received — gracefully stopping and saving collected data...")
+    is_shutting_down = True
+
+signal.signal(signal.SIGTERM, sigterm_handler)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 HEADERS = {
@@ -230,6 +240,10 @@ def crawl_category(category_slug, test_mode=False):
     max_pages = None
 
     while True:
+        if is_shutting_down:
+            print("    🛑 Stopping run due to SIGTERM")
+            break
+
         url = f"{BASE_URL}/{category_slug}?page={page}"
         print(f"    → {url}")
 
@@ -289,11 +303,17 @@ def main():
     all_tools = []
 
     for i, category in enumerate(categories, 1):
+        if is_shutting_down:
+            break
+            
         cat_display = category.split('/')[-1]
         print(f'[{i}/{len(categories)}] Category: {cat_display}')
         tools = crawl_category(category, test_mode=test_mode)
         all_tools.extend(tools)
         print(f'    Category total: {len(tools)} tools\n')
+        
+        print(f'PROGRESS:processed:{i}:total:{len(categories)}')
+        
         if i < len(categories):
             time.sleep(DELAY_SECONDS)
 

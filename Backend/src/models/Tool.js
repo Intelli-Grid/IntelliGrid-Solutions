@@ -92,7 +92,7 @@ const toolSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['active', 'pending', 'rejected', 'archived'],
+            enum: ['active', 'pending', 'auto_approved', 'rejected', 'archived'],
             default: 'active',
         },
         submittedBy: {
@@ -324,6 +324,72 @@ const toolSchema = new mongoose.Schema(
             generatedAt: Date,
         },
 
+        // ── Phase 5 — Professional Enrichment Layer ────────────────────────
+        enrichmentData: {
+            pricingIntelligence: {
+                freeTierExists: { type: Boolean, default: null },
+                freeTierRealLimits: { type: String, default: "" },
+                paidTierValueUnlock: { type: String, default: "" },
+                soloFreelancerCost: { type: String, default: "" },
+                smallTeamCost: { type: String, default: "" },
+                hiddenCosts: { type: String, default: "" },
+                valueVerdict: { type: String, default: "" },
+            },
+            targetAudiences: [{
+                role: String, 
+                useCase: String, 
+                benefit: String,
+                skillLevel: String, // Beginner | Intermediate | Expert
+                teamFit: String, // Solo | Small Team | Enterprise
+            }],
+            workflowScenarios: [{
+                persona: String, 
+                goal: String,
+                steps: [String], 
+                timeEstimate: String, 
+                output: String,
+            }],
+            honestVerdict: {
+                genuineStrengths: [{ strength: String, whyItMatters: String }],
+                genuineLimitations: [{ limitation: String, whoItAffects: String }],
+                notForYouIf: { type: String, default: "" },
+                exceptionalFor: { type: String, default: "" },
+            },
+            comparisonIntelligence: [{
+                alternativeName: String, 
+                chooseInsteadIf: String, 
+                keyDifference: String,
+            }],
+            integrationEcosystem: {
+                nativeIntegrations: [String],
+                zapierAvailable: mongoose.Schema.Types.Mixed,
+                makeAvailable: mongoose.Schema.Types.Mixed,
+                apiAccess: String,
+                browserExtension: mongoose.Schema.Types.Mixed,
+                mobileApps: String,
+                stackCompatibilityRatings: {
+                    contentCreators: String, 
+                    developers: String,
+                    marketers: String, 
+                    designers: String, 
+                    salesTeams: String,
+                },
+            },
+            learningCurve: {
+                timeToFirstOutput: String,
+                skillPrerequisites: String,
+                learningResources: {
+                    documentationQuality: String, 
+                    videoTutorialsAvailable: Boolean,
+                    communitySize: String, 
+                    officialCourseAvailable: Boolean,
+                },
+                masteryTimeline: { week1: String, month1: String, month3: String },
+            },
+            enrichmentConfidence: { type: Number, default: 0 },
+            enrichmentNotes: { type: String, default: "" },
+        },
+
         // ── Enrichment Pipeline Fields (Phase 5 — Groq + Scraper) ──────────────
 
         // Platform availability
@@ -425,13 +491,24 @@ const toolSchema = new mongoose.Schema(
         },
 
         // Enrichment pipeline tracking
+        isEnriched: {
+            // Set to true after the Groq enrichment pipeline has run for this tool
+            type: Boolean,
+            default: false,
+            index: true,
+        },
+        enrichedAt: {
+            // Timestamp of the most recent successful enrichment pass
+            type: Date,
+            default: null,
+        },
         enrichmentVersion: {
             // Incremented on each successful enrichment pass
             type: Number,
             default: 0,
         },
         lastEnrichedAt: {
-            // Alias/upgrade of lastEnriched — enrichmentCron writes here
+            // Alias/upgrade of enrichedAt — enrichmentCron writes here
             type: Date,
             default: null,
         },

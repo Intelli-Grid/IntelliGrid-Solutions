@@ -27,6 +27,12 @@ const router = express.Router()
  * Always responds 200 immediately — Telegram re-sends if it gets anything else.
  */
 router.post('/webhook', express.json(), (req, res) => {
+    const secret = req.headers['x-telegram-bot-api-secret-token']
+    if (process.env.TELEGRAM_WEBHOOK_SECRET && secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+        console.warn(`[TelegramBot] Unauthorized webhook attempt: invalid secret token`)
+        return res.status(403).json({ error: 'Forbidden' })
+    }
+
     // Always acknowledge immediately so Telegram doesn't retry
     res.sendStatus(200)
 

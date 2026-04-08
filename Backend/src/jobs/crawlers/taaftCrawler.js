@@ -2,26 +2,48 @@
  * taaftCrawler.js
  * Crawls There's An AI For That (theresanaiforthat.com).
  *
- * TAAFT provides a public XML sitemap — the most reliable extraction method.
- * We parse the sitemap to get all /ai/ tool URLs, then scrape each one
- * for full tool data including task tags, pricing, and ratings.
+ * Strategy:
+ *  1. Fetch the sitemap index to find the tools sitemap URL
+ *  2. Parse the tools sitemap XML to get all /ai/[slug] URLs
+ *  3. For each tool URL, scrape the page extracting:
+ *     - Tool name from <h1>
+ *     - Official URL from the CTA button (TAAFT uses /r?u= redirect URLs)
+ *     - Description from meta tag
+ *     - Task tags from category pills
+ *     - Pricing from pricing badge
  *
- * Polite crawling: 2s delay between requests, batch processing of 5 concurrent.
+ * NOTE: TAAFT wraps all outbound links as /r?u=<encoded_url> or
+ * https://theresanaiforthat.com/r?u=... — we decode these to get
+ * the real tool website URL.
+ *
+ * Polite crawling: 2s delay between requests, batch of 3 concurrent.
  */
 
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 
 const BASE_URL = 'https://theresanaiforthat.com'
-const SITEMAP_URL = `${BASE_URL}/sitemap.xml`
 const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '2000')
-const USER_AGENT = process.env.CRAWLER_USER_AGENT || 'IntelliGrid/1.0 (+https://intelligrid.online)'
+const USER_AGENT = process.env.CRAWLER_USER_AGENT ||
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 
 const httpClient = axios.create({
-    timeout: 20000,
+    timeout: 25000,
+    maxRedirects: 0,  // Don't follow redirects — we want to decode /r?u= ourselves
+    validateStatus: s => s < 400,
     headers: {
         'User-Agent': USER_AGENT,
-        'Accept': 'text/html,application/xml,*/*;q=0.8',
+        'Accept': 'text/html,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    },
+})
+
+const httpClientFollow = axios.create({
+    timeout: 25000,
+    headers: {
+        'User-Agent': USER_AGENT,
+        'Accept': 'text/html,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
     },
 })
 
@@ -30,12 +52,67 @@ function sleep(ms) {
 }
 
 /**
- * Fetches and parses the TAAFT sitemap to extract all tool page URLs.
- * Tool pages follow the /ai/[slug]/ pattern.
+ * Decodes a TAAFT redirect URL to get the actual tool website.
+ * TAAFT uses patterns like:
+ *   /r?u=https%3A%2F%2Factual-website.com
+ *   https://theresanaiforthat.com/r?u=https%3A%2F%2F...
+ */
+function decodeTaaftRedirect(href) {
+    if (!href) return null
+    try {
+        // Handle /r?u= pattern
+        if (href.includes('/r?u=') || href.includes('/r/?u=')) {
+            const urlParam = new URL(href.startsWith('http') ? href : `${BASE_URL}${href}`).searchParams.get('u')
+            if (urlParam) return decodeURIComponent(urlParam).split('?')[0]
+        }
+        // Handle absolute external links directly
+        if (href.startsWith('http') && !href.includes('theresanaiforthat.com')) {
+            return href.split('?')[0]
+        }
+    } catch {
+        return null
+    }
+    return null
+}
+
+/**
+ * Fetches the TAAFT sitemap index to find the tools sitemap file.
+ * Returns the URL of the tools-specific sitemap, or the main sitemap URL.
+ */
+async function getToolsSitemapUrl() {
+    // Try sitemap index first
+    try {
+        const { data: xml } = await httpClientFollow.get(`${BASE_URL}/sitemap_index.xml`, {
+            headers: { Accept: 'application/xml, text/xml' }
+        })
+        const $ = cheerio.load(xml, { xmlMode: true })
+        // Find the ai-tools sitemap
+        let toolsSitemap = null
+        $('sitemap loc').each((_, el) => {
+            const loc = $(el).text().trim()
+            if (loc.includes('ai') || loc.includes('tool')) {
+                toolsSitemap = loc
+                return false // break
+            }
+        })
+        if (toolsSitemap) return toolsSitemap
+    } catch (err) {
+        console.warn('[TAAFT] Sitemap index not found:', err.message)
+    }
+
+    // Fallback to the direct sitemap.xml
+    return `${BASE_URL}/sitemap.xml`
+}
+
+/**
+ * Parses a TAAFT sitemap XML to extract all /ai/[slug] tool URLs.
  */
 async function getToolUrlsFromSitemap() {
     try {
-        const { data: xml } = await httpClient.get(SITEMAP_URL, {
+        const sitemapUrl = await getToolsSitemapUrl()
+        console.log(`[TAAFT] Fetching sitemap: ${sitemapUrl}`)
+
+        const { data: xml } = await httpClientFollow.get(sitemapUrl, {
             headers: { Accept: 'application/xml, text/xml' }
         })
         const $ = cheerio.load(xml, { xmlMode: true })
@@ -43,13 +120,21 @@ async function getToolUrlsFromSitemap() {
 
         $('url loc').each((_, el) => {
             const loc = $(el).text().trim()
-            // Tool detail pages follow /ai/[slug]/ or /ai/[slug] pattern
-            if (loc.includes('/ai/') && !loc.endsWith('/ais/') && !loc.includes('/category/')) {
+            // Tool detail pages follow the /ai/[slug]/ pattern
+            if (/\/ai\/[a-z0-9-]+\/?$/.test(loc)) {
                 toolUrls.push(loc)
             }
         })
 
-        console.log(`[TAAFT] Sitemap parsed — found ${toolUrls.length} tool URLs`)
+        // If sitemap has nested sitemaps (sitemap index), recurse
+        if (toolUrls.length === 0) {
+            $('sitemap loc').each((_, el) => {
+                // We'll just return the first sub-sitemap for now
+                toolUrls.push($(el).text().trim())
+            })
+        }
+
+        console.log(`[TAAFT] Sitemap parsed — found ${toolUrls.length} potential tool URLs`)
         return toolUrls
     } catch (err) {
         console.error('[TAAFT] Sitemap fetch failed:', err.message)
@@ -59,58 +144,87 @@ async function getToolUrlsFromSitemap() {
 
 /**
  * Scrapes a single TAAFT tool detail page.
- * Returns null if the page cannot be fetched or lacks required fields.
+ * The critical fix: properly decodes /r?u= redirect links for officialUrl.
  */
 async function scrapeToolPage(toolUrl) {
     try {
-        const { data: html } = await httpClient.get(toolUrl)
+        const { data: html } = await httpClientFollow.get(toolUrl)
         const $ = cheerio.load(html)
 
         const name = $('h1').first().text().trim()
-            || $('[class*="tool-title"], [class*="ai-name"]').first().text().trim()
+        if (!name || name.length < 2) return null
 
-        if (!name) return null
+        // TAAFT CTA buttons use /r?u= redirects — find any link with redirect pattern
+        let officialUrl = null
 
-        // TAAFT shows the official tool website as "Visit Website" / "Go to site"
-        const officialUrl = $('a').filter((_, el) => {
+        // Strategy 1: Find explicit redirect URLs
+        $('a[href]').each((_, el) => {
             const href = $(el).attr('href') || ''
-            const text = $(el).text().toLowerCase().trim()
-            return (text.includes('visit') || text.includes('go to') || text.includes('website') || text.includes('try'))
-                && href.startsWith('http')
-                && !href.includes('theresanaiforthat.com')
-        }).first().attr('href')
+            if (href.includes('/r?u=') || href.includes('/r/?u=')) {
+                const decoded = decodeTaaftRedirect(href.startsWith('http') ? href : `${BASE_URL}${href}`)
+                if (decoded) { officialUrl = decoded; return false }
+            }
+        })
+
+        // Strategy 2: Find external links in CTA buttons
+        if (!officialUrl) {
+            $('a[href]').each((_, el) => {
+                const href = $(el).attr('href') || ''
+                const text = $(el).text().toLowerCase().trim()
+                if ((text.includes('visit') || text.includes('try') || text.includes('open') || text.includes('get') || text.includes('go to'))
+                    && href.startsWith('http')
+                    && !href.includes('theresanaiforthat.com')) {
+                    officialUrl = href.split('?')[0]
+                    return false
+                }
+            })
+        }
+
+        // Strategy 3: Find any external http link in the page body
+        if (!officialUrl) {
+            $('main a[href^="http"]').each((_, el) => {
+                const href = $(el).attr('href') || ''
+                if (!href.includes('theresanaiforthat.com') && !href.includes('twitter.com')
+                    && !href.includes('facebook.com') && !href.includes('instagram.com')) {
+                    officialUrl = href.split('?')[0]
+                    return false
+                }
+            })
+        }
 
         if (!officialUrl) return null
 
         const description = $('meta[name="description"]').attr('content')
-            || $('[class*="description"], [class*="about-text"]').first().text().trim()
+            || $('meta[property="og:description"]').attr('content')
+            || $('p').first().text().trim()
 
         const logo = $('meta[property="og:image"]').attr('content')
 
-        // TAAFT uses "task tags" — shown as category pills
+        // Task/category tags
         const tags = []
-        $('[class*="task-tag"], [class*="tag"], .badge').each((_, el) => {
+        $('[class*="task"], [class*="category"], [class*="tag"], .badge').each((_, el) => {
             const text = $(el).text().trim()
-            if (text && text.length < 50) tags.push(text)
+            if (text && text.length < 50 && !text.toLowerCase().includes('theresanai')) {
+                tags.push(text)
+            }
         })
 
-        // Extract pricing from pricing section
-        const pricingSection = $('[class*="pricing"], [class*="price-type"]').first().text().trim().toLowerCase()
+        // Pricing
+        const pricingText = $('[class*="pricing"], [class*="price"], [class*="plan"]').first().text().trim().toLowerCase()
         let pricing = 'Unknown'
-        if (pricingSection.includes('free')) pricing = 'Free'
-        else if (pricingSection.includes('freemium')) pricing = 'Freemium'
-        else if (pricingSection.includes('paid') || pricingSection.includes('premium')) pricing = 'Paid'
-        else if (pricingSection.includes('trial')) pricing = 'Trial'
+        if (pricingText.includes('free') && !pricingText.includes('freemium')) pricing = 'Free'
+        else if (pricingText.includes('freemium')) pricing = 'Freemium'
+        else if (pricingText.includes('paid') || pricingText.includes('premium') || pricingText.includes('pro')) pricing = 'Paid'
+        else if (pricingText.includes('trial')) pricing = 'Trial'
 
-        // Primary category is the first task tag
         const category = tags[0] || ''
 
         return {
             name,
-            officialUrl: officialUrl.split('?')[0],
-            shortDescription: description?.substring(0, 499) || '',
+            officialUrl,
+            shortDescription: (description || '').substring(0, 499),
             category,
-            tags: tags.slice(0, 10),
+            tags: [...new Set(tags)].slice(0, 10),
             pricing,
             logo,
             source: 'taaft',
@@ -123,7 +237,6 @@ async function scrapeToolPage(toolUrl) {
 
 /**
  * Main TAAFT crawler entry point.
- * Fetches sitemap → extracts tool URLs → scrapes each in batches.
  *
  * @param {{ maxTools: number, onProgress: Function }} options
  * @returns {Promise<Array>} Raw tool objects ready for normalizeToSchema()
@@ -133,10 +246,13 @@ export async function crawlTAAFT({ maxTools = 500, onProgress } = {}) {
     const results = []
 
     const toolUrls = await getToolUrlsFromSitemap()
-    if (toolUrls.length === 0) return results
+    if (toolUrls.length === 0) {
+        console.warn('[TAAFT] No tool URLs found — check sitemap access')
+        return results
+    }
 
     const urlsToProcess = toolUrls.slice(0, maxTools)
-    const BATCH_SIZE = 5
+    const BATCH_SIZE = 3 // Conservative to avoid rate-limiting
 
     for (let i = 0; i < urlsToProcess.length; i += BATCH_SIZE) {
         const batch = urlsToProcess.slice(i, i + BATCH_SIZE)
@@ -149,15 +265,15 @@ export async function crawlTAAFT({ maxTools = 500, onProgress } = {}) {
             }
         })
 
-        if (onProgress) onProgress({ done: i + BATCH_SIZE, total: urlsToProcess.length, found: results.length })
+        if (onProgress) onProgress({ done: Math.min(i + BATCH_SIZE, urlsToProcess.length), total: urlsToProcess.length, found: results.length })
 
-        if ((i / BATCH_SIZE + 1) % 10 === 0) {
+        if ((Math.floor(i / BATCH_SIZE) + 1) % 20 === 0) {
             console.log(`[TAAFT] Processed ${Math.min(i + BATCH_SIZE, urlsToProcess.length)}/${urlsToProcess.length} — valid: ${results.length}`)
         }
 
         await sleep(DELAY_MS)
     }
 
-    console.log(`[TAAFT] Crawl complete — ${results.length} valid tools found`)
+    console.log(`[TAAFT] Crawl complete — ${results.length} valid tools from ${urlsToProcess.length} URLs`)
     return results
 }
