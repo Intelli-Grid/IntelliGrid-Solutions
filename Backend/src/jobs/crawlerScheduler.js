@@ -115,7 +115,8 @@ export async function runEnrichmentBatch({ limit = 200 } = {}) {
     const tools = await Tool.find({
         isEnriched: { $ne: true },
         status: { $in: ['active', 'pending'] },
-        isActive: true,
+        // NOTE: Do NOT filter by isActive here — pending tools from crawlers
+        // have isActive:false and still need enrichment before staging.
         linkStatus: { $ne: 'dead' },
     }).limit(limit).populate('category', 'name slug').lean()
 
@@ -334,11 +335,16 @@ export function startCrawlerScheduler() {
             const stats = await runEnrichmentBatch({ limit: 200 })
 
             if (stats.enriched > 0) {
-                const remaining = await Tool.countDocuments({ isEnriched: { $ne: true }, status: { $in: ['pending', 'auto_approved'] } })
+                // Count ALL remaining unenriched tools regardless of status
+                const remaining = await Tool.countDocuments({
+                    isEnriched: { $ne: true },
+                    status: { $in: ['active', 'pending'] },
+                })
 
-                // ── Re-sync freshly enriched tools to Algolia ─────────────────
-                // Tools now have longDescription, useCaseTags, enrichmentScore that
-                // weren't in Algolia when they were first inserted.
+                // ── Re-sync freshly enriched ACTIVE tools to Algolia ──────────
+                // These are already live — just need their new Groq fields pushed.
+                // The 4-hour window aligns with the cron interval.
+                let algoliaCount = 0
                 try {
                     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
                     const justEnriched = await Tool.find({
@@ -353,32 +359,46 @@ export function startCrawlerScheduler() {
                         .lean()
 
                     if (justEnriched.length > 0) {
-                        const algoliaSync = await syncToAlgolia(justEnriched.length + 10)
-                        console.log(`[Scheduler] Algolia re-synced ${algoliaSync} enriched tools`)
+                        algoliaCount = await syncToAlgolia(justEnriched.length + 10)
+                        console.log(`[Scheduler] Algolia re-synced ${algoliaCount} enriched active tools`)
                     }
                 } catch (algErr) {
                     console.warn('[Scheduler] Algolia re-sync after enrichment failed:', algErr.message)
                 }
 
-                // ── Auto-stage enriched tools that meet quality threshold ─────
-                // Moves pending tools with score >= 60 to auto_approved.
-                // Owner is notified via Telegram → /reviewbatch to publish.
+                // ── Auto-stage newly enriched PENDING tools for owner review ──
+                // Only pending tools need staging — active tools are already live.
+                // Moves pending tools with enrichmentScore >= 60 → auto_approved.
+                let staged = 0
                 try {
                     const stageStats = await runAutoStage({ threshold: 60 })
-                    console.log(`[Scheduler] Auto-staged ${stageStats.staged} tools for review`)
+                    staged = stageStats.staged
+                    console.log(`[Scheduler] Auto-staged ${staged} pending tools for Telegram review`)
                 } catch (stageErr) {
                     console.warn('[Scheduler] Auto-staging after enrichment failed:', stageErr.message)
                 }
 
-                await sendOwnerAlert(
-                    `🤖 *Auto-Enrichment Complete*\n\n` +
-                    `✅ Enriched: *${stats.enriched}*\n` +
+                // ── Build Telegram summary report ─────────────────────────────
+                let alertMsg =
+                    `🤖 *Auto-Enrichment Batch Complete*\n\n` +
+                    `✅ Enriched this batch: *${stats.enriched}*\n` +
                     `❌ Errors: ${stats.errors}\n` +
-                    `📋 Remaining: *${remaining}*`
-                )
+                    `📋 Still unenriched: *${remaining}*\n` +
+                    `🔍 Algolia re-synced: *${algoliaCount}* active tools\n`
+
+                if (staged > 0) {
+                    alertMsg += `\n📥 *${staged} new tools staged for your review!*\nSend /reviewbatch to approve/reject them.`
+                } else {
+                    alertMsg += `\nℹ️ No new pending tools were staged this batch.`
+                }
+
+                await sendOwnerAlert(alertMsg)
+            } else {
+                console.log('[Scheduler] Enrichment batch: nothing to enrich this cycle.')
             }
         } catch (err) {
             console.error('[Scheduler] Enrichment error:', err.message)
+            await sendOwnerAlert(`❌ *Enrichment batch error*\n${err.message.slice(0, 200)}`)
         }
     }, { timezone: 'UTC' })
 
