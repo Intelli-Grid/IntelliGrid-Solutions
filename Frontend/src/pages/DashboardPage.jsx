@@ -610,7 +610,7 @@ export default function DashboardPage() {
                         <div className="flex justify-end mb-4">
                             <button
                                 onClick={() => {
-                                    if (!['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier)) {
+                                    if (!['Basic', 'Pro', 'Premium', 'Business', 'Enterprise'].includes(subscription?.tier)) {
                                         toast.error('Exporting favorites is a paid plan feature')
                                         return
                                     }
@@ -643,13 +643,13 @@ export default function DashboardPage() {
                                         document.body.removeChild(link)
                                     }
                                 }}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier)
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${['Basic', 'Pro', 'Premium', 'Business', 'Enterprise'].includes(subscription?.tier)
                                     ? 'bg-white/10 text-white hover:bg-white/20'
                                     : 'bg-white/5 text-gray-400 cursor-not-allowed'
                                     }`}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
-                                {['Premium', 'Enterprise', 'Basic'].includes(subscription?.tier) ? 'Export CSV' : 'Export CSV (Paid Plan)'}
+                                {['Basic', 'Pro', 'Premium', 'Business', 'Enterprise'].includes(subscription?.tier) ? 'Export CSV' : 'Export CSV (Paid Plan)'}
                             </button>
                         </div>
 

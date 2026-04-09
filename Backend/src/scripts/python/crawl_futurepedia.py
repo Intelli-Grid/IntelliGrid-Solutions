@@ -53,34 +53,17 @@ OUTPUT_FILE = os.path.join(EXPORTS_DIR, 'futurepedia_tools.csv')
 
 # All Futurepedia AI tool category slugs
 CATEGORIES = [
-    'ai-tools/writing',
-    'ai-tools/image-generation',
-    'ai-tools/video',
-    'ai-tools/coding',
+    'ai-tools/text-generators',
+    'ai-tools/art',
     'ai-tools/productivity',
-    'ai-tools/marketing',
-    'ai-tools/audio',
-    'ai-tools/research',
-    'ai-tools/design',
-    'ai-tools/chatbots',
-    'ai-tools/business',
-    'ai-tools/education',
-    'ai-tools/healthcare',
-    'ai-tools/finance',
-    'ai-tools/social-media',
-    'ai-tools/seo',
-    'ai-tools/customer-support',
-    'ai-tools/data-analysis',
-    'ai-tools/human-resources',
-    'ai-tools/sales',
-    'ai-tools/real-estate',
-    'ai-tools/legal',
-    'ai-tools/music',
-    'ai-tools/3d',
+    'ai-tools/ai-agents',
+    'ai-tools/audio-generators',
+    'ai-tools/video',
+    'ai-tools/image-generators'
 ]
 
 # In test mode, only crawl one category
-TEST_CATEGORIES = ['ai-tools/writing']
+TEST_CATEGORIES = ['ai-tools/text-generators']
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,97 +102,43 @@ def normalize_pricing(raw):
 
 
 def extract_tools_from_page(soup, category_slug):
-    """
-    Extract all tool cards from a Futurepedia listing page.
-    Uses multiple selector strategies to handle HTML changes.
-    Returns list of dicts.
-    """
     tools = []
     category_name = category_slug.split('/')[-1].replace('-', ' ').title()
-
-    # Strategy 1: Look for standard article/card elements with tool data
-    # Futurepedia uses various class patterns across redesigns
-    card_selectors = [
-        ('a', re.compile(r'tool[-_]?card|ToolCard|tool[-_]?item|tool[-_]?link', re.I)),
-        ('div', re.compile(r'tool[-_]?card|ToolCard|card[-_]?tool', re.I)),
-        ('article', None),
-    ]
-
-    cards = []
-    for tag, cls_pattern in card_selectors:
-        if cls_pattern:
-            found = soup.find_all(tag, class_=cls_pattern)
-        else:
-            found = soup.find_all(tag)
-        if found:
-            cards = found
-            break
-
-    # Strategy 2: If no cards found, find all links to /tool/ pages
-    if not cards:
-        tool_links = soup.find_all('a', href=re.compile(r'/tool/'))
-        for link in tool_links:
-            card = link.parent
-            if card and card.name not in ['html', 'body', 'nav', 'header', 'footer']:
-                cards.append(card)
-
+    cards = soup.find_all('div', class_=lambda c: c and 'bg-card' in c)
     seen_names = set()
-
     for card in cards:
-        try:
-            # ── Extract name ──────────────────────────────────────────────
-            name_el = (
-                card.find(['h2', 'h3', 'h4']) or
-                card.find(class_=re.compile(r'name|title|heading', re.I)) or
-                card.find('strong')
-            )
-            name = clean_text(name_el.get_text()) if name_el else ''
-            if not name or name in seen_names:
-                continue
-            seen_names.add(name)
-
-            # ── Extract source URL (link to the futurepedia tool page) ────
-            source_link = card.find('a', href=re.compile(r'/tool/'))
-            source_url = urljoin(BASE_URL, source_link['href']) if source_link else ''
-
-            # ── Extract official URL (the "Visit Site" button) ────────────
-            # This is the external link — NOT a futurepedia.io URL
-            official_url = ''
-            for a_tag in card.find_all('a', href=True):
-                href = a_tag.get('href', '')
-                if href.startswith('http') and is_external_url(href):
-                    official_url = href.rstrip('/')
-                    break
-
-            # If no official URL found in card, skip — name-only rows are low quality
-            if not official_url and not source_url:
-                continue
-
-            # ── Extract description ───────────────────────────────────────
-            desc_el = (
-                card.find('p') or
-                card.find(class_=re.compile(r'desc|summary|text|excerpt', re.I))
-            )
-            description = clean_text(desc_el.get_text()) if desc_el else ''
-
-            # ── Extract pricing badge ─────────────────────────────────────
-            price_el = card.find(class_=re.compile(r'pric|badge|tag|chip', re.I))
-            raw_pricing = clean_text(price_el.get_text()) if price_el else ''
-            pricing = normalize_pricing(raw_pricing)
-
-            tools.append({
-                'name': name,
-                'short_description': description,
-                'official_url': official_url,
-                'category': category_name,
-                'pricing': pricing,
-                'source_url': source_url,
-                'source_site': SOURCE_SITE,
-            })
-
-        except Exception:
-            continue
-
+        name_el = card.find('p', class_=re.compile(r'text-xl|font-semibold', re.I)) or card.find(['h2', 'h3'])
+        name = clean_text(name_el.get_text()) if name_el else ''
+        if not name or name in seen_names: continue
+        seen_names.add(name)
+        
+        source_link = card.find('a', href=re.compile(r'/tool/'))
+        source_url = urljoin(BASE_URL, source_link['href']) if source_link else ''
+        
+        official_url = ''
+        for a_tag in card.find_all('a', href=True):
+            href = a_tag.get('href', '').strip()
+            if href.startswith('http') and is_external_url(href):
+                official_url = href.split('?')[0].rstrip('/')
+                break
+        if not official_url and not source_url: continue
+        
+        # description
+        desc_el = card.find(string=re.compile(r'.{50,}'))
+        description = clean_text(desc_el) if desc_el else ''
+        if not description:
+            # find div above the tag links
+            desc_div = card.find('div', class_=lambda c: c and 'mt-4' in c)
+            if desc_div: description = clean_text(desc_div.get_text())
+        
+        # pricing
+        price_texts = []
+        for d in card.find_all('div'):
+            t = d.get_text(strip=True)
+            if t in ['Free', 'Free Trial', 'Freemium', 'Paid', 'Waitlist']: price_texts.append(t)
+        pricing = normalize_pricing(price_texts[0]) if price_texts else 'Unknown'
+        
+        tools.append({'name': name, 'short_description': description, 'official_url': official_url, 'category': category_name, 'pricing': pricing, 'source_url': source_url, 'source_site': SOURCE_SITE})
     return tools
 
 

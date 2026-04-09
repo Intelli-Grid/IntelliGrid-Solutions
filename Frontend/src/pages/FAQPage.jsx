@@ -12,7 +12,7 @@ const faqData = [
             },
             {
                 q: 'Is IntelliGrid free to use?',
-                a: 'Yes! IntelliGrid offers a free tier that gives you access to our basic directory features. For advanced features like unlimited searches, saved favorites, detailed comparisons, and ad-free experience, you can upgrade to our Pro plan starting at $9.99/month.'
+                a: 'Yes! IntelliGrid offers a free tier that gives you access to our full AI tools directory and basic features. For advanced features like unlimited favourites, unlimited collections, ad-free browsing, and a weekly curated digest, you can upgrade to our Pro plan starting at $9.99/month.'
             },
             {
                 q: 'How often is the database updated?',

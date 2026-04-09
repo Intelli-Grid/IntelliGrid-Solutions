@@ -240,6 +240,8 @@ def main():
             with open(PROGRESS_FILE, 'a') as f:
                 f.write(letter + '\n')
 
+        print(f'PROGRESS:processed:{i}:total:{len(letters)}', flush=True)
+
         if i < len(letters):
             time.sleep(DELAY_SECONDS)
 

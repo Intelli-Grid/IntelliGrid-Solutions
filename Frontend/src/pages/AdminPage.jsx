@@ -3470,8 +3470,8 @@ function EnrichmentTab() {
                         ) : (
                             <>
                                 <div className="mb-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
-                                    ðŸ’¡ To re-enrich: run Browse AI robot â†’ export CSV â†’ then run{' '}
-                                    <code className="text-purple-300">node src/scripts/importEnrichmentData.js ./exports/browse_ai_export.csv</code>
+                                    To re-enrich: click <strong>Run 50 Now</strong> above, or run{'  '}
+                                    <code className="text-purple-300">node src/scripts/bulkEnrich.js</code>. The cron also enriches every 4h automatically.
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">

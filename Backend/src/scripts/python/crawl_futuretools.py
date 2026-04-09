@@ -24,7 +24,17 @@ import time
 import re
 import sys
 import os
+import signal
 from urllib.parse import urljoin, urlparse
+
+is_shutting_down = False
+
+def sigterm_handler(signum, frame):
+    global is_shutting_down
+    print("\n🛑 SIGTERM received \u2014 gracefully stopping and saving collected data...", flush=True)
+    is_shutting_down = True
+
+signal.signal(signal.SIGTERM, sigterm_handler)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 HEADERS = {
@@ -321,10 +331,17 @@ def main():
     all_tools = []
 
     for i, category in enumerate(categories, 1):
-        print(f'[{i}/{len(categories)}] Category: {category}')
+        if is_shutting_down:
+            break
+
+        print(f'[{i}/{len(categories)}] Category: {category}', flush=True)
         tools = crawl_category(category, test_mode=test_mode)
         all_tools.extend(tools)
-        print(f'    Category total: {len(tools)} tools\n')
+        print(f'    Category total: {len(tools)} tools\n', flush=True)
+
+        # Emit structured progress line for JobManager.js to parse
+        print(f'PROGRESS:processed:{i}:total:{len(categories)}', flush=True)
+
         if i < len(categories):
             time.sleep(DELAY_SECONDS)
 
