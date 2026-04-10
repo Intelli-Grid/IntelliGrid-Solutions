@@ -47,6 +47,28 @@ export const NUDGE_CONFIGS = {
 
     // ── Internal (UI-triggered) nudges ────────────────────────────────────────
 
+    DEEP_BROWSER: {
+        trigger: 'DEEP_BROWSER',
+        title: '🔥 You\'ve explored 5 tools today',
+        body: 'Save them all with one click. Pro users never lose track of a great tool — start free, no card needed.',
+        ctaLabel: 'Start Free Trial',
+        ctaHref: '/pricing',
+        dismissible: true,
+        icon: '📚',
+        urgency: 'medium',
+    },
+
+    LAUNCH_DISCOUNT: {
+        trigger: 'LAUNCH_DISCOUNT',
+        title: '🎁 Launch Offer — 40% off Pro',
+        body: 'We\'ve just launched. First 100 subscribers get Pro at $6.67/mo forever. 67 spots remaining.',
+        ctaLabel: 'Claim Launch Price',
+        ctaHref: '/pricing',
+        dismissible: true,
+        icon: '🏷️',
+        urgency: 'high',
+    },
+
     SEARCH_REPEAT: {
         trigger: 'SEARCH_REPEAT',
         title: 'Searching a lot?',

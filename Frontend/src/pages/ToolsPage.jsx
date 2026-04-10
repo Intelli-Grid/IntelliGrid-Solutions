@@ -116,6 +116,7 @@ export default function ToolsPage() {
     const [filters, setFilters] = useState({ pricing: '', sort: '-createdAt', category: '', platform: '', audience: '' })
     const [showPlatformFilters, setShowPlatformFilters] = useState(false)
     const [showAudienceFilters, setShowAudienceFilters] = useState(false)
+    const [missedTools, setMissedTools] = useState([])
     const searchRef = useRef(null)
     const debounceRef = useRef(null)
     const limit = 30
@@ -126,6 +127,21 @@ export default function ToolsPage() {
             .then(res => setCategories(res.data || res || []))
             .catch(() => { })
     }, [])
+
+    // ── Fetch "You Might Have Missed" ────────────────────────────────────────
+    useEffect(() => {
+        if (activeSearch || filters.pricing || filters.category || filters.platform || filters.audience) return;
+        
+        toolService.getTools({ sort: '-trendingScore', limit: 50 })
+            .then(res => {
+                const history = JSON.parse(sessionStorage.getItem('viewHistory') || '[]')
+                const allTrending = res?.data?.tools || []
+                const unvisited = allTrending.filter(t => !history.includes(t._id))
+                const shuffled = [...unvisited].sort(() => 0.5 - Math.random())
+                setMissedTools(shuffled.slice(0, 4))
+            })
+            .catch(() => {})
+    }, [activeSearch, filters])
 
     // ── Fetch tools (browse) ────────────────────────────────────────
     const fetchTools = useCallback(async () => {
@@ -219,7 +235,7 @@ export default function ToolsPage() {
     return (
         <div className="min-h-screen bg-gray-950">
             <SEO
-                title="Browse All AI Tools - IntelliGrid Directory"
+                title="Browse All AI Tools 2026 - IntelliGrid Directory"
                 description={`Discover ${total > 0 ? total.toLocaleString() : '4,000+'} curated AI tools. Search by name, filter by pricing, and find the perfect AI solution.`}
                 keywords="AI tools directory, browse AI tools, best AI tools, free AI tools"
                 canonicalUrl="https://www.intelligrid.online/tools"
@@ -515,6 +531,21 @@ export default function ToolsPage() {
                         {!activeSearch && totalPages > 1 && (
                             <div className="mt-12">
                                 <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />
+                            </div>
+                        )}
+
+                        {/* You Might Have Missed (E-07) */}
+                        {!activeSearch && missedTools.length > 0 && (
+                            <div className="mt-16 pt-10 border-t border-white/5">
+                                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-purple-400" />
+                                    You Might Have Missed
+                                </h3>
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 cards-grid">
+                                    {missedTools.map(tool => (
+                                        <ToolCard key={tool._id} tool={tool} />
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </>

@@ -63,6 +63,9 @@ export default function HomePage() {
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const navigate = useNavigate()
+    const [launchBannerDismissed, setLaunchBannerDismissed] = useState(
+        sessionStorage.getItem('launch_banner_dismissed') === '1'
+    )
 
     // Live platform stats — fetched from /api/v1/platform-stats
     const [platformStats, setPlatformStats] = useState([
@@ -140,11 +143,36 @@ export default function HomePage() {
     return (
         <div className="min-h-screen">
             <SEO
-                title="IntelliGrid - Discover 4,000+ Best AI Tools | Updated Daily"
+                title="IntelliGrid - Discover 4,000+ Best AI Tools 2026 | Updated Daily"
                 description="Explore the largest curated directory of AI tools for every need. Find, compare, and discover the perfect AI solutions for your business. Updated daily."
                 keywords="AI tools, artificial intelligence, AI directory, AI software, machine learning tools, best AI tools"
                 canonicalUrl="https://www.intelligrid.online"
             />
+
+            {/* Launch Offer Banner */}
+            {!launchBannerDismissed && (
+                <div className="bg-gradient-to-r from-amber-500/15 to-orange-500/10 border-b border-amber-500/20 px-4 py-2.5 relative z-50">
+                    <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="text-lg">🎁</span>
+                            <span className="text-amber-300 font-semibold">Launch Special:</span>
+                            <span className="text-gray-300">Pro plan — 14 days free, then just ₹499/mo for early members</span>
+                            <Link to="/pricing" className="text-amber-400 font-bold hover:underline ml-1">
+                                Claim now →
+                            </Link>
+                        </div>
+                        <button
+                            onClick={() => {
+                                sessionStorage.setItem('launch_banner_dismissed', '1')
+                                setLaunchBannerDismissed(true)
+                            }}
+                            className="text-gray-500 hover:text-white flex-shrink-0 text-xl leading-none transition-colors"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* ════════════════ HERO ════════════════ */}
             <section className="relative overflow-hidden bg-gradient-to-br from-[#07071a] via-[#0c0c22] to-[#07071a] min-h-[90vh] flex items-center">
@@ -156,10 +184,16 @@ export default function HomePage() {
                 </div>
 
                 <div className="relative z-10 max-w-5xl mx-auto px-6 py-24 w-full text-center">
-                    {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/8 backdrop-blur-md rounded-full border border-white/15 mb-8">
-                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                        <span className="text-xs font-medium text-gray-300">4,000+ AI Tools — Curated & Updated Daily</span>
+                    {/* Live Activity Ticker (Badge) */}
+                    <div className="inline-flex items-center justify-center gap-2 mb-8 px-4 py-1.5 bg-white/8 backdrop-blur-md rounded-full border border-white/15 overflow-hidden">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse flex-shrink-0" />
+                        <span className="whitespace-nowrap text-xs">
+                            <span className="text-emerald-400 font-semibold">{(platformStats[0]?.value || 4000).toLocaleString()} tools live</span>
+                            <span className="text-gray-400 mx-1.5">·</span>
+                            <span className="text-gray-300">Updated today</span>
+                            <span className="text-gray-400 mx-1.5">·</span>
+                            <span className="text-gray-300">Free to browse</span>
+                        </span>
                     </div>
 
                     {/* Headline */}
@@ -209,21 +243,21 @@ export default function HomePage() {
                         </Link>
                     </div>
 
-                    {/* Social proof */}
+                    {/* Social proof — use live data */}
                     <div className="flex flex-wrap justify-center items-center gap-6 text-gray-500 text-sm">
                         <div className="flex items-center gap-1.5">
                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                            <span>Trusted by thousands of builders</span>
+                            <span><span className="text-white font-semibold">{platformStats[0]?.value?.toLocaleString() || '3,628'}</span> AI tools indexed</span>
                         </div>
                         <span className="w-px h-4 bg-white/10" />
                         <div className="flex items-center gap-1.5">
                             <Users className="w-4 h-4 text-purple-400" />
-                            <span>A growing global community</span>
+                            <span><span className="text-white font-semibold">{platformStats[1]?.value || '50'}+</span> categories</span>
                         </div>
                         <span className="w-px h-4 bg-white/10" />
                         <div className="flex items-center gap-1.5">
                             <Zap className="w-4 h-4 text-cyan-400" />
-                            <span>Updated daily</span>
+                            <span>Free to browse, <span className="text-white font-semibold">always</span></span>
                         </div>
                     </div>
                 </div>
@@ -241,6 +275,37 @@ export default function HomePage() {
                     ))}
                 </div>
             </section>
+
+            {/* ════════════════ TODAY'S TOP PICK ════════════════ */}
+            {trendingTools[0] && (
+                <section className="py-12 bg-[#08081a]">
+                    <div className="max-w-5xl mx-auto px-6">
+                        <div className="flex items-center gap-2 mb-6">
+                            <span className="text-lg">⭐</span>
+                            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Today's Top Pick</span>
+                            <span className="text-xs text-gray-600">· Curated by IntelliGrid</span>
+                        </div>
+                        <Link to={`/tools/${trendingTools[0].slug}`} className="group flex flex-col sm:flex-row gap-6 p-6 rounded-2xl bg-gradient-to-r from-amber-500/8 to-orange-500/5 border border-amber-500/15 hover:border-amber-500/30 transition-all">
+                            {/* Logo */}
+                            {trendingTools[0].logo && (
+                                <img src={trendingTools[0].logo} alt={trendingTools[0].name}
+                                     className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-amber-300 transition-colors">
+                                    {trendingTools[0].name}
+                                </h3>
+                                <p className="text-gray-400 text-sm mb-3 line-clamp-2">{trendingTools[0].shortDescription}</p>
+                                <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                                    <span className="text-amber-400">{trendingTools[0].pricing}</span>
+                                    <span>{trendingTools[0].category?.name}</span>
+                                    <span className="text-amber-400 font-semibold group-hover:underline">Explore →</span>
+                                </div>
+                            </div>
+                        </Link>
+                    </div>
+                </section>
+            )}
 
             {/* ════════════════ FEATURED (SPONSORED) ════════════════ */}
             <FeaturedSpot />

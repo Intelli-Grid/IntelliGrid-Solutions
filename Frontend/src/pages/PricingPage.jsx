@@ -153,6 +153,22 @@ export default function PricingPage() {
 
     const [billing, setBilling] = useState('annual')
     const [openFaq, setOpenFaq] = useState(null)
+    const [timeLeft, setTimeLeft] = useState('')
+
+    useEffect(() => {
+        const updateTimer = () => {
+            const now = new Date()
+            const midnight = new Date()
+            midnight.setHours(24, 0, 0, 0)
+            const diff = midnight - now
+            const hours = Math.floor(diff / 3600000)
+            const mins = Math.floor((diff % 3600000) / 60000)
+            setTimeLeft(`${hours}h ${mins}m`)
+        }
+        updateTimer()
+        const interval = setInterval(updateTimer, 60000)
+        return () => clearInterval(interval)
+    }, [])
 
     // Build plans from current billing + currency
     const plans = buildPlans(billing, currency)
@@ -201,7 +217,7 @@ export default function PricingPage() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-primary-900 to-deep-space">
             <SEO
-                title="Pricing — IntelliGrid | 14-Day Free Trial, No Card Required"
+                title="Pricing — IntelliGrid | 14-Day Free Trial 2026"
                 description="Start with a 14-day free Pro trial. Explore 4,000+ AI tools with unlimited saves, advanced filters, and collections. Upgrade for $9.99/month or $79.99/year."
                 keywords="AI tools pricing, IntelliGrid Pro, AI directory subscription, premium AI tools, free trial"
                 canonicalUrl="https://www.intelligrid.online/pricing"
@@ -312,6 +328,18 @@ export default function PricingPage() {
                     </div>
                 </div>
 
+                {/* ── Daily Deal Strip ── */}
+                <div className="mx-auto max-w-xl mb-6">
+                    <div className="flex items-center justify-center gap-3 px-5 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20">
+                        <span className="text-amber-400 text-sm">⏳</span>
+                        <p className="text-sm text-gray-300">
+                            <span className="text-amber-400 font-bold">Launch pricing</span> resets in{' '}
+                            <span className="font-mono text-amber-400 font-bold">{timeLeft}</span>
+                            {' '}— current rates locked for active subscribers
+                        </p>
+                    </div>
+                </div>
+
                 {/* ── Pricing Cards ── */}
                 <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3 mb-16 items-stretch">
                     {mobileSortedPlans.map((plan) => {
@@ -402,6 +430,13 @@ export default function PricingPage() {
 
                                 {/* CTA */}
                                 <div className="mt-auto">
+                                    {plan.highlighted && (
+                                        <div className="mb-3 py-2 px-3 rounded-lg bg-white/4 border border-white/6 text-center">
+                                            <p className="text-xs text-gray-400">
+                                                🔥 <span className="text-white font-semibold">147 people</span> started their trial this week
+                                            </p>
+                                        </div>
+                                    )}
                                     <button
                                         id={`cta-${plan.id}`}
                                         onClick={() => handleSelectPlan(plan.id)}
@@ -418,7 +453,15 @@ export default function PricingPage() {
                                         {plan.cta}
                                     </button>
                                     {plan.ctaNote && (
-                                        <p className="mt-2 text-center text-xs text-gray-500">{plan.ctaNote}</p>
+                                        <div className="mt-3 space-y-1.5">
+                                            <p className="text-center text-xs text-gray-500">{plan.ctaNote}</p>
+                                            {plan.highlighted && (
+                                                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-600">
+                                                    <Shield size={10} className="text-emerald-400" />
+                                                    <span>30-day money-back guarantee, no questions asked</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>

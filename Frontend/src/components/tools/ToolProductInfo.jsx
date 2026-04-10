@@ -33,11 +33,31 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
     if (!tool) return null;
 
     const handleShare = () => {
+        const url = window.location.href
+        const tweetText = `Just found ${tool.name} on @IntelliGridHQ — ${tool.shortDescription?.slice(0, 80)}... ${url}`
+        
         if (navigator.share) {
-            navigator.share({ title: tool.name, url: window.location.href });
+            navigator.share({ 
+                title: tool.name, 
+                text: tool.shortDescription,
+                url 
+            });
         } else {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success('Link copied to clipboard!');
+            navigator.clipboard.writeText(url).then(() => {
+                toast.success(
+                    <div>
+                        <p className="font-semibold">Link copied!</p>
+                        <a 
+                            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`}
+                            target="_blank" rel="noreferrer"
+                            className="text-xs text-blue-400 hover:underline"
+                        >
+                            Share on X/Twitter →
+                        </a>
+                    </div>,
+                    { duration: 4000 }
+                );
+            });
         }
     };
 
@@ -148,7 +168,7 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                 <h1 className="text-4xl font-bold text-white tracking-tight">{tool.name}</h1>
 
                 {/* Rating & Stats Row */}
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex flex-wrap items-center gap-4 text-sm">
                     <div className="flex items-center gap-1 text-yellow-400">
                         <Star className="h-4 w-4 fill-current" />
                         <span className="font-semibold text-white">{tool.ratings?.average?.toFixed(1) || '0.0'}</span>
@@ -156,6 +176,15 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                     </div>
                     <span className="h-1 w-1 rounded-full bg-gray-600"></span>
                     <span className="text-gray-400">{formatNumber(tool.views || 0)} views</span>
+                    {tool.favorites > 0 && (
+                        <>
+                            <span className="h-1 w-1 rounded-full bg-gray-600"></span>
+                            <span className="text-gray-400 flex items-center gap-1">
+                                <Heart size={12} className="text-rose-400" />
+                                {formatNumber(tool.favorites)} saved
+                            </span>
+                        </>
+                    )}
                     <span className="h-1 w-1 rounded-full bg-gray-600"></span>
                     <span className="text-gray-400">Added {formatDate(tool.createdAt)}</span>
                 </div>

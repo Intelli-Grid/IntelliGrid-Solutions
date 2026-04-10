@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight, Crown, Zap } from 'lucide-react'
+import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight, Crown, Zap, Heart } from 'lucide-react'
 import { getPricingDisplay, formatToolName, getInitials, getOptimizedImageUrl } from '../../utils/helpers'
 import AddToCollectionModal from './AddToCollectionModal'
 import { useFlag } from '../../hooks/useFeatureFlags'
+import { useUser } from '@clerk/clerk-react'
+import { useToast } from '../../context/ToastContext'
 
 const PRICING_COLORS = {
     Free: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
@@ -71,6 +73,8 @@ export default function ToolCard({ tool }) {
     const [showCollectionModal, setShowCollectionModal] = useState(false)
     const [bannerError, setBannerError] = useState(false)
     const affiliateTrackingEnabled = useFlag('AFFILIATE_TRACKING')
+    const { isSignedIn } = useUser()
+    const { toast } = useToast()
 
     // VITE_API_URL already contains /api/v1 — strip it to get the root origin
     const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/v1\/?$/, '')
@@ -179,23 +183,54 @@ export default function ToolCard({ tool }) {
 
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${pricingClass}`}>
-                            {pricingDisplay}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border flex-shrink-0 ${pricingClass}`}>
+                                {pricingDisplay}
+                            </span>
+                            
+                            {/* Social proof */}
+                            {(tool.favorites > 5 || tool.weeklyBookmarks > 3) && (
+                                <span className="text-[10px] text-gray-500 flex flex-wrap items-center gap-0.5 leading-tight">
+                                    <Heart size={9} className="text-rose-400" />
+                                    {tool.weeklyBookmarks > 3
+                                        ? `${tool.weeklyBookmarks} saved this week`
+                                        : `${tool.favorites} saved`
+                                    }
+                                </span>
+                            )}
+                        </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                             {/* Add to collection */}
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    setShowCollectionModal(true)
-                                }}
-                                className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors border border-white/10"
-                                title="Save to collection"
-                            >
-                                <Plus size={16} />
-                            </button>
+                            <div className="relative group/save">
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        if (!isSignedIn) {
+                                            toast({
+                                                title: '⭐ Action required',
+                                                description: 'Sign up free to save tools and build collections.',
+                                                duration: 4000
+                                            })
+                                            return
+                                        }
+                                        setShowCollectionModal(true)
+                                    }}
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors border border-white/10"
+                                    title="Save to collection"
+                                >
+                                    <Plus size={16} />
+                                </button>
+                                {/* Tooltip for non-authenticated */}
+                                {!isSignedIn && (
+                                    <div className="absolute bottom-full right-0 mb-1.5 opacity-0 group-hover/save:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
+                                        <div className="px-2.5 py-1 rounded-lg bg-purple-900/90 text-xs text-purple-200 border border-purple-500/30 backdrop-blur-sm shadow-xl">
+                                            Sign up free to save
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Visit */}
                             {(tool.officialUrl || tool.url) && (

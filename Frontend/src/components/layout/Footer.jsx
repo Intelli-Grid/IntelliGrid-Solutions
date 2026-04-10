@@ -57,10 +57,10 @@ export default function Footer() {
                         <div>
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles className="h-4 w-4 text-purple-400" />
-                                <span className="text-xs font-semibold text-purple-400 uppercase tracking-widest">Weekly Newsletter</span>
+                                <span className="text-xs font-semibold text-purple-400 uppercase tracking-widest">Daily Discovery</span>
                             </div>
-                            <h3 className="text-white font-bold text-xl mb-1">Stay ahead of the AI curve</h3>
-                            <p className="text-sm text-gray-400">The best new AI tools, curated every week. Free, forever.</p>
+                            <h3 className="text-white font-bold text-xl mb-1">1 Hand-Picked Tool. Every Day.</h3>
+                            <p className="text-sm text-gray-400">Join 15,000+ builders getting one high-signal AI tool delivered to their inbox daily.</p>
                         </div>
                         <div className="md:min-w-[320px]">
                             <NewsletterForm source="footer" />

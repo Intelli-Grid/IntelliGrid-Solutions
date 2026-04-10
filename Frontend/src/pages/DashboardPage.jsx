@@ -244,7 +244,7 @@ export default function DashboardPage() {
                 </div>
 
 
-                {managedTools.length > 0 && (
+                {managedTools.length > 0 ? (
                     <div className="rounded-lg border border-white/10 bg-gradient-to-br from-pink-500/10 to-pink-500/5 p-6">
                         <div className="mb-2 flex items-center justify-between">
                             <div className="text-sm text-gray-400">My Tools</div>
@@ -252,6 +252,41 @@ export default function DashboardPage() {
                         </div>
                         <div className="text-3xl font-bold text-white">
                             {managedTools.length}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-lg border border-white/10 bg-gradient-to-br from-violet-500/10 to-violet-500/5 p-6">
+                        <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm text-gray-400">Tools Explored</div>
+                            <TrendingUp className="h-5 w-5 text-violet-400" />
+                        </div>
+                        <div className="text-3xl font-bold text-white mb-3">
+                            {viewHistory?.length || 0}
+                        </div>
+                        <div className="space-y-2">
+                            {[
+                                { at: 10, label: 'AI Stack Tips unlocked', icon: '🧠' },
+                                { at: 25, label: 'Personalized picks', icon: '⭐' },
+                                { at: 50, label: 'Power User badge', icon: '🏆' },
+                            ].map(milestone => {
+                                const count = viewHistory?.length || 0
+                                const done = count >= milestone.at
+                                const progress = Math.min((count / milestone.at) * 100, 100)
+                                return (
+                                    <div key={milestone.at}>
+                                        <div className="flex justify-between text-xs mb-1">
+                                            <span className={done ? 'text-violet-300' : 'text-gray-600'}>
+                                                {milestone.icon} {milestone.label}
+                                            </span>
+                                            <span className="text-gray-600">{done ? '✓' : `${count}/${milestone.at}`}</span>
+                                        </div>
+                                        <div className="w-full bg-gray-800 rounded-full h-1">
+                                            <div className="bg-violet-500 h-1 rounded-full transition-all duration-500"
+                                                 style={{ width: `${progress}%` }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 )}

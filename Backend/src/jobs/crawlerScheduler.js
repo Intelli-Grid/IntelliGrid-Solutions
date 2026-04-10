@@ -314,7 +314,12 @@ export function startCrawlerScheduler() {
 
             // Sequential Execution to avoid CPU/RAM spikes on the Railway container
             await runAndWait('crawler_futurepedia')
-            await runAndWait('crawler_aixploria')
+            
+            // 🛑 AIxploria and FutureTools are temporarily disabled due to severe
+            // Cloudflare Turnstile blocks & React SPA rendering updates.
+            // await runAndWait('crawler_aixploria')
+            // await runAndWait('crawler_futuretools')
+            
             await runAndWait('crawler_taaft')
 
             // After all CSVs are generated, run the Master Importer

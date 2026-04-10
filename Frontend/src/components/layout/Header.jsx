@@ -12,7 +12,11 @@ export default function Header() {
     const isAdmin = role === 'ADMIN' || role === 'SUPERADMIN' || role === 'MODERATOR'
 
     const navLinks = [
-        { to: '/tools', label: 'Tools' },
+        { 
+            to: '/tools', 
+            label: 'Tools',
+            badge: <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-emerald-400 to-cyan-400 text-gray-900 animate-pulse">New</span>
+        },
         { to: '/search', label: 'Search' },
         { to: '/ai-stack-advisor', label: 'AI Advisor', highlight: true, icon: <Sparkles className="h-3 w-3" /> },
         { to: '/blog', label: 'Blog' },
@@ -54,6 +58,7 @@ export default function Header() {
                         >
                             {link.icon && link.icon}
                             {link.label}
+                            {link.badge && link.badge}
                             {isActive(link.to) && (
                                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-purple-400 rounded-full" />
                             )}
@@ -144,6 +149,7 @@ export default function Header() {
                             >
                                 {link.icon && link.icon}
                                 {link.label}
+                                {link.badge && link.badge}
                             </Link>
                         ))}
                         <Link

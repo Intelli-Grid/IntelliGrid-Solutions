@@ -10,6 +10,7 @@ import ToolReviews from './ToolReviews';
 import ToolCard from './ToolCard';
 import ReactMarkdown from 'react-markdown';
 import DOMPurify from 'dompurify';
+import { useUser } from '@clerk/clerk-react';
 
 // ─── Helper: empty state placeholder ───────────────────────────────────────
 function EmptyState({ icon: Icon = Layers, message = 'No data available yet.' }) {
@@ -348,6 +349,7 @@ function VerdictTab({ tool }) {
 
 // ─── Layer 6: Competitor Intelligence ──────────────────────────────────────
 function CompetitorsTab({ tool, relatedBuckets }) {
+    const { isSignedIn } = useUser();
     const competitors = tool.enrichmentData?.competitorIntelligence || [];
     const alternatives = relatedBuckets?.alternatives || [];
 
@@ -356,6 +358,20 @@ function CompetitorsTab({ tool, relatedBuckets }) {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
                 <h3 className="text-xl font-semibold text-white">Alternatives to {tool.name}</h3>
                 <EmptyState icon={Scale} message="No competitor data yet." />
+                
+                {/* In-context upgrade prompt for free/anonymous users */}
+                {!isSignedIn && (
+                    <div className="mt-8 p-5 rounded-2xl bg-purple-500/5 border border-purple-500/20 text-center">
+                        <p className="text-sm text-gray-400 mb-3">
+                            📊 <span className="text-white font-semibold">Pro users</span> get side-by-side comparison tables, 
+                            pricing breakdowns, and feature matrices for all {tool.name} alternatives.
+                        </p>
+                        <Link to="/pricing" 
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-sm font-bold hover:from-purple-500 hover:to-violet-500 transition-all">
+                            Start Free Trial — No Card Needed
+                        </Link>
+                    </div>
+                )}
             </div>
         );
     }
@@ -397,6 +413,20 @@ function CompetitorsTab({ tool, relatedBuckets }) {
                             <ToolCard key={t._id} tool={t} />
                         ))}
                     </div>
+                </div>
+            )}
+            
+            {/* In-context upgrade prompt for free/anonymous users */}
+            {!isSignedIn && (
+                <div className="mt-8 p-5 rounded-2xl bg-purple-500/5 border border-purple-500/20 text-center">
+                    <p className="text-sm text-gray-400 mb-3">
+                        📊 <span className="text-white font-semibold">Pro users</span> get side-by-side comparison tables, 
+                        pricing breakdowns, and feature matrices for all {tool.name} alternatives.
+                    </p>
+                    <Link to="/pricing" 
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-sm font-bold hover:from-purple-500 hover:to-violet-500 transition-all">
+                        Start Free Trial — No Card Needed
+                    </Link>
                 </div>
             )}
         </div>

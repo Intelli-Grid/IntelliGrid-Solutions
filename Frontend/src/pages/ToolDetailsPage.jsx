@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import SEO from '../components/common/SEO'
 import { generateToolSchema, generateBreadcrumbSchema } from '../utils/seoHelpers'
+import { useNudge } from '../components/common/NudgeContext'
 
 
 // New Components (E-commerce Style)
@@ -16,6 +17,36 @@ import ToolContent from '../components/tools/ToolContent'
 import SimilarTools from '../components/tools/SimilarTools'
 import ClaimToolModal from '../components/tools/ClaimToolModal'
 import EmbedToolModal from '../components/tools/EmbedToolModal'
+
+function RecentlyViewedStrip({ currentSlug }) {
+    const [history, setHistory] = useState([])
+    
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem('ig_recent_tools')
+            if (raw) {
+                let parsed = JSON.parse(raw)
+                parsed = parsed.filter(t => t.slug !== currentSlug)
+                setHistory(parsed.slice(0, 5))
+            }
+        } catch (e) {}
+    }, [currentSlug])
+
+    if (history.length < 2) return null
+    
+    return (
+        <div className="mb-6 flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-xs text-gray-600 flex-shrink-0">Also browsing:</span>
+            {history.map(t => (
+                <Link key={t.slug} to={`/tools/${t.slug}`}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/8 hover:border-purple-500/30 flex-shrink-0 transition-all">
+                    {t.logo && <img src={t.logo} alt={t.name} className="w-4 h-4 rounded object-cover" />}
+                    <span className="text-xs text-gray-400 hover:text-white">{t.name}</span>
+                </Link>
+            ))}
+        </div>
+    )
+}
 
 export default function ToolDetailsPage() {
     const { slug } = useParams()
@@ -34,6 +65,29 @@ export default function ToolDetailsPage() {
 
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false)
     const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false)
+    const { fireNudge } = useNudge()
+
+    useEffect(() => {
+        if (!tool) return;
+        
+        try {
+            // Track recently viewed (E-21)
+            const raw = sessionStorage.getItem('ig_recent_tools')
+            let history = raw ? JSON.parse(raw) : []
+            history = history.filter(t => t.slug !== tool.slug)
+            history.unshift({ slug: tool.slug, name: tool.name, logo: tool.logo || tool.metadata?.logo })
+            sessionStorage.setItem('ig_recent_tools', JSON.stringify(history.slice(0, 8)))
+
+            // Track deep browsing for nudges (E-12)
+            const viewCount = parseInt(sessionStorage.getItem('ig_tool_views') || '0') + 1
+            sessionStorage.setItem('ig_tool_views', String(viewCount))
+            
+            if (viewCount === 5 && !sessionStorage.getItem('nudge_deep_browser_fired')) {
+                sessionStorage.setItem('nudge_deep_browser_fired', '1')
+                setTimeout(() => fireNudge && fireNudge('DEEP_BROWSER'), 3000)
+            }
+        } catch (e) {}
+    }, [tool, fireNudge])
 
     useEffect(() => {
         const loadData = async () => {
@@ -170,6 +224,8 @@ export default function ToolDetailsPage() {
                         Best {tool.name} alternatives →
                     </Link>
                 </nav>
+
+                <RecentlyViewedStrip currentSlug={tool.slug} />
 
                 {/* 2. Top Section: Product Grid (Gallery + Details) */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">

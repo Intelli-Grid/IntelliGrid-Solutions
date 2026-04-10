@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
     InstantSearch, SearchBox, Hits, Pagination,
-    RefinementList, Configure, useInstantSearch
+    RefinementList, Configure, useInstantSearch, useClearRefinements
 } from 'react-instantsearch'
 import algoliasearch from 'algoliasearch/lite'
 import { Link } from 'react-router-dom'
@@ -96,13 +96,29 @@ function Hit({ hit }) {
 }
 
 function NoResults() {
+    const { refine } = useClearRefinements();
+
     return (
         <div className="py-20 text-center">
             <div className="mx-auto mb-4 h-14 w-14 flex items-center justify-center rounded-2xl bg-white/5 border border-white/8">
                 <SlidersHorizontal className="h-6 w-6 text-gray-600" />
             </div>
             <h3 className="text-base font-semibold text-white mb-2">No results found</h3>
-            <p className="text-sm text-gray-600">Try different keywords or remove some filters</p>
+            <p className="text-sm text-gray-600 mb-6">Try different keywords or remove some filters</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                    onClick={() => refine()}
+                    className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-sm font-medium transition-all"
+                >
+                    Clear Filters
+                </button>
+                <Link
+                    to="/tools"
+                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-all"
+                >
+                    Browse Popular Tools
+                </Link>
+            </div>
         </div>
     )
 }
