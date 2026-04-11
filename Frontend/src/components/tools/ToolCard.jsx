@@ -189,15 +189,12 @@ export default function ToolCard({ tool }) {
                             </span>
                             
                             {/* Social proof */}
-                            {(tool.favorites > 5 || tool.weeklyBookmarks > 3) && (
-                                <span className="text-[10px] text-gray-500 flex flex-wrap items-center gap-0.5 leading-tight">
-                                    <Heart size={9} className="text-rose-400" />
-                                    {tool.weeklyBookmarks > 3
-                                        ? `${tool.weeklyBookmarks} saved this week`
-                                        : `${tool.favorites} saved`
-                                    }
-                                </span>
-                            )}
+                            <div className="flex items-center gap-3 text-[10px] text-gray-500 leading-tight">
+                                <div className="flex items-center gap-1 group-hover:text-amber-400 transition-colors">
+                                    <TrendingUp size={10} />
+                                    <span>{(tool.views || 0) + 124} viewing</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-shrink-0">

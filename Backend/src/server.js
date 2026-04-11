@@ -8,6 +8,7 @@ import { startEnrichmentCron } from './jobs/enrichmentCron.js'
 import { startTrendingCron } from './jobs/trendingCron.js'
 import { startCommunityCrons } from './jobs/communityCron.js'
 import { startDailySummaryCron } from './jobs/telegramDailySummaryCron.js'
+import { startCrawlerScheduler } from './jobs/crawlerScheduler.js'
 import './jobs/linkHealthCron.js'   // Phase 6: registers Sunday 04:00 UTC cron on import
 
 // Handle unhandled promise rejections
@@ -47,5 +48,6 @@ app.listen(PORT, () => {
     startTrendingCron()    // Daily 03:00 UTC — updates isTrending flags
     startCommunityCrons()  // Daily & Weekly — auto posts to Telegram Community Channel
     startDailySummaryCron() // Daily 8PM IST — owner summary in Telegram
+    startCrawlerScheduler() // Nightly 2AM crawl + Every 4h Enrichment
     // linkHealthCron auto-starts on import (Sunday 04:00 UTC)
 })

@@ -1,11 +1,18 @@
 # nixpacks.toml — Railway build configuration for IntelliGrid backend
 #
-# Explicitly pins the build and start commands so Railway's auto-detection
-# cannot silently change behaviour if its heuristics are updated.
-# Node version follows the engines field in package.json.
+# Hybrid Node.js + Python Pipeline
+# Node.js: Main server, API, DB operations, Slack/Telegram bots
+# Python: Anti-detection scraping (TAAFT, AIxploria, Futurepedia) 
+#   via curl_cffi (Cloudflare bypass) and nodriver (Headless Chromium for SPAs)
 
-[phases.build]
-cmds = ["npm install --production=false"]
+[phases.setup]
+nixPkgs = ["python311", "python311Packages.pip", "chromium"]
+
+[phases.install]
+cmds = [
+  "npm install --production=false",
+  "pip install curl_cffi nodriver beautifulsoup4 pandas lxml pydantic"
+]
 
 [start]
 cmd = "node src/server.js"

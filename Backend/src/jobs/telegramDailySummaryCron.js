@@ -29,7 +29,7 @@ export const startDailySummaryCron = () => {
             const today = new Date()
             today.setHours(0, 0, 0, 0)
 
-            const [newUsers, newPro, newActive, pendingTools, unenriched, stagedForReview] = await Promise.all([
+            const [newUsers, newPro, newActive, pendingApproval, unenriched, stagedForReview] = await Promise.all([
                 User.countDocuments({ createdAt: { $gte: today } }),
                 User.countDocuments({
                     'subscription.status': 'active',
@@ -38,9 +38,12 @@ export const startDailySummaryCron = () => {
                 }),
                 // Only count tools explicitly auto-approved today
                 Tool.countDocuments({ approvedBy: 'auto-approve-script', updatedAt: { $gte: today } }),
+                // Tools in pending status = crawled but not yet enriched/approved
                 Tool.countDocuments({ status: 'pending' }),
+                // Tools active but not yet run through Groq enrichment
                 Tool.countDocuments({ status: 'active', isEnriched: { $ne: true } }),
-                Tool.countDocuments({ status: 'auto_approved' }),  // staged, awaiting your review
+                // Tools staged auto_approved — awaiting owner review via /reviewbatch
+                Tool.countDocuments({ status: 'auto_approved' }),
             ])
 
             const totalActive = await Tool.countDocuments({ status: 'active', isActive: true })
@@ -59,7 +62,7 @@ export const startDailySummaryCron = () => {
                 (stagedForReview > 0
                     ? `  🔍 Staged for your review: *${stagedForReview}* ← /reviewbatch\n`
                     : '') +
-                `  ⏳ Pending enrichment: *${pendingTools}*\n` +
+                `  🕐 Awaiting approval: *${pendingApproval}*\n` +
                 `  🤖 Needs enrichment: *${unenriched}*\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `📱 *Quick Actions*\n` +

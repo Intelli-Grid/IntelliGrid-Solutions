@@ -294,38 +294,57 @@ export function startCrawlerScheduler() {
     schedulerStarted = true
 
     // ── Nightly crawler: 2:00 AM IST = 20:30 UTC ─────────────────────────────
+    //
+    // JS crawlers write DIRECTLY to MongoDB via deduplicateAndUpsert().
+    // No CSV importer step — that was only needed for the old Python scripts.
     cron.schedule('30 20 * * *', async () => {
         console.log('[Scheduler] Nightly Pipeline starting via JobManager...')
         try {
-            await sendOwnerAlert('🕐 *Nightly Pipeline Started*\nSequential Queue: Futurepedia → AIxploria → TAAFT → Importer')
+            await sendOwnerAlert('🕐 *Nightly Pipeline Started*\nSequential Queue: Futurepedia → TAAFT')
 
+            // runAndWait: starts a job and polls until it exits.
+            // Throws on spawn failure so the caller can track it.
             const runAndWait = async (jobId) => {
                 const { startJob, isRunning } = await import('../services/JobManager.js')
-                try {
-                    await startJob(jobId, { isNightly: true })
-                    // Wait for the job to finish by polling the in-memory registry
-                    while (isRunning(jobId)) {
-                        await new Promise(r => setTimeout(r, 10000)) // check every 10s
-                    }
-                } catch (err) {
-                    console.error(`[Scheduler] Job ${jobId} failed to start:`, err.message)
+                await startJob(jobId, { isNightly: true }) // throws if script not found
+                // Poll every 10 s until the process exits
+                while (isRunning(jobId)) {
+                    await new Promise(r => setTimeout(r, 10000))
                 }
             }
 
-            // Sequential Execution to avoid CPU/RAM spikes on the Railway container
-            await runAndWait('crawler_futurepedia')
-            
-            // 🛑 AIxploria and FutureTools are temporarily disabled due to severe
-            // Cloudflare Turnstile blocks & React SPA rendering updates.
-            // await runAndWait('crawler_aixploria')
-            // await runAndWait('crawler_futuretools')
-            
-            await runAndWait('crawler_taaft')
+            // Track per-crawler results so the final alert is accurate
+            const failures = []
 
-            // After all CSVs are generated, run the Master Importer
-            await runAndWait('importer')
+            // Sequential execution to avoid RAM spikes on the Railway container.
+            // Each JS wrapper crawls its source and writes results directly to MongoDB.
+            for (const jobId of ['crawler_futurepedia', 'crawler_taaft', 'crawler_aixploria']) {
+                try {
+                    await runAndWait(jobId)
+                } catch (err) {
+                    console.error(`[Scheduler] Job ${jobId} failed:`, err.message)
+                    failures.push({ jobId, error: err.message })
+                }
+            }
 
-            await sendOwnerAlert('✅ *Nightly Pipeline Complete*\nAll crawlers and the importer have finished. The imported tools are now staged as `pending` inside your database.')
+            // ── Send accurate Telegram summary ────────────────────────────
+            if (failures.length === 0) {
+                await sendOwnerAlert(
+                    '✅ *Nightly Pipeline Complete*\n' +
+                    'All crawlers finished. New tools are staged as `pending` in MongoDB.\n' +
+                    'They will be enriched in the next Groq batch (runs every 4h).'
+                )
+            } else {
+                const succeeded = 2 - failures.length
+                const failLines = failures.map(f => `❌ ${f.jobId}: ${f.error.slice(0, 120)}`).join('\n')
+                await sendOwnerAlert(
+                    `⚠️ *Nightly Pipeline — ${failures.length} failure(s)*\n\n` +
+                    failLines + '\n\n' +
+                    (succeeded > 0
+                        ? `✅ ${succeeded} crawler(s) succeeded. Check /jobstatus for details.`
+                        : '❌ All crawlers failed.')
+                )
+            }
 
         } catch (err) {
             console.error('[Scheduler] Nightly pipeline orchestrator error:', err.message)
@@ -334,21 +353,24 @@ export function startCrawlerScheduler() {
     }, { timezone: 'UTC' })
 
     // ── Enrichment: every 4 hours ─────────────────────────────────────────────
+    // Batch size: 500 (up from 200) to clear the 4,400+ unenriched-tools backlog
+    // faster. Groq free tier is 30 RPM; the 250ms inter-tool delay in
+    // runEnrichmentBatch already honours that limit.
     cron.schedule('0 */4 * * *', async () => {
         console.log('[Scheduler] Enrichment batch starting...')
         try {
-            const stats = await runEnrichmentBatch({ limit: 200 })
+            const stats = await runEnrichmentBatch({ limit: 500 })
+
+            // Count ALL remaining unenriched tools BEFORE branching on stats —
+            // we always want an accurate number for the Telegram message.
+            const remaining = await Tool.countDocuments({
+                isEnriched: { $ne: true },
+                status: { $in: ['active', 'pending'] },
+            })
 
             if (stats.enriched > 0) {
-                // Count ALL remaining unenriched tools regardless of status
-                const remaining = await Tool.countDocuments({
-                    isEnriched: { $ne: true },
-                    status: { $in: ['active', 'pending'] },
-                })
-
                 // ── Re-sync freshly enriched ACTIVE tools to Algolia ──────────
                 // These are already live — just need their new Groq fields pushed.
-                // The 4-hour window aligns with the cron interval.
                 let algoliaCount = 0
                 try {
                     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
@@ -358,7 +380,7 @@ export function startCrawlerScheduler() {
                         isEnriched: true,
                         enrichedAt: { $gte: fourHoursAgo },
                     })
-                        .limit(300)
+                        .limit(600)
                         .select('name slug shortDescription longDescription category tags useCaseTags audienceTags industryTags keyFeatures alternativeTo pricing logo officialUrl views enrichmentScore isFeatured isTrending isEnriched hasFreeTier platforms')
                         .populate('category', 'name slug')
                         .lean()
@@ -372,7 +394,6 @@ export function startCrawlerScheduler() {
                 }
 
                 // ── Auto-stage newly enriched PENDING tools for owner review ──
-                // Only pending tools need staging — active tools are already live.
                 // Moves pending tools with enrichmentScore >= 60 → auto_approved.
                 let staged = 0
                 try {
@@ -399,7 +420,19 @@ export function startCrawlerScheduler() {
 
                 await sendOwnerAlert(alertMsg)
             } else {
-                console.log('[Scheduler] Enrichment batch: nothing to enrich this cycle.')
+                // Always send an alert even when nothing was enriched so you know
+                // immediately if GROQ_API_KEY is missing/rate-limited or the DB is clean.
+                console.log('[Scheduler] Enrichment batch: nothing enriched this cycle.')
+                await sendOwnerAlert(
+                    `ℹ️ *Enrichment Batch — 0 tools enriched*\n\n` +
+                    `Processed: ${stats.processed} | Errors: ${stats.errors}\n` +
+                    `📋 Remaining unenriched: *${remaining}*\n\n` +
+                    (stats.errors > 0
+                        ? '⚠️ Errors detected — check GROQ\_API\_KEY or Groq rate limits.'
+                        : remaining === 0
+                            ? '🎉 All tools are enriched!'
+                            : 'ℹ️ Check if GROQ_API_KEY is set in Railway env vars.')
+                )
             }
         } catch (err) {
             console.error('[Scheduler] Enrichment error:', err.message)

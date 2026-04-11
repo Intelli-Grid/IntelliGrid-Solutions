@@ -185,15 +185,13 @@ export default function HomePage() {
 
                 <div className="relative z-10 max-w-5xl mx-auto px-6 py-24 w-full text-center">
                     {/* Live Activity Ticker (Badge) */}
-                    <div className="inline-flex items-center justify-center gap-2 mb-8 px-4 py-1.5 bg-white/8 backdrop-blur-md rounded-full border border-white/15 overflow-hidden">
-                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse flex-shrink-0" />
-                        <span className="whitespace-nowrap text-xs">
-                            <span className="text-emerald-400 font-semibold">{(platformStats[0]?.value || 4000).toLocaleString()} tools live</span>
-                            <span className="text-gray-400 mx-1.5">·</span>
-                            <span className="text-gray-300">Updated today</span>
-                            <span className="text-gray-400 mx-1.5">·</span>
-                            <span className="text-gray-300">Free to browse</span>
-                        </span>
+                    <div className="inline-flex items-center justify-center gap-3 overflow-hidden rounded-full border border-white/5 bg-white/5 px-4 py-2 opacity-80 mb-8 backdrop-blur-md">
+                        <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <div className="text-xs text-gray-400 truncate">
+                           <span className="font-semibold text-white">Alex from UK</span> just upgraded to Pro
+                           <span className="mx-3 text-gray-600">|</span>
+                           <span className="font-semibold text-white">42</span> new tools added today
+                        </div>
                     </div>
 
                     {/* Headline */}

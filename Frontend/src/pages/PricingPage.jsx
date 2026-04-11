@@ -283,6 +283,15 @@ export default function PricingPage() {
                     </div>
                 )}
 
+                {/* ── Launch Offer Countdown ── */}
+                <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 rounded-2xl p-6 mb-8 text-center max-w-2xl mx-auto backdrop-blur-sm">
+                    <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3">
+                        <Clock className="w-3.5 h-3.5" /> Launch Offer Ends in {timeLeft}
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Lock in 40% Off For Life.</h2>
+                    <p className="text-sm text-gray-400">First 100 users get Pro for just $6.67/mo (billed annually). Only 67 spots remaining.</p>
+                </div>
+
                 {/* ── Currency indicator ── */}
                 {!geoLoading && (
                     <div className="flex items-center justify-center mb-6">

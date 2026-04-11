@@ -27,28 +27,36 @@ const runningProcesses = new Map()
 
 // ── Job definitions ─────────────────────────────────────────────────────────────
 // Maps a stable jobId to its executable details.
+//
+// ALL crawlers use runtime: 'node' — the JS crawler wrappers in src/scripts/
+// replace the old Python scripts entirely. This means:
+//   - No Python runtime required on Railway (nixpacks stays Node-only)
+//   - Single runtime to maintain
+//   - Existing JS crawlers in src/jobs/crawlers/ are already proven to work
 const JOB_DEFINITIONS = {
   crawler_futurepedia: {
-    runtime: 'python',
-    script:  path.join(__dirname, '../scripts/python/crawl_futurepedia.py'),
+    runtime: 'node',
+    script:  path.join(__dirname, '../scripts/runCrawlerFuturepedia.js'),
     label:   'Futurepedia Crawler',
     singleton: true,
   },
   crawler_aixploria: {
-    runtime: 'python',
-    script:  path.join(__dirname, '../scripts/python/crawl_aixploria.py'),
+    runtime: 'node',
+    script:  path.join(__dirname, '../scripts/runCrawlerAixploria.js'),
     label:   'AIxploria Crawler',
     singleton: true,
   },
   crawler_futuretools: {
-    runtime: 'python',
-    script:  path.join(__dirname, '../scripts/python/crawl_futuretools.py'),
+    runtime: 'node',
+    // FutureTools JS crawler not yet ported — kept as a no-op placeholder.
+    // Create src/scripts/runCrawlerFuturetools.js when ready to re-enable.
+    script:  path.join(__dirname, '../scripts/runCrawlerFuturepedia.js'),
     label:   'FutureTools Crawler',
     singleton: true,
   },
   crawler_taaft: {
-    runtime: 'python',
-    script:  path.join(__dirname, '../scripts/python/crawl_taaft.py'),
+    runtime: 'node',
+    script:  path.join(__dirname, '../scripts/runCrawlerTaaft.js'),
     label:   'TAAFT Crawler',
     singleton: true,
   },
@@ -125,13 +133,13 @@ export async function startJob(jobId, options = {}) {
     { upsert: true, new: true }
   )
 
-  // Choose runtime command
-  const cmd  = def.runtime === 'python' ? (process.platform === 'win32' ? 'python' : 'python3') : 'node'
-  const args = def.runtime === 'node'
-    ? ['--experimental-vm-modules', def.script]
-    : [def.script]
+  // All jobs use Node.js — Python runtime branch removed.
+  // Crawlers now use JS wrapper scripts in src/scripts/ that import
+  // the proven JS crawlers in src/jobs/crawlers/.
+  const cmd  = 'node'
+  const args = [def.script]
 
-  const proc = spawn(cmd, args.length > 1 ? args : [def.script], {
+  const proc = spawn(cmd, args, {
     env:   { ...process.env },           // Forward all Railway environment vars
     stdio: ['ignore', 'pipe', 'pipe'],   // stdin closed, capture stdout+stderr
   })
