@@ -1,65 +1,17 @@
 /**
  * runCrawlerFuturepedia.js
  * ========================
- * Node.js wrapper connecting to the Python anti-detect extraction engine.
+ * JobManager worker — spawned as a child Node.js process.
+ * Uses the JS crawler directly (no Python dependency).
  *
- * Emits JobManager progress events and captures stdout JSON.
+ * Emits PROGRESS:processed:N:total:M lines for JobManager tracking.
  */
 
 import 'dotenv/config'
 import mongoose from 'mongoose'
-import { spawn } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { crawlFuturepedia } from '../jobs/crawlers/futurepediaCrawler.js'
 import { normalizeToSchema } from '../jobs/crawlers/normalizer.js'
 import { deduplicateAndUpsert } from '../jobs/crawlers/deduplicator.js'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-async function runPythonCrawler(scriptName) {
-    return new Promise((resolve, reject) => {
-        const pyPath = path.join(__dirname, 'python', scriptName)
-        const cmd = process.platform === 'win32' ? 'python' : 'python3'
-        
-        console.log(`[JS Wrapper] Spawning Python scraper: ${scriptName} (WARNING: This will use nodriver and consume RAM)`)
-        const proc = spawn(cmd, [pyPath], {
-            env: { ...process.env, PYTHONUTF8: '1' }
-        })
-
-        let outputData = ''
-        let errorData = ''
-
-        proc.stdout.on('data', (data) => {
-            outputData += data.toString()
-        })
-
-        proc.stderr.on('data', (data) => {
-            const str = data.toString()
-            errorData += str
-            console.warn(`[Python STDERR] ${str.trim()}`)
-        })
-
-        proc.on('close', (code) => {
-            if (code !== 0) {
-                console.error(`[JS Wrapper] Python script exited with code ${code}`)
-            }
-            try {
-                const jsonStart = outputData.indexOf('[')
-                const jsonEnd = outputData.lastIndexOf(']')
-                if (jsonStart === -1 || jsonEnd === -1) {
-                    console.log('[JS Wrapper] No JSON array found in Python output.')
-                    return resolve([])
-                }
-                const cleanJson = outputData.substring(jsonStart, jsonEnd + 1)
-                const tools = JSON.parse(cleanJson)
-                resolve(tools)
-            } catch (err) {
-                console.error('[JS Wrapper] Failed to parse Python JSON output:', err.message)
-                resolve([])
-            }
-        })
-    })
-}
 
 async function main() {
     if (!process.env.MONGODB_URI) {
@@ -71,10 +23,18 @@ async function main() {
     console.log('✅ [FUTUREPEDIA] Connected to MongoDB')
 
     console.log('PROGRESS:processed:1:total:10')
-    const rawTools = await runPythonCrawler('fetch_futurepedia.py')
-    
+    console.log('[FUTUREPEDIA] Starting JS crawler (no Python required)...')
+
+    let rawTools = []
+    try {
+        rawTools = await crawlFuturepedia({ maxPages: 20, maxTools: 300 })
+    } catch (err) {
+        console.error('[FUTUREPEDIA] Crawler error:', err.message)
+        rawTools = []
+    }
+
     if (rawTools.length === 0) {
-        console.log('⚠️  [FUTUREPEDIA] No tools extracted — SPA structure change or Cloudflare block.')
+        console.log('⚠️  [FUTUREPEDIA] No tools extracted — possible Cloudflare block or structure change.')
         await mongoose.disconnect()
         process.exit(0)
     }

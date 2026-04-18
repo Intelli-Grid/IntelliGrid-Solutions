@@ -469,8 +469,12 @@ export async function enrichTool(tool) {
         const categoryId = await resolveCategoryId(tool, groqData)
         if (categoryId) {
             updates.category = categoryId
-            updates.isEnriched = true
         }
+
+        // BUG FIX: isEnriched must be set unconditionally — was previously only
+        // set inside if(categoryId), so tools that already had a category were
+        // never marked as enriched → infinite re-enrichment loop on every batch.
+        updates.isEnriched = true
 
         // 4. Compute enrichment score on the merged document
         const merged = { ...tool.toObject ? tool.toObject() : tool, ...updates }

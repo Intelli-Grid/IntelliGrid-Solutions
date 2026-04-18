@@ -1,69 +1,17 @@
 /**
  * runCrawlerTaaft.js
  * ==================
- * Node.js wrapper connecting to the Python anti-detect extraction engine.
+ * JobManager worker — spawned as a child Node.js process.
+ * Uses the JS crawler directly (no Python dependency).
  *
- * Emits JobManager progress events and captures stdout JSON.
+ * Emits PROGRESS:processed:N:total:M lines for JobManager tracking.
  */
 
 import 'dotenv/config'
 import mongoose from 'mongoose'
-import { spawn } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { crawlTAAFT } from '../jobs/crawlers/taaftCrawler.js'
 import { normalizeToSchema } from '../jobs/crawlers/normalizer.js'
 import { deduplicateAndUpsert } from '../jobs/crawlers/deduplicator.js'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-async function runPythonCrawler(scriptName) {
-    return new Promise((resolve, reject) => {
-        const pyPath = path.join(__dirname, 'python', scriptName)
-        // Railway has 'python3', Windows has 'python'
-        const cmd = process.platform === 'win32' ? 'python' : 'python3'
-        
-        console.log(`[JS Wrapper] Spawning Python scraper: ${scriptName}`)
-        const proc = spawn(cmd, [pyPath], {
-            env: { ...process.env, PYTHONUTF8: '1' }
-        })
-
-        let outputData = ''
-        let errorData = ''
-
-        proc.stdout.on('data', (data) => {
-            outputData += data.toString()
-        })
-
-        proc.stderr.on('data', (data) => {
-            const str = data.toString()
-            errorData += str
-            // Print straight to JobManager logs if it's not a block of JSON
-            console.warn(`[Python STDERR] ${str.trim()}`)
-        })
-
-        proc.on('close', (code) => {
-            if (code !== 0) {
-                console.error(`[JS Wrapper] Python script exited with code ${code}`)
-                // Still try to parse whatever we got
-            }
-            try {
-                // Find the JSON block. It might be surrounded by print statements
-                const jsonStart = outputData.indexOf('[')
-                const jsonEnd = outputData.lastIndexOf(']')
-                if (jsonStart === -1 || jsonEnd === -1) {
-                    console.log('[JS Wrapper] No JSON array found in Python output.')
-                    return resolve([])
-                }
-                const cleanJson = outputData.substring(jsonStart, jsonEnd + 1)
-                const tools = JSON.parse(cleanJson)
-                resolve(tools)
-            } catch (err) {
-                console.error('[JS Wrapper] Failed to parse Python JSON output:', err.message)
-                resolve([])
-            }
-        })
-    })
-}
 
 async function main() {
     if (!process.env.MONGODB_URI) {
@@ -74,19 +22,25 @@ async function main() {
     await mongoose.connect(process.env.MONGODB_URI)
     console.log('✅ [TAAFT] Connected to MongoDB')
 
-    // 1. Run Python Extractor (curl_cffi)
-    console.log('PROGRESS:processed:1:total:10') // Mock progress for JobManager
-    const rawTools = await runPythonCrawler('fetch_taaft.py')
-    
+    console.log('PROGRESS:processed:1:total:10')
+    console.log('[TAAFT] Starting JS crawler (no Python required)...')
+
+    let rawTools = []
+    try {
+        rawTools = await crawlTAAFT({ maxTools: 300 })
+    } catch (err) {
+        console.error('[TAAFT] Crawler error:', err.message)
+        rawTools = []
+    }
+
     if (rawTools.length === 0) {
-        console.log('⚠️  [TAAFT] No tools extracted — Cloudflare block or structure change.')
+        console.log('⚠️  [TAAFT] No tools extracted — possible Cloudflare block or structure change.')
         await mongoose.disconnect()
         process.exit(0)
     }
 
     console.log(`PROGRESS:processed:5:total:10`)
 
-    // 2. Normalize and Upsert
     const normalized = rawTools.map(normalizeToSchema).filter(Boolean)
     console.log(`[TAAFT] Normalised: ${normalized.length} valid tools from ${rawTools.length} raw`)
 

@@ -67,10 +67,10 @@ async function main() {
     console.log(`🔑 ${keyCount} Groq API key(s) configured → ~${keyCount * 336} tools possible this run`)
 
     // Query: tools that have NOT been enriched yet OR previously failed with groq_failed
-    // We do NOT filter on lastEnrichedAt for groq_failed tools → they get retried
+    // BUG FIX: removed isActive:{ $ne: false } — newly crawled pending tools have
+    // isActive:false by default and were being silently skipped on every run.
     const query = {
         status: { $in: ['active', 'pending'] }, // include pending so imported tools get enriched
-        isActive: { $ne: false },
         $or: [
             { lastEnrichedAt: { $exists: false } },
             { lastEnrichedAt: null },

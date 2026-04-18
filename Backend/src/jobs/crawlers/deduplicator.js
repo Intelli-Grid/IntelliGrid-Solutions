@@ -54,8 +54,11 @@ export async function deduplicateAndUpsert(normalizedTools) {
     if (!normalizedTools?.length) return stats
 
     // ── Load existing tools for comparison (names + URLs + slugs only) ─────────
+    // BUG FIX: was { isActive: true } — this missed pending/inactive tools and
+    // allowed duplicate inserts for tools that hadn't been activated yet.
+    // Load ALL tools (active + pending + inactive) for duplicate checking.
     const existingTools = await Tool.find(
-        { isActive: true },
+        {},
         { name: 1, slug: 1, officialUrl: 1 }
     ).lean()
 

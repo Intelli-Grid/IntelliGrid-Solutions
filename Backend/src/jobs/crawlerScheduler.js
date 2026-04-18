@@ -22,7 +22,8 @@ import { deduplicateAndUpsert } from './crawlers/deduplicator.js'
 import { sendOwnerAlert } from '../services/telegramBot.js'
 import { runAutoStage } from '../scripts/autoApprove.js'
 import Tool from '../models/Tool.js'
-import Groq from 'groq-sdk'
+// BUG FIX: use enrichTool (10-key Groq rotator) instead of raw Groq single-key
+import { enrichTool } from '../services/enrichmentService.js'
 
 // ── Algolia sync (lazy import to avoid circular deps at boot) ─────────────────
 async function syncToAlgolia(limit = 500) {
@@ -32,7 +33,8 @@ async function syncToAlgolia(limit = 500) {
             process.env.ALGOLIA_APP_ID,
             process.env.ALGOLIA_ADMIN_KEY || process.env.ALGOLIA_API_KEY
         )
-        const index = client.initIndex('tools')
+        // BUG FIX: was 'tools' — correct index name is 'intelligrid_tools'
+        const index = client.initIndex('intelligrid_tools')
 
         const newTools = await Tool.find({ status: 'active', isActive: true })
             .sort({ createdAt: -1 })
@@ -105,124 +107,31 @@ function computeEnrichScore(e, tool) {
 }
 
 export async function runEnrichmentBatch({ limit = 200 } = {}) {
-    if (!process.env.GROQ_API_KEY) {
-        console.warn('[Enrichment] GROQ_API_KEY not set — skipping')
-        return { processed: 0, enriched: 0, errors: 0 }
-    }
-
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-
+    // BUG FIX: Use enrichTool() from enrichmentService which has 10-key Groq rotation.
+    // Previously used a single groq key inline — caused 500/500 errors on rate limit.
     const tools = await Tool.find({
         isEnriched: { $ne: true },
         status: { $in: ['active', 'pending'] },
-        // NOTE: Do NOT filter by isActive here — pending tools from crawlers
+        // Do NOT filter by isActive — pending tools from crawlers
         // have isActive:false and still need enrichment before staging.
         linkStatus: { $ne: 'dead' },
     }).limit(limit).populate('category', 'name slug').lean()
 
     const stats = { processed: tools.length, enriched: 0, errors: 0 }
-    console.log(`[Enrichment] Processing ${tools.length} unenriched tools...`)
+    console.log(`[Enrichment] Processing ${tools.length} unenriched tools with 10-key rotator...`)
 
     for (const tool of tools) {
         try {
-            const prompt = `You are an expert AI tools analyst. Analyze the tool below and return ONLY a valid JSON object — no markdown, no code fences, no explanation.
-
-Tool Name: ${tool.name}
-Website: ${tool.officialUrl}
-Category: ${tool.category?.name || tool.categorySlug || 'AI Tools'}
-Existing Description: ${tool.shortDescription || tool.fullDescription || 'Unknown'}
-
-Return exactly this JSON shape (all fields required, use empty arrays [] if you don't know):
-{
-  "shortDescription": "One sentence, max 160 chars, what this tool does and for whom",
-  "fullDescription": "2-3 sentences highlighting the core value proposition and key differentiator",
-  "longDescription": "150-250 word detailed SEO paragraph covering the tool purpose, unique features, best use cases, and who benefits most",
-  "tags": ["up to 8 relevant search tags"],
-  "useCaseTags": ["3-6 task-based tags like: write blog posts, transcribe audio, generate images"],
-  "audienceTags": ["2-4 audience tags like: Marketers, Developers, Students, Designers, Entrepreneurs"],
-  "industryTags": ["1-3 industry tags like: Healthcare, Finance, Education, E-commerce"],
-  "integrationTags": ["0-4 integration names like: Zapier, Slack, Notion, Google Drive"],
-  "keyFeatures": ["3-5 specific feature bullets, factual not marketing"],
-  "alternativeTo": ["0-3 well-known tool names this replaces, e.g. Jasper, Midjourney"],
-  "pros": ["2-4 genuine advantages"],
-  "cons": ["1-3 genuine limitations or caveats"],
-  "hasFreeTier": true,
-  "platforms": ["Web"],
-  "qualityScore": 75
-}`
-
-            const completion = await groq.chat.completions.create({
-                model: 'llama3-8b-8192',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.3,
-                max_tokens: 1200,
-            })
-
-            const raw = completion.choices[0]?.message?.content || ''
-            const jsonMatch = raw.match(/\{[\s\S]*\}/)
-            if (!jsonMatch) {
-                console.warn(`[Enrichment] No JSON in Groq response for ${tool.name}`)
-                continue
+            const result = await enrichTool(tool)
+            if (result.success) {
+                stats.enriched++
+            } else {
+                stats.errors++
+                console.warn(`[Enrichment] Tool "${tool.name}" failed: ${result.reason}`)
             }
-
-            const e = JSON.parse(jsonMatch[0])
-            const score = computeEnrichScore(e, tool)
-
-            // Valid platform values from the Tool schema enum
-            const VALID_PLATFORMS = ['Web', 'iOS', 'Android', 'Chrome Extension',
-                'Firefox Extension', 'API', 'Desktop (Mac)', 'Desktop (Windows)',
-                'Discord Bot', 'Slack App', 'VS Code Extension']
-
-            await Tool.updateOne(
-                { _id: tool._id },
-                {
-                    $set: {
-                        // Core text
-                        ...(e.shortDescription ? { shortDescription: e.shortDescription.substring(0, 499) } : {}),
-                        ...(e.fullDescription  ? { fullDescription: e.fullDescription } : {}),
-                        ...(e.longDescription  ? { longDescription: e.longDescription } : {}),
-
-                        // Tagging
-                        ...(e.tags?.length          ? { tags: e.tags.slice(0, 10) } : {}),
-                        ...(e.useCaseTags?.length   ? { useCaseTags: e.useCaseTags.slice(0, 8) } : {}),
-                        ...(e.audienceTags?.length  ? { audienceTags: e.audienceTags.slice(0, 5) } : {}),
-                        ...(e.industryTags?.length  ? { industryTags: e.industryTags.slice(0, 4) } : {}),
-                        ...(e.integrationTags?.length ? { integrationTags: e.integrationTags.slice(0, 8) } : {}),
-                        ...(e.keyFeatures?.length   ? { keyFeatures: e.keyFeatures.slice(0, 6) } : {}),
-                        ...(e.alternativeTo?.length ? { alternativeTo: e.alternativeTo.slice(0, 5) } : {}),
-
-                        // Pros / cons stored in seoContent
-                        ...(e.pros?.length || e.cons?.length ? {
-                            'seoContent.pros': (e.pros || []).slice(0, 5),
-                            'seoContent.cons': (e.cons || []).slice(0, 4),
-                            'seoContent.generatedAt': new Date(),
-                        } : {}),
-
-                        // Discovery signals
-                        ...(e.hasFreeTier != null ? { hasFreeTier: Boolean(e.hasFreeTier) } : {}),
-                        ...(e.platforms?.length ? {
-                            platforms: e.platforms.filter(p => VALID_PLATFORMS.includes(p))
-                        } : {}),
-
-                        // Pipeline state
-                        isEnriched: true,
-                        enrichedAt: new Date(),
-                        lastEnrichedAt: new Date(),
-                        enrichmentScore: score,
-                        enrichmentSource: 'groq-llama3-v2',
-                        enrichmentVersion: (tool.enrichmentVersion || 0) + 1,
-                    }
-                }
-            )
-            stats.enriched++
-            // Groq free tier: 30 RPM — 250ms delay gives headroom
-            await new Promise(r => setTimeout(r, 250))
         } catch (err) {
             stats.errors++
-            if (err.message?.includes('rate')) {
-                console.warn('[Enrichment] Rate limited — pausing 60s')
-                await new Promise(r => setTimeout(r, 60000))
-            }
+            console.error(`[Enrichment] Unexpected error for "${tool.name}":`, err.message)
         }
     }
 
