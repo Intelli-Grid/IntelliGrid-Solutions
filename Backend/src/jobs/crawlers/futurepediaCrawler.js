@@ -19,30 +19,11 @@
  * Polite crawling: 1.5s delay between requests.
  */
 
-import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { scraperGet, isProxyEnabled } from '../../config/scraperClient.js'
 
 const BASE_URL = 'https://www.futurepedia.io'
 const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '1500')
-
-// Realistic browser headers to minimise Cloudflare blocks on detail pages
-const HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Cache-Control': 'max-age=0',
-    'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-}
-
-const httpClient = axios.create({ timeout: 25000, headers: HEADERS })
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms))
@@ -62,8 +43,8 @@ async function getToolSitemapUrls() {
     for (const sitemapUrl of sitemapCandidates) {
         try {
             console.log(`[Futurepedia] Trying sitemap: ${sitemapUrl}`)
-            const { data: xml } = await httpClient.get(sitemapUrl, {
-                headers: { ...HEADERS, Accept: 'application/xml, text/xml, */*' }
+            const { data: xml } = await scraperGet(sitemapUrl, {
+                extraHeaders: { Accept: 'application/xml, text/xml, */*' }
             })
 
             const $ = cheerio.load(xml, { xmlMode: true })
@@ -82,8 +63,8 @@ async function getToolSitemapUrls() {
                     s.includes('tool') || s.includes('ai-tool') || s.includes('app')
                 ) || subSitemaps[0]
 
-                const { data: subXml } = await httpClient.get(toolSitemap, {
-                    headers: { ...HEADERS, Accept: 'application/xml, text/xml, */*' }
+                const { data: subXml } = await scraperGet(toolSitemap, {
+                    extraHeaders: { Accept: 'application/xml, text/xml, */*' }
                 })
                 const $sub = cheerio.load(subXml, { xmlMode: true })
                 $sub('url loc').each((_, el) => {
@@ -126,7 +107,7 @@ async function getToolSitemapUrls() {
  */
 async function scrapeToolPage(toolUrl) {
     try {
-        const { data: html } = await httpClient.get(toolUrl)
+        const { data: html } = await scraperGet(toolUrl)
         const $ = cheerio.load(html)
 
         // Try __NEXT_DATA__ first (fastest when available)
@@ -245,6 +226,10 @@ export async function crawlFuturepedia({ maxPages = 30, maxTools = 300, onProgre
 
     const urlsToProcess = toolUrls.slice(0, maxTools)
     console.log(`[Futurepedia] Processing ${urlsToProcess.length} tool URLs...`)
+
+    const toolUrl = urlsToProcess[0]
+    const start = Date.now()
+    console.log(`[Futurepedia] Proxy enabled: ${isProxyEnabled() ? '✅ ScraperAPI' : '❌ Direct (may be blocked)'}`)
 
     const results = []
     const BATCH_SIZE = 3

@@ -14,23 +14,12 @@
  * Polite crawling: 1s delay between API pages (JSON, no browser needed).
  */
 
-import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { scraperGet, isProxyEnabled } from '../../config/scraperClient.js'
 
 const BASE_URL = 'https://www.aixploria.com'
 const API_BASE = `${BASE_URL}/wp-json/wp/v2`
 const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '1000')
-const USER_AGENT = process.env.CRAWLER_USER_AGENT ||
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-
-const httpClient = axios.create({
-    timeout: 25000,
-    headers: {
-        'User-Agent': USER_AGENT,
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-    },
-})
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms))
@@ -141,7 +130,7 @@ function mapWpPost(post) {
 async function fetchApiPage(page) {
     const url = `${API_BASE}/posts?per_page=100&page=${page}&_embed=1&status=publish`
     try {
-        const response = await httpClient.get(url)
+        const response = await scraperGet(url, { json: true })
         const posts = response.data
         const totalPages = parseInt(response.headers['x-wp-totalpages'] || '1', 10)
         return { posts, totalPages }
@@ -163,7 +152,7 @@ async function fetchApiPage(page) {
  * @returns {Promise<Array>} Raw tool objects ready for normalizeToSchema()
  */
 export async function crawlAixploria({ maxPages = 50, onProgress } = {}) {
-    console.log('[AIxploria] Starting crawl via WordPress REST API...')
+    console.log(`[AIxploria] Proxy: ${isProxyEnabled() ? '✅ ScraperAPI' : '❌ Direct (may be blocked)'}`)
     const results = []
     let page = 1
     let totalPages = null

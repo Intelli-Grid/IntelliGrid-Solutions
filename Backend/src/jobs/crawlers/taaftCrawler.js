@@ -19,33 +19,11 @@
  * Polite crawling: 2s delay between requests, batch of 3 concurrent.
  */
 
-import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { scraperGet, isProxyEnabled } from '../../config/scraperClient.js'
 
 const BASE_URL = 'https://theresanaiforthat.com'
 const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '2000')
-const USER_AGENT = process.env.CRAWLER_USER_AGENT ||
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-
-const httpClient = axios.create({
-    timeout: 25000,
-    maxRedirects: 0,  // Don't follow redirects — we want to decode /r?u= ourselves
-    validateStatus: s => s < 400,
-    headers: {
-        'User-Agent': USER_AGENT,
-        'Accept': 'text/html,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-    },
-})
-
-const httpClientFollow = axios.create({
-    timeout: 25000,
-    headers: {
-        'User-Agent': USER_AGENT,
-        'Accept': 'text/html,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-    },
-})
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms))
@@ -82,8 +60,8 @@ function decodeTaaftRedirect(href) {
 async function getToolsSitemapUrl() {
     // Try sitemap index first
     try {
-        const { data: xml } = await httpClientFollow.get(`${BASE_URL}/sitemap_index.xml`, {
-            headers: { Accept: 'application/xml, text/xml' }
+        const { data: xml } = await scraperGet(`${BASE_URL}/sitemap_index.xml`, {
+            extraHeaders: { Accept: 'application/xml, text/xml' }
         })
         const $ = cheerio.load(xml, { xmlMode: true })
         // Find the ai-tools sitemap
@@ -112,8 +90,8 @@ async function getToolUrlsFromSitemap() {
         const sitemapUrl = await getToolsSitemapUrl()
         console.log(`[TAAFT] Fetching sitemap: ${sitemapUrl}`)
 
-        const { data: xml } = await httpClientFollow.get(sitemapUrl, {
-            headers: { Accept: 'application/xml, text/xml' }
+        const { data: xml } = await scraperGet(sitemapUrl, {
+            extraHeaders: { Accept: 'application/xml, text/xml' }
         })
         const $ = cheerio.load(xml, { xmlMode: true })
         const toolUrls = []
@@ -148,7 +126,7 @@ async function getToolUrlsFromSitemap() {
  */
 async function scrapeToolPage(toolUrl) {
     try {
-        const { data: html } = await httpClientFollow.get(toolUrl)
+        const { data: html } = await scraperGet(toolUrl)
         const $ = cheerio.load(html)
 
         const name = $('h1').first().text().trim()
@@ -243,6 +221,7 @@ async function scrapeToolPage(toolUrl) {
  */
 export async function crawlTAAFT({ maxTools = 500, onProgress } = {}) {
     console.log('[TAAFT] Starting crawl via sitemap...')
+    console.log(`[TAAFT] Proxy: ${isProxyEnabled() ? '✅ ScraperAPI' : '❌ Direct (may be blocked)'}`)
     const results = []
 
     const toolUrls = await getToolUrlsFromSitemap()
