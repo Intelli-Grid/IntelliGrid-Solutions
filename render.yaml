@@ -2,12 +2,11 @@ services:
   - type: web
     name: intelligrid-backend
     env: node
-    region: oregon          # us-west-2
-    rootDir: Backend        # ← tells Render to cd into Backend/ before build & start
-    buildCommand: npm install
-    startCommand: node src/server.js
+    region: oregon
+    # NOTE: rootDir only works via Render Blueprints (IaC).
+    # For manually created services, use explicit cd commands instead — same as railway.json.
+    buildCommand: cd Backend && npm install
+    startCommand: cd Backend && node src/server.js
     healthCheckPath: /health
-    # Render auto-injects PORT, RENDER_EXTERNAL_URL, RENDER_EXTERNAL_HOSTNAME
-    # All other secrets must be set in the Render dashboard under Environment Variables
     envVars:
       - fromGroup: intelligrid-production
