@@ -84,6 +84,7 @@ if (process.env.CRAWLER_ENABLED === 'true') {
 // ── CORS — must be before helmet and any other middleware ────────────────────
 const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL,
+    process.env.RENDER_EXTERNAL_URL,   // Auto-set by Render — e.g. https://intelligrid-backend.onrender.com
     'http://localhost:5173',
     'http://localhost:5174',
     'https://admin.intelligrid.online',
@@ -91,10 +92,11 @@ const ALLOWED_ORIGINS = [
     'https://www.intelligrid.online',
 ].filter(Boolean)
 
-// Pattern-based origins — Vercel preview deployments + Railway internal services
+// Pattern-based origins — Vercel preview deployments + Railway/Render internal services
 const ALLOWED_ORIGIN_PATTERNS = [
     /^https:\/\/intelli-grid-solutions[a-z0-9-]*\.vercel\.app$/,  // all Vercel preview URLs
-    /^https:\/\/[a-z0-9-]+\.railway\.app$/,                       // Railway internal services
+    /^https:\/\/[a-z0-9-]+\.railway\.app$/,                       // Railway internal services (legacy)
+    /^https:\/\/[a-z0-9-]+\.onrender\.com$/,                      // Render preview & internal URLs
 ]
 
 const corsOptions = {
@@ -135,7 +137,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https:", "blob:"],
-            connectSrc: ["'self'", "https://api.intelligrid.online", "https://backend.intelligrid.online", "https://*.algolia.net", "https://*.sentry.io", "https://clerk.intelligrid.online", "https://*.clerk.accounts.dev"],
+            connectSrc: ["'self'", "https://api.intelligrid.online", "https://backend.intelligrid.online", "https://*.onrender.com", "https://*.algolia.net", "https://*.sentry.io", "https://clerk.intelligrid.online", "https://*.clerk.accounts.dev"],
             frameSrc: ["'self'", "https://www.paypal.com", "https://js.cashfree.com"],
         }
     }

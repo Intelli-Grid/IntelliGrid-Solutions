@@ -51,7 +51,7 @@ router.get('/stats', async (req, res) => {
 
         const totalRevenueResult = await Order.aggregate([
             { $match: { status: 'completed' } },
-            { $group: { _id: null, total: { $sum: '$amount.total' } } }
+            { $group: { _id: null, total: { $sum: '$normalizedAmountUSD' } } }  // use normalised USD — avoids mixing USD + INR amounts
         ])
 
         res.json({
@@ -447,7 +447,7 @@ router.post('/users/:id/subscription', async (req, res) => {
 
         // Map tier names to User model enum values (same logic as paymentService)
         const TIER_MAP = {
-            pro: 'Premium', Pro: 'Premium', premium: 'Premium', Premium: 'Premium',
+            pro: 'Pro', Pro: 'Pro', premium: 'Pro', Premium: 'Pro',   // aligned with paymentService.activateSubscription
             basic: 'Basic', Basic: 'Basic',
             enterprise: 'Enterprise', Enterprise: 'Enterprise',
             free: 'Free', Free: 'Free',

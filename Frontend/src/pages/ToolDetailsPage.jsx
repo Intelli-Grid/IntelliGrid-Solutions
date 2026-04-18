@@ -184,10 +184,15 @@ export default function ToolDetailsPage() {
 
     const toolSchemaStr = generateToolSchema(tool)
     const breadcrumbSchemaStr = generateBreadcrumbSchema(breadcrumbItems)
-    const schemas = [
-        toolSchemaStr ? JSON.parse(toolSchemaStr) : null,
-        breadcrumbSchemaStr ? JSON.parse(breadcrumbSchemaStr) : null
-    ].filter(Boolean)
+    let schemas = []
+    try {
+        const t = toolSchemaStr ? JSON.parse(toolSchemaStr) : null
+        const b = breadcrumbSchemaStr ? JSON.parse(breadcrumbSchemaStr) : null
+        schemas = [t, b].filter(Boolean)
+    } catch (e) {
+        console.warn('[ToolDetailsPage] Schema JSON parse failed:', e.message)
+        schemas = []
+    }
 
     return (
         <div className="bg-gray-950 min-h-screen pb-24 text-white font-sans antialiased">

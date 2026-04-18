@@ -127,14 +127,7 @@ function App() {
                                     </ProtectedRoute>
                                 }
                             />
-                            <Route
-                                path="/payment/success"
-                                element={
-                                    <ProtectedRoute>
-                                        <PaymentSuccessPage />
-                                    </ProtectedRoute>
-                                }
-                            />
+                            <Route path="/payment/success" element={<PaymentSuccessPage />} />
                             <Route path="/payment/cancel" element={<PaymentCancelPage />} />
 
 

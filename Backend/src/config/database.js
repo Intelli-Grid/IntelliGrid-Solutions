@@ -6,8 +6,7 @@ dotenv.config()
 const connectDB = async () => {
     try {
         const conn = await mongoose.connect(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 60000, // 60s — handles Render/Railway cold starts
         })
 
         console.log(`✅ MongoDB Connected: ${conn.connection.host}`)

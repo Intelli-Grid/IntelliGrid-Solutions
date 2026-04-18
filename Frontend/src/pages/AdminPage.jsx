@@ -838,7 +838,7 @@ function UsersTab() {
         if (!subModal) return
         setSubLoading(true)
         try {
-            const res = await adminService.overrideSubscription(subModal.userId, subAction, subTier, subDuration)
+            const res = await adminService.overrideSubscription(subModal.userId, { action: subAction, tier: subTier, duration: subDuration })
             if (res.success) {
                 toast({ title: 'âœ… Done', description: res.message })
                 setSubModal(null)

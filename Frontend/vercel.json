@@ -2,11 +2,11 @@
     "rewrites": [
         {
             "source": "/sitemap.xml",
-            "destination": "https://backend.intelligrid.online/sitemap.xml"
+            "destination": "https://api.intelligrid.online/sitemap.xml"
         },
         {
             "source": "/robots.txt",
-            "destination": "https://backend.intelligrid.online/robots.txt"
+            "destination": "https://api.intelligrid.online/robots.txt"
         },
         {
             "source": "/(.*)",

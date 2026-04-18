@@ -209,7 +209,7 @@ export default function CheckoutPage() {
         setCouponLoading(true)
         setCouponError(null)
         try {
-            const res = await couponService.validate(couponInput.trim())
+            const res = await couponService.validate(couponInput.trim(), planId)
             if (res.success) {
                 setCouponData(res.coupon)
                 setCouponCode(couponInput.trim().toUpperCase())
