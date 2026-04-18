@@ -1,12 +1,13 @@
+# NOTE: The canonical render.yaml is at the repo root (../render.yaml).
+# Render reads from the root. This file is kept for reference only.
 services:
   - type: web
     name: intelligrid-backend
     env: node
-    region: oregon          # us-west-2 — closest to MongoDB Atlas us-east should still be fine
+    region: oregon
+    rootDir: Backend
     buildCommand: npm install
     startCommand: node src/server.js
     healthCheckPath: /health
-    # Render auto-injects PORT, RENDER_EXTERNAL_URL, and RENDER_EXTERNAL_HOSTNAME
-    # All other secrets must be set in the Render dashboard under Environment > Environment Groups
     envVars:
       - fromGroup: intelligrid-production
