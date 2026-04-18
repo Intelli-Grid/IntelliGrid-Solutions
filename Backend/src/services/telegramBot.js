@@ -464,11 +464,11 @@ function createBot() {
     })
     
     instance.command('logs', async (ctx) => {
-        await ctx.reply('ℹ️ System running on Railway. Please check Railway dashboard for direct container logs: https://railway.app')
+        await ctx.reply('ℹ️ System running on Render. Check live logs at: https://dashboard.render.com → intelligrid-backend → Logs')
     })
     
     instance.command('restart', async (ctx) => {
-        await ctx.reply('⚠️ Restart via Telegram is disabled unless RAILWAY_API_TOKEN is set. Use Railway dashboard.')
+        await ctx.reply('⚠️ To restart: Render Dashboard → intelligrid-backend → Manual Deploy → Deploy latest commit.')
     })
 
     // ── /users ────────────────────────────────────────────────────────────────
