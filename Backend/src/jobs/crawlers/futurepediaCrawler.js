@@ -2,171 +2,184 @@
  * futurepediaCrawler.js
  * Crawls Futurepedia (futurepedia.io) for AI tool listings.
  *
- * Strategy (Cloudflare-safe):
- *  1. Fetch sitemap index → find tools sitemap URL
- *  2. Parse tools sitemap XML → extract all /tool/[slug] URLs
- *  3. For each tool URL, scrape the detail page extracting:
- *     - Tool name from <h1>
- *     - Official URL from CTA button
- *     - Description from meta tags / og:description
- *     - Category and tags from page content
- *     - Pricing from pricing section
+ * Strategy (confirmed working as of April 2026):
  *
- * WHY SITEMAP: Futurepedia uses Cloudflare. Sitemaps are served
- * without JS challenge pages because they're intended for search
- * engine bots. This is the same approach used by TAAFT crawler.
+ *  1. SITEMAP — fetch https://www.futurepedia.io/sitemap_tools.xml DIRECTLY.
+ *     Futurepedia lists this in robots.txt. It contains 1,300+ /tool/[slug] URLs
+ *     and is accessible without ScraperAPI (direct requests return 200).
+ *     NOTE: sitemap.xml is a flat page-level sitemap — NOT the tools one.
  *
- * Polite crawling: 1.5s delay between requests.
+ *  2. TOOL DETAIL PAGES — ScraperAPI render:true.
+ *     Tool pages are a client-rendered React app. Without JS execution,
+ *     the "Visit Site" button's href is never rendered into the DOM.
+ *     ScraperAPI render:true runs a headless browser and returns the
+ *     fully hydrated HTML containing all dynamic content.
+ *
+ *  3. officialUrl extraction — look for any href containing
+ *     '?utm_source=futurepedia'. Futurepedia appends these UTM params
+ *     to EVERY outbound tool link. Strip UTM params → official URL.
+ *
+ *  4. logo — decode the 'image=' query param from og:image.
+ *     e.g. og:image includes "&image=https%3A%2F%2Fcdn.futurepedia.io%2F..."
+ *     Decoded → the real tool CDN thumbnail URL.
+ *
+ * ScraperAPI credits per run:
+ *  - sitemap fetch: 0 (direct)
+ *  - per tool page: ~5 credits (render:true)
+ *  - 300 tools = ~1,500 credits from the monthly 5,000 free budget
  */
 
+import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { scraperGet, isProxyEnabled } from '../../config/scraperClient.js'
 
 const BASE_URL = 'https://www.futurepedia.io'
-const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '1500')
+const TOOLS_SITEMAP = `${BASE_URL}/sitemap_tools.xml`
+const DELAY_MS = parseInt(process.env.CRAWLER_DELAY_MS || '2000')
+
+// Direct client for sitemap (no proxy needed — sitemaps return 200 directly)
+const directClient = axios.create({
+    timeout: 30000,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        Accept: 'application/xml, text/xml, */*',
+    },
+})
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms))
 }
 
 /**
- * Fetches the sitemap index and returns the URL of the tools sitemap.
- * Futurepedia typically has sitemap-0.xml, sitemap.xml, or a sitemap index.
+ * Parses a CDN logo URL out of Futurepedia's og:image meta tag.
+ * og:image looks like:
+ *   https://www.futurepedia.io/api/og?title=...&image=https%3A%2F%2Fcdn.futurepedia.io%2F...
  */
-async function getToolSitemapUrls() {
-    const sitemapCandidates = [
-        `${BASE_URL}/sitemap.xml`,
-        `${BASE_URL}/sitemap-0.xml`,
-        `${BASE_URL}/sitemap_index.xml`,
-    ]
-
-    for (const sitemapUrl of sitemapCandidates) {
-        try {
-            console.log(`[Futurepedia] Trying sitemap: ${sitemapUrl}`)
-            const { data: xml } = await scraperGet(sitemapUrl, {
-                extraHeaders: { Accept: 'application/xml, text/xml, */*' }
-            })
-
-            const $ = cheerio.load(xml, { xmlMode: true })
-            const toolUrls = []
-
-            // Case 1: sitemap index — find the tools sub-sitemap and recurse
-            const subSitemaps = []
-            $('sitemap loc').each((_, el) => {
-                subSitemaps.push($(el).text().trim())
-            })
-
-            if (subSitemaps.length > 0) {
-                console.log(`[Futurepedia] Found sitemap index with ${subSitemaps.length} sub-sitemaps`)
-                // Look for the tools-specific sitemap
-                const toolSitemap = subSitemaps.find(s =>
-                    s.includes('tool') || s.includes('ai-tool') || s.includes('app')
-                ) || subSitemaps[0]
-
-                const { data: subXml } = await scraperGet(toolSitemap, {
-                    extraHeaders: { Accept: 'application/xml, text/xml, */*' }
-                })
-                const $sub = cheerio.load(subXml, { xmlMode: true })
-                $sub('url loc').each((_, el) => {
-                    const loc = $sub(el).text().trim()
-                    if (loc.includes('/tool/') || loc.includes('/ai/')) {
-                        toolUrls.push(loc)
-                    }
-                })
-
-                if (toolUrls.length > 0) {
-                    console.log(`[Futurepedia] Found ${toolUrls.length} tool URLs from sub-sitemap`)
-                    return toolUrls
-                }
-            }
-
-            // Case 2: flat sitemap — extract tool URLs directly
-            $('url loc').each((_, el) => {
-                const loc = $(el).text().trim()
-                if (loc.includes('/tool/') || loc.includes('/ai/')) {
-                    toolUrls.push(loc)
-                }
-            })
-
-            if (toolUrls.length > 0) {
-                console.log(`[Futurepedia] Found ${toolUrls.length} tool URLs from ${sitemapUrl}`)
-                return toolUrls
-            }
-
-        } catch (err) {
-            console.warn(`[Futurepedia] Sitemap ${sitemapUrl} failed: ${err.message}`)
+function extractLogoFromOgImage(ogImageUrl) {
+    if (!ogImageUrl) return null
+    try {
+        const match = ogImageUrl.match(/[?&]image=([^&]+)/)
+        if (match) {
+            const decoded = decodeURIComponent(match[1])
+            // Accept CDN URLs (cdn.futurepedia.io, cloudinary, etc.)
+            if (decoded.startsWith('http')) return decoded
         }
-    }
+    } catch { /* ignore */ }
+    return null
+}
 
-    console.warn('[Futurepedia] All sitemap candidates failed — site may be fully blocking requests')
-    return []
+/**
+ * Normalise a pricing string to one of: Free | Freemium | Paid | Trial | Unknown
+ */
+function normalizePricing(raw = '') {
+    const r = raw.toLowerCase()
+    if (r.includes('freemium') || (r.includes('free') && r.includes('paid'))) return 'Freemium'
+    if (r.includes('free')) return 'Free'
+    if (r.includes('trial')) return 'Trial'
+    if (r.includes('paid') || r.includes('premium') || r.includes('pro') || r.includes('subscri')) return 'Paid'
+    return 'Unknown'
+}
+
+/**
+ * Fetches the tools sitemap DIRECTLY (no ScraperAPI — not needed for XML).
+ * Returns an array of /tool/[slug] absolute URLs.
+ */
+async function getToolUrlsFromSitemap() {
+    console.log(`[Futurepedia] Fetching tools sitemap: ${TOOLS_SITEMAP}`)
+    try {
+        const { data: xml } = await directClient.get(TOOLS_SITEMAP)
+        const $ = cheerio.load(xml, { xmlMode: true })
+        const urls = []
+
+        $('url loc').each((_, el) => {
+            const loc = $(el).text().trim()
+            if (loc.includes('/tool/')) urls.push(loc)
+        })
+
+        console.log(`[Futurepedia] Sitemap parsed — ${urls.length} tool URLs found`)
+        return urls
+    } catch (err) {
+        console.error(`[Futurepedia] Sitemap fetch failed: ${err.message}`)
+        return []
+    }
 }
 
 /**
  * Scrapes a single Futurepedia tool detail page.
+ * Uses ScraperAPI render:true to execute JavaScript and hydrate the React DOM.
+ *
+ * Key data extracted:
+ *  - name         → <h1> text (clean tool name, e.g. "Replika")
+ *  - officialUrl  → href containing '?utm_source=futurepedia' (strip UTM)
+ *  - description  → meta[name="description"] content
+ *  - logo         → decoded from og:image URL parameter
+ *  - pricing      → best effort from page text
+ *  - tags         → mined from page badges/pills if available
  */
 async function scrapeToolPage(toolUrl) {
     try {
-        const { data: html } = await scraperGet(toolUrl)
+        // render:true = ScraperAPI runs headless Chrome → returns hydrated HTML
+        const { data: html } = await scraperGet(toolUrl, { render: true })
         const $ = cheerio.load(html)
 
-        // Try __NEXT_DATA__ first (fastest when available)
-        const nextDataScript = $('#__NEXT_DATA__').html()
-        if (nextDataScript) {
-            try {
-                const nextData = JSON.parse(nextDataScript)
-                const props = nextData?.props?.pageProps
-                const tool = props?.tool || props?.data?.tool || props?.pageData
-                if (tool?.name && (tool?.url || tool?.website)) {
-                    return {
-                        name: tool.name.trim(),
-                        officialUrl: (tool.url || tool.website || '').split('?')[0],
-                        shortDescription: (tool.description || tool.shortDescription || '').substring(0, 499),
-                        category: tool.category?.name || tool.categories?.[0]?.name || '',
-                        tags: (tool.tags || tool.categories || []).map(t => t?.name || t).filter(Boolean).slice(0, 10),
-                        pricing: normalizePricing(tool.pricing || tool.pricingType || ''),
-                        logo: tool.logo || tool.thumbnail || tool.image || $('meta[property="og:image"]').attr('content') || null,
-                        source: 'futurepedia',
-                        sourceUrl: toolUrl,
-                    }
-                }
-            } catch { /* fall through to HTML scraping */ }
-        }
-
-        // Fallback: scrape from HTML meta tags and page structure
+        // ── Name ─────────────────────────────────────────────────────────────
         const name = $('h1').first().text().trim()
-            || $('title').text().split('|')[0].trim()
-            || $('meta[property="og:title"]').attr('content')?.split('|')[0].trim()
-
+            || $('meta[property="og:title"]').attr('content')?.split(' Reviews:')[0]?.split(' - ')[0]?.trim()
         if (!name || name.length < 2) return null
 
+        // ── Description ───────────────────────────────────────────────────────
         const description = $('meta[name="description"]').attr('content')
             || $('meta[property="og:description"]').attr('content')
-            || $('p').first().text().trim()
+            || ''
 
-        const logo = $('meta[property="og:image"]').attr('content') || null
-
-        // Find the official tool URL — look for external CTA links
+        // ── Official URL (frequency-based UTM extraction) ──────────────────────
+        // Futurepedia appends ?utm_source=futurepedia to ALL outbound links.
+        // The main tool's CTA appears 2-3x on a page (hero + sticky bar + inline).
+        // Related/competing tools each appear only once.
+        // So the MOST FREQUENT UTM domain = the main tool's official URL.
         let officialUrl = null
-        $('a[href]').each((_, el) => {
+
+        const utmCounts = new Map()
+        $('a[href*="utm_source=futurepedia"]').each((_, el) => {
             const href = $(el).attr('href') || ''
-            const text = $(el).text().toLowerCase().trim()
-            if ((text.includes('visit') || text.includes('try') || text.includes('open') || text.includes('get started') || text.includes('use it'))
-                && href.startsWith('http')
-                && !href.includes('futurepedia.io')) {
-                officialUrl = href.split('?')[0]
-                return false
-            }
+            try {
+                const u = new URL(href)
+                const domain = u.origin + (u.pathname !== '/' ? u.pathname : '/') // keep path if meaningful
+                u.search = ''
+                const clean = u.toString()
+                if (!clean.includes('futurepedia.io')) {
+                    utmCounts.set(clean, (utmCounts.get(clean) || 0) + 1)
+                }
+            } catch { /* skip */ }
         })
 
-        // Second pass: any external link
+        if (utmCounts.size > 0) {
+            // Sort by frequency descending — highest count = main tool CTA
+            const sorted = [...utmCounts.entries()].sort((a, b) => b[1] - a[1])
+
+            // Bonus: prefer a URL whose domain matches the tool's slug words.
+            // e.g. slug 'hostinger-reach' → prefer domain containing 'hostinger'.
+            // This handles edge cases where a related tool's CTA appears more often.
+            const slugWords = toolUrl
+                .split('/tool/')[1]?.split('-')
+                .filter(w => w.length > 3) || []
+
+            const slugMatch = sorted.find(([url]) =>
+                slugWords.some(word => url.toLowerCase().includes(word))
+            )
+            officialUrl = (slugMatch || sorted[0])[0]
+        }
+
+        // Fallback: any external link in the main content area
         if (!officialUrl) {
-            $('a[href^="http"]').each((_, el) => {
+            $('main a[href^="http"], article a[href^="http"]').each((_, el) => {
                 const href = $(el).attr('href') || ''
-                if (!href.includes('futurepedia.io')
-                    && !href.includes('twitter.com') && !href.includes('t.co')
-                    && !href.includes('linkedin.com') && !href.includes('youtube.com')
-                    && !href.includes('instagram.com') && !href.includes('facebook.com')) {
+                if (!href.includes('futurepedia') &&
+                    !href.includes('twitter') && !href.includes('x.com') &&
+                    !href.includes('linkedin') && !href.includes('youtube') &&
+                    !href.includes('instagram') && !href.includes('facebook') &&
+                    !href.includes('tiktok') && !href.includes('discord') &&
+                    !href.includes('github')) {
                     officialUrl = href.split('?')[0]
                     return false
                 }
@@ -175,80 +188,114 @@ async function scrapeToolPage(toolUrl) {
 
         if (!officialUrl) return null
 
-        const tags = []
-        $('[class*="tag"], [class*="category"], [class*="badge"], [class*="pill"]').each((_, el) => {
+        // ── Logo ──────────────────────────────────────────────────────────────
+        const ogImage = $('meta[property="og:image"]').attr('content') || ''
+        const logo = extractLogoFromOgImage(ogImage)
+
+        // ── Tags / Category ───────────────────────────────────────────────────
+        // Futurepedia's global nav/sidebar renders on every page — must be filtered out.
+        const FP_NAV_BLOCKLIST = new Set([
+            'AI Agents', 'Productivity Tools', 'Image Generators', 'Text Generators',
+            'Video Tools', 'Art Generators', 'Audio Generators', 'Best AI Art Generators',
+            'AI Tools', 'All Tools', 'New Tools', 'Top Tools', 'Free Tools',
+            'Writing Generators', 'Code Tools', 'Business Tools', 'Education Tools',
+            'Research Tools', 'Social Media Tools', 'SEO Tools', 'Design Tools',
+            'Best AI Image Generators', 'Best AI Chatbots', 'Best AI Text Generators',
+            'Best AI 3D Generators', 'Best AI Video Generators', 'Best AI Code Tools',
+            'Best AI Audio Generators', 'Best AI Writing Tools', 'Best AI Marketing Tools',
+            'Best AI Productivity Tools', 'Best AI Design Tools', 'Best AI SEO Tools',
+        ])
+
+        const tags = new Set()
+        $('[class*="tag"], [class*="badge"], [class*="pill"], [class*="category"], [class*="chip"]').each((_, el) => {
             const text = $(el).text().trim()
-            if (text && text.length < 50) tags.push(text)
+            if (text &&
+                text.length > 1 &&
+                text.length < 50 &&
+                !/^\d+$/.test(text) &&
+                !text.startsWith('#') &&
+                !text.toLowerCase().includes('browse') &&
+                !FP_NAV_BLOCKLIST.has(text)
+            ) {
+                tags.add(text)
+            }
+        })
+        // Category links from /ai-tools/[slug] hrefs are reliable category names
+        $('a[href*="/ai-tools/"]').each((_, el) => {
+            const text = $(el).text().trim()
+            if (text && text.length > 1 && text.length < 40 &&
+                !text.startsWith('#') &&
+                !text.toLowerCase().includes('browse') &&
+                !FP_NAV_BLOCKLIST.has(text)) {
+                tags.add(text)
+            }
         })
 
-        const pricingText = $('[class*="pricing"], [class*="price"], [class*="plan"]').first().text().toLowerCase()
+        // ── Pricing ───────────────────────────────────────────────────────────
+        const pricingEl = $('[class*="pricing"], [class*="price"], [class*="plan"]').first().text().toLowerCase()
+        const pageText = $('body').text().toLowerCase().substring(0, 3000)
+        const pricingRaw = pricingEl || pageText
+        const pricing = normalizePricing(pricingRaw)
 
         return {
             name,
             officialUrl,
-            shortDescription: (description || '').substring(0, 499),
-            category: tags[0] || '',
-            tags: [...new Set(tags)].slice(0, 10),
-            pricing: normalizePricing(pricingText),
-            logo,
+            shortDescription: description.substring(0, 499),
+            category: [...tags][0] || '',
+            tags: [...tags].slice(0, 10),
+            pricing,
+            logo: logo || null,
             source: 'futurepedia',
             sourceUrl: toolUrl,
         }
     } catch (err) {
+        // ScraperAPI timeout or network error — skip this tool
         return null
     }
-}
-
-function normalizePricing(raw = '') {
-    const r = raw.toLowerCase()
-    if (r.includes('freemium') || (r.includes('free') && r.includes('paid'))) return 'Freemium'
-    if (r.includes('free')) return 'Free'
-    if (r.includes('trial')) return 'Trial'
-    if (r.includes('paid') || r.includes('premium') || r.includes('pro')) return 'Paid'
-    return 'Unknown'
 }
 
 /**
  * Main crawler entry point for Futurepedia.
  *
- * @param {{ maxPages: number, maxTools: number, onProgress: Function }} options
+ * @param {{ maxTools: number, onProgress: Function }} options
  * @returns {Promise<Array>} Raw tool objects ready for normalizeToSchema()
  */
-export async function crawlFuturepedia({ maxPages = 30, maxTools = 300, onProgress } = {}) {
-    console.log('[Futurepedia] Starting crawl via sitemap (Cloudflare-safe)...')
+export async function crawlFuturepedia({ maxTools = 300, onProgress } = {}) {
+    console.log('[Futurepedia] Starting crawl...')
+    console.log(`[Futurepedia] Sitemap: direct fetch (no proxy needed)`)
+    console.log(`[Futurepedia] Detail pages: ${isProxyEnabled() ? '✅ ScraperAPI render:true' : '❌ No SCRAPER_API_KEY — tool URLs found but detail scraping will fail'}`)
 
-    const toolUrls = await getToolSitemapUrls()
+    if (!isProxyEnabled()) {
+        console.error('[Futurepedia] SCRAPER_API_KEY is required for detail page scraping. Set it in .env')
+        return []
+    }
 
+    const toolUrls = await getToolUrlsFromSitemap()
     if (toolUrls.length === 0) {
-        console.warn('[Futurepedia] No tool URLs found from sitemap. Site may be blocking all requests.')
+        console.warn('[Futurepedia] No tool URLs from sitemap — stopping.')
         return []
     }
 
     const urlsToProcess = toolUrls.slice(0, maxTools)
-    console.log(`[Futurepedia] Processing ${urlsToProcess.length} tool URLs...`)
-
-    const toolUrl = urlsToProcess[0]
-    const start = Date.now()
-    console.log(`[Futurepedia] Proxy enabled: ${isProxyEnabled() ? '✅ ScraperAPI' : '❌ Direct (may be blocked)'}`)
+    console.log(`[Futurepedia] Processing ${urlsToProcess.length} of ${toolUrls.length} tool URLs...`)
 
     const results = []
-    const BATCH_SIZE = 3
+    // Sequential to respect ScraperAPI rate limits and avoid hammering Futurepedia
+    const BATCH_SIZE = 2
 
     for (let i = 0; i < urlsToProcess.length; i += BATCH_SIZE) {
         const batch = urlsToProcess.slice(i, i + BATCH_SIZE)
 
         const batchResults = await Promise.allSettled(batch.map(url => scrapeToolPage(url)))
-
-        batchResults.forEach(result => {
-            if (result.status === 'fulfilled' && result.value) {
-                results.push(result.value)
-            }
+        batchResults.forEach(r => {
+            if (r.status === 'fulfilled' && r.value) results.push(r.value)
         })
 
-        if (onProgress) onProgress({ done: Math.min(i + BATCH_SIZE, urlsToProcess.length), total: urlsToProcess.length, found: results.length })
+        const done = Math.min(i + BATCH_SIZE, urlsToProcess.length)
+        if (onProgress) onProgress({ done, total: urlsToProcess.length, found: results.length })
 
         if ((Math.floor(i / BATCH_SIZE) + 1) % 10 === 0) {
-            console.log(`[Futurepedia] Progress: ${Math.min(i + BATCH_SIZE, urlsToProcess.length)}/${urlsToProcess.length} — valid: ${results.length}`)
+            console.log(`[Futurepedia] Progress: ${done}/${urlsToProcess.length} — valid: ${results.length}`)
         }
 
         await sleep(DELAY_MS)
