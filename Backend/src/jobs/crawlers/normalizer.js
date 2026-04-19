@@ -158,8 +158,10 @@ export function normalizeToSchema(raw) {
         isEnriched: false,
         // Link health
         linkStatus: 'unknown',
-        isActive: true,
-        status: 'active',
+        // New crawled tools enter as pending for enrichment + admin review.
+        // Flow: pending → (Groq enrichment + score≥60) → auto_approved → (admin) → active
+        isActive: false,
+        status: 'pending',
         // Analytics defaults
         views: 0,
         favorites: 0,

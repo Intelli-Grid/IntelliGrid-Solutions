@@ -209,49 +209,75 @@ export function startCrawlerScheduler() {
     cron.schedule('30 20 * * *', async () => {
         console.log('[Scheduler] Nightly Pipeline starting via JobManager...')
         try {
-            await sendOwnerAlert('🕐 *Nightly Pipeline Started*\nSequential Queue: Futurepedia → TAAFT')
+            await sendOwnerAlert('🕐 *Nightly Pipeline Started*\nSequential Queue: Futurepedia → TAAFT → AIxploria')
 
-            // runAndWait: starts a job and polls until it exits.
-            // Throws on spawn failure so the caller can track it.
+            const { startJob, isRunning, getJobLog } = await import('../services/JobManager.js')
+
+            // Starts a job, waits for completion, returns the stdout log lines
             const runAndWait = async (jobId) => {
-                const { startJob, isRunning } = await import('../services/JobManager.js')
-                await startJob(jobId, { isNightly: true }) // throws if script not found
-                // Poll every 10 s until the process exits
+                await startJob(jobId, { isNightly: true })
                 while (isRunning(jobId)) {
                     await new Promise(r => setTimeout(r, 10000))
                 }
+                return getJobLog?.(jobId) || []
             }
 
-            // Track per-crawler results so the final alert is accurate
             const failures = []
+            const crawlerStats = {}  // { jobId: { inserted, updated, skipped } }
 
-            // Sequential execution to avoid RAM spikes on the Railway container.
-            // Each JS wrapper crawls its source and writes results directly to MongoDB.
             for (const jobId of ['crawler_futurepedia', 'crawler_taaft', 'crawler_aixploria']) {
                 try {
-                    await runAndWait(jobId)
+                    const logLines = await runAndWait(jobId)
+
+                    // Parse FUTUREPEDIA_RESULT:inserted:N:updated:M:skipped:P line if present
+                    const resultLine = logLines?.find?.(l => l.includes('_RESULT:inserted:'))
+                    if (resultLine) {
+                        const ins = resultLine.match(/inserted:(\d+)/)?.[1] || '0'
+                        const upd = resultLine.match(/updated:(\d+)/)?.[1] || '0'
+                        const skp = resultLine.match(/skipped:(\d+)/)?.[1] || '0'
+                        crawlerStats[jobId] = { inserted: +ins, updated: +upd, skipped: +skp }
+                    } else {
+                        crawlerStats[jobId] = { inserted: 0, updated: 0, skipped: 0 }
+                    }
                 } catch (err) {
                     console.error(`[Scheduler] Job ${jobId} failed:`, err.message)
                     failures.push({ jobId, error: err.message })
+                    crawlerStats[jobId] = null
                 }
             }
 
-            // ── Send accurate Telegram summary ────────────────────────────
+            // ── Build rich Telegram summary ───────────────────────────────────
+            const CRAWLER_LABELS = {
+                crawler_futurepedia: 'Futurepedia',
+                crawler_taaft: 'TAAFT',
+                crawler_aixploria: 'AIxploria',
+            }
+
+            const statLines = Object.entries(crawlerStats).map(([jobId, s]) => {
+                const label = CRAWLER_LABELS[jobId] || jobId
+                if (!s) return `❌ ${label}: failed`
+                if (s.inserted === 0 && s.updated === 0) return `⚠️ ${label}: 0 new tools`
+                return `✅ ${label}: +${s.inserted} new, ${s.updated} updated`
+            }).join('\n')
+
+            const totalInserted = Object.values(crawlerStats)
+                .filter(Boolean)
+                .reduce((sum, s) => sum + s.inserted, 0)
+
             if (failures.length === 0) {
                 await sendOwnerAlert(
-                    '✅ *Nightly Pipeline Complete*\n' +
-                    'All crawlers finished. New tools are staged as `pending` in MongoDB.\n' +
-                    'They will be enriched in the next Groq batch (runs every 4h).'
+                    `✅ *Nightly Pipeline Complete*\n\n` +
+                    statLines + '\n\n' +
+                    `📥 *${totalInserted} new tools staged as \`pending\`*\n` +
+                    `They will be enriched in the next Groq batch (runs every 4h).`
                 )
             } else {
-                const succeeded = 2 - failures.length
-                const failLines = failures.map(f => `❌ ${f.jobId}: ${f.error.slice(0, 120)}`).join('\n')
+                const failLines = failures.map(f => `❌ ${CRAWLER_LABELS[f.jobId] || f.jobId}: ${f.error.slice(0, 100)}`).join('\n')
                 await sendOwnerAlert(
                     `⚠️ *Nightly Pipeline — ${failures.length} failure(s)*\n\n` +
+                    statLines + '\n\n' +
                     failLines + '\n\n' +
-                    (succeeded > 0
-                        ? `✅ ${succeeded} crawler(s) succeeded. Check /jobstatus for details.`
-                        : '❌ All crawlers failed.')
+                    `📥 *${totalInserted} new tools staged as \`pending\`*`
                 )
             }
 
