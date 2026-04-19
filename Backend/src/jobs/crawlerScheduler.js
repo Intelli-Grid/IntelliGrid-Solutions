@@ -287,7 +287,8 @@ export function startCrawlerScheduler() {
                         status: 'active',
                         isActive: true,
                         isEnriched: true,
-                        enrichedAt: { $gte: fourHoursAgo },
+                        // BUG FIX: was `enrichedAt` — enrichmentService.js sets `lastEnrichedAt`
+                        lastEnrichedAt: { $gte: fourHoursAgo },
                     })
                         .limit(600)
                         .select('name slug shortDescription longDescription category tags useCaseTags audienceTags industryTags keyFeatures alternativeTo pricing logo officialUrl views enrichmentScore isFeatured isTrending isEnriched hasFreeTier platforms')

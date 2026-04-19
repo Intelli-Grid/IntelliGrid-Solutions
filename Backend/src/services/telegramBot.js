@@ -76,10 +76,10 @@ function createBot() {
             `/db\\_stats — DB overview\n` +
             `/sync\\_algolia — Force Algolia re-index\n` +
             `/enrichment\\_status — Enrichment overview\n\n` +
-            `*⚙️ Background Jobs (V2)*\n` +
+            `*⚙️ Background Jobs*\n` +
             `/jobstatus — View all running/past jobs\n` +
-            `/crawl <source> — Run Python crawler in background\n` +
-            `/enrich — Run bulk enrichment via JobManager\n` +
+            `/crawl <source> — Run crawler (futurepedia / taaft / aixploria)\n` +
+            `/enrich — Run bulk enrichment (10-key Groq rotation)\n` +
             `/stopjob <id> — Gracefully stop a running job\n\n` +
             `*👥 Users*\n` +
             `/user <email> — Look up a user\n` +
@@ -732,6 +732,47 @@ function createBot() {
     // ── /start_crawler (Deprecated) ───────────────────────────────────────────
     instance.command('start_crawler', async (ctx) => {
         await ctx.reply('⚠️ This command is deprecated. Please use `/crawl <source>` (e.g. `/crawl futurepedia`) to run via the persistent JobManager.', { parse_mode: 'Markdown' })
+    })
+
+    // ── /batchreview alias → /reviewbatch ────────────────────────────────────
+    instance.command('batchreview', async (ctx) => {
+        await ctx.reply('💡 Tip: The command is /reviewbatch (not /batchreview)\n\nRunning it now...')
+        // Re-use the reviewbatch logic by emitting a fake command below
+        // The simplest safe approach: just call the DB query and send the same review card
+        try {
+            const { Tool: T } = await getModels()
+            const staged = await T.countDocuments({ status: 'auto_approved' })
+            if (staged === 0) {
+                return ctx.reply('ℹ️ No tools are staged for review.\nRun /approvebatch if you want to bulk-publish pending enriched tools.')
+            }
+            const tool = await T.findOne({ status: 'auto_approved' })
+                .sort({ stagedAt: 1 })
+                .populate('category', 'name')
+                .lean()
+            if (!tool) return ctx.reply('❌ No staged tools found.')
+            const msg =
+                `🔍 *Review Tool — ${staged} Remaining*\n` +
+                `━━━━━━━━━━━━━━━━━\n` +
+                `🔥 *${tool.name}*\n` +
+                `🏷 Category: ${tool.category?.name || 'Unknown'}\n` +
+                `💰 Pricing: ${tool.pricing}\n` +
+                `📊 Score: ${tool.enrichmentScore || 'N/A'}\n\n` +
+                `📝 ${tool.shortDescription}\n\n` +
+                `🔗 [Visit Tool](${tool.officialUrl})`
+            const { Markup } = await import('telegraf')
+            await ctx.replyWithMarkdown(msg, {
+                disable_web_page_preview: true,
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`✅ Accept — Go Live`, `ratool_accept_${tool._id}`),
+                        Markup.button.callback(`❌ Reject — Back to Pending`, `ratool_reject_${tool._id}`),
+                    ],
+                    [Markup.button.callback(`⏭ Skip (keep staged)`, `ratool_skip_${tool._id}`)],
+                ])
+            })
+        } catch (err) {
+            ctx.reply(`❌ Error: ${err.message}`)
+        }
     })
 
     // ── /crawler_status ───────────────────────────────────────────────────────
