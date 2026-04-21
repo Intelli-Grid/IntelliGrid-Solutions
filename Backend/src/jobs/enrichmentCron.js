@@ -25,10 +25,11 @@ import Tool from '../models/Tool.js'
 import Review from '../models/Review.js'
 import { enrichTool, getEnrichmentBatch } from '../services/enrichmentService.js'
 
-const BATCH_SIZE = 50
-const ENRICHMENT_DELAY_MS = 2500  // 24 req/min — safe under Groq 30 req/min free tier
-const CRON_SCHEDULE = '0 8 * * 1,3,5'  // Mon, Wed, Fri at 08:00 UTC
 const DAILY_SCORE_SCHEDULE = '0 3 * * *' // Daily at 3:00 AM UTC — recompute scores
+// NOTE: BATCH_SIZE / ENRICHMENT_DELAY_MS / CRON_SCHEDULE removed.
+// AI enrichment (Groq batch) is now exclusively owned by crawlerScheduler.js
+// which runs every 4h and uses the 10-key rotator. enrichmentCron.js only
+// handles the daily trendingScore recomputation (no Groq calls).
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms))
@@ -188,9 +189,8 @@ export async function runEnrichmentCheck({ batchSize = BATCH_SIZE } = {}) {
 }
 
 export function startEnrichmentCron() {
-    cron.schedule(CRON_SCHEDULE, () => runEnrichmentCheck())
-
-    // Also run trendingScore computation daily at 3AM (lightweight, no Groq calls)
+    // AI enrichment (Groq batch) is owned by crawlerScheduler.js (every 4h).
+    // This cron ONLY handles the daily trendingScore recomputation — no Groq calls.
     cron.schedule(DAILY_SCORE_SCHEDULE, async () => {
         console.log('📊 [trendingScore] Daily score recompute starting...')
         try {
@@ -200,5 +200,5 @@ export function startEnrichmentCron() {
         }
     })
 
-    console.log(`📅 [enrichmentCron] Scheduled — enrichment Mon/Wed/Fri 08:00 UTC, trendingScore daily 03:00 UTC`)
+    console.log(`📅 [enrichmentCron] Scheduled — trendingScore daily 03:00 UTC (AI enrichment is in crawlerScheduler every 4h)`)
 }

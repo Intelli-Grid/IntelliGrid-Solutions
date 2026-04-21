@@ -140,7 +140,16 @@ class GroqKeyRotator {
     }
 }
 
-const groqRotator = new GroqKeyRotator()
+// Lazy initialisation — only create the rotator on first enrichment call.
+// This prevents a missing GROQ_API_KEY from crashing the module at import
+// time, which would kill all cron jobs (crawlers, trending-score, etc.).
+let _groqRotator = null
+function getGroqRotator() {
+    if (!_groqRotator) {
+        _groqRotator = new GroqKeyRotator() // throws clearly if no key is set
+    }
+    return _groqRotator
+}
 
 
 // ─────────────────────────────────────────────────────────────
@@ -201,7 +210,7 @@ Return EXACTLY this JSON structure (no extra fields, no missing fields):
 
     try {
         // groqRotator handles TPD rotation + TPM retry internally
-        const response = await groqRotator.complete({
+        const response = await getGroqRotator().complete({
             model: 'llama-3.1-8b-instant',
             max_tokens: 1800,
             temperature: 0.15,

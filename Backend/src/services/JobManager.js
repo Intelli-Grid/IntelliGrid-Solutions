@@ -25,6 +25,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // ── In-memory process registry: { jobId → ChildProcess } ──────────────────────
 const runningProcesses = new Map()
 
+// ── Per-job stdout log store: { jobId → string[] } ────────────────────────────
+// Accumulates last 200 stdout lines per job so crawlerScheduler can inspect
+// RESULT: lines after the child process exits (e.g. TAAFT_RESULT:inserted:5:...)
+const jobLogStore = new Map()
+
 // ── Job definitions ─────────────────────────────────────────────────────────────
 // Maps a stable jobId to its executable details.
 //
@@ -169,6 +174,14 @@ export async function startJob(jobId, options = {}) {
       const trimmed = line.trim()
       if (!trimmed) continue
 
+      // Accumulate in log store so getJobLog() can return them after exit
+      {
+        const store = jobLogStore.get(jobId) || []
+        store.push(trimmed)
+        if (store.length > 200) store.shift()  // cap at 200 lines
+        jobLogStore.set(jobId, store)
+      }
+
       try {
         // Structured progress line: PROGRESS:processed:500:total:4000
         if (trimmed.startsWith('PROGRESS:')) {
@@ -225,6 +238,10 @@ export async function startJob(jobId, options = {}) {
     clearInterval(heartbeatInterval)
     runningProcesses.delete(jobId)
     console.log(`[JobManager] Job "${jobId}" exited — code=${code}, signal=${signal}`)
+
+    // Keep log store for 5 minutes after exit so crawlerScheduler can read RESULT lines,
+    // then clean up to avoid unbounded memory growth.
+    setTimeout(() => jobLogStore.delete(jobId), 5 * 60 * 1000)
 
     let state
     try { state = await JobState.findOne({ jobId }) } catch { state = null }
@@ -372,6 +389,19 @@ export function isRunning(jobId) {
  */
 export function getRunningJobIds() {
   return [...runningProcesses.keys()]
+}
+
+// ── GET JOB LOG ────────────────────────────────────────────────────────────────
+/**
+ * Returns the accumulated stdout log lines for a job.
+ * Available during execution and for 5 minutes after the job exits.
+ * Used by crawlerScheduler to read FUTUREPEDIA_RESULT/TAAFT_RESULT/AIXPLORIA_RESULT lines.
+ *
+ * @param {string} jobId
+ * @returns {string[]} Array of stdout log line strings (last 200)
+ */
+export function getJobLog(jobId) {
+  return jobLogStore.get(jobId) || []
 }
 
 // ── EXPORTS ─────────────────────────────────────────────────────────────────────

@@ -106,19 +106,32 @@ function computeEnrichScore(e, tool) {
     return Math.min(Math.round(score), 100)
 }
 
-export async function runEnrichmentBatch({ limit = 200 } = {}) {
-    // BUG FIX: Use enrichTool() from enrichmentService which has 10-key Groq rotation.
-    // Previously used a single groq key inline — caused 500/500 errors on rate limit.
-    const tools = await Tool.find({
-        isEnriched: { $ne: true },
-        status: { $in: ['active', 'pending'] },
-        // Do NOT filter by isActive — pending tools from crawlers
-        // have isActive:false and still need enrichment before staging.
-        linkStatus: { $ne: 'dead' },
-    }).limit(limit).populate('category', 'name slug').lean()
+// Shared query used by both the batch find and the remaining-count —
+// so both numbers always reflect the exact same set of tools.
+const UNENRICHED_QUERY = {
+    isEnriched: { $ne: true },
+    status: { $in: ['active', 'pending', 'auto_approved'] },
+    linkStatus: { $ne: 'dead' },
+}
 
+export async function runEnrichmentBatch({ limit = 200 } = {}) {
+    // Diagnostic: log GROQ key availability so Render logs show the issue immediately
+    const groqKeyCount = [
+        process.env.GROQ_API_KEY,   process.env.GROQ_API_KEY_2,
+        process.env.GROQ_API_KEY_3, process.env.GROQ_API_KEY_4,
+        process.env.GROQ_API_KEY_5, process.env.GROQ_API_KEY_6,
+        process.env.GROQ_API_KEY_7, process.env.GROQ_API_KEY_8,
+        process.env.GROQ_API_KEY_9, process.env.GROQ_API_KEY_10,
+    ].filter(Boolean).length
+    console.log(`[Enrichment] GROQ keys available: ${groqKeyCount}`)
+
+    const tools = await Tool.find(UNENRICHED_QUERY)
+        .limit(limit)
+        .populate('category', 'name slug')
+        .lean()
+
+    console.log(`[Enrichment] Query returned ${tools.length} unenriched tools (limit: ${limit})`)
     const stats = { processed: tools.length, enriched: 0, errors: 0 }
-    console.log(`[Enrichment] Processing ${tools.length} unenriched tools with 10-key rotator...`)
 
     for (const tool of tools) {
         try {
@@ -296,12 +309,9 @@ export function startCrawlerScheduler() {
         try {
             const stats = await runEnrichmentBatch({ limit: 500 })
 
-            // Count ALL remaining unenriched tools BEFORE branching on stats —
-            // we always want an accurate number for the Telegram message.
-            const remaining = await Tool.countDocuments({
-                isEnriched: { $ne: true },
-                status: { $in: ['active', 'pending'] },
-            })
+            // Count ALL remaining unenriched tools using the same query as the batch —
+            // so processed + remaining always add up correctly.
+            const remaining = await Tool.countDocuments(UNENRICHED_QUERY)
 
             if (stats.enriched > 0) {
                 // ── Re-sync freshly enriched ACTIVE tools to Algolia ──────────

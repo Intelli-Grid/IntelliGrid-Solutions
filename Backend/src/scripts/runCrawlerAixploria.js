@@ -35,6 +35,7 @@ async function main() {
 
     if (rawTools.length === 0) {
         console.log('⚠️  [AIXPLORIA] No tools extracted — possible Cloudflare block or structure change.')
+        console.log('AIXPLORIA_RESULT:inserted:0:updated:0:skipped:0')
         await mongoose.disconnect()
         process.exit(0)
     }
@@ -46,6 +47,7 @@ async function main() {
 
     const stats = await deduplicateAndUpsert(normalized)
     console.log(`[AIXPLORIA] DB result — inserted: ${stats.inserted}, updated: ${stats.updated}, skipped: ${stats.skipped}`)
+    console.log(`AIXPLORIA_RESULT:inserted:${stats.inserted}:updated:${stats.updated}:skipped:${stats.skipped}`)
 
     console.log(`PROGRESS:processed:10:total:10`)
     await mongoose.disconnect()
