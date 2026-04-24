@@ -117,6 +117,17 @@ router.patch('/tools/bulk-affiliate-status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'toolIds array is required' })
         }
 
+        // BUG-14 fix: Validate all IDs are valid MongoDB ObjectIds before calling updateMany.
+        // Invalid IDs silently produce zero updates, making debugging very difficult.
+        const { default: mongoose } = await import('mongoose')
+        const invalidIds = toolIds.filter(id => !mongoose.Types.ObjectId.isValid(id))
+        if (invalidIds.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid MongoDB ObjectId(s): ${invalidIds.slice(0, 3).join(', ')}`,
+            })
+        }
+
         const VALID_STATUSES = ['not_started', 'pending', 'approved', 'rejected', 'not_available']
         if (!VALID_STATUSES.includes(affiliateStatus)) {
             return res.status(400).json({
@@ -208,6 +219,15 @@ router.put('/tools/:id/approve', async (req, res) => {
             message: 'Tool approved successfully',
             tool: { _id: tool._id, name: tool.name, status: tool.status }
         })
+
+        // BUG-19 fix: Invalidate platform stats cache — tool count changed when a pending
+        // tool is approved. Without this, the homepage shows stale numbers for up to 5 minutes.
+        try {
+            const { default: redisClient } = await import('../config/redis.js')
+            if (redisClient?.isOpen) {
+                await redisClient.del('platform_stats_public').catch(() => {})
+            }
+        } catch (_) { /* non-fatal — cache miss just causes a DB fallback */ }
 
         // Fire-and-forget tweet — runs AFTER response is sent
         import('../services/twitterService.js')
@@ -790,6 +810,20 @@ router.post('/featured-listings', async (req, res) => {
             return res.status(400).json({ success: false, message: "tier must be 'standard' or 'premium'" })
         }
 
+        // BUG-13 fix: Validate dates are parseable ISO strings before calling new Date().
+        // new Date('invalid') produces Invalid Date which silently stores NaN in MongoDB.
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        if (isNaN(start.getTime())) {
+            return res.status(400).json({ success: false, message: 'startDate is not a valid ISO 8601 date string' })
+        }
+        if (isNaN(end.getTime())) {
+            return res.status(400).json({ success: false, message: 'endDate is not a valid ISO 8601 date string' })
+        }
+        if (end <= start) {
+            return res.status(400).json({ success: false, message: 'endDate must be after startDate' })
+        }
+
         const tool = await Tool.findById(toolId)
         if (!tool) return res.status(404).json({ success: false, message: 'Tool not found' })
 
@@ -813,6 +847,15 @@ router.post('/featured-listings', async (req, res) => {
         })
 
         console.log(`[Featured] Admin ${req.user.email} created ${tier} listing for "${tool.name}"`)
+
+        // BUG-19 fix: Invalidate the public featured listings cache whenever admin
+        // creates, updates, or removes a listing — visitors must see changes immediately.
+        try {
+            const { default: redisClient } = await import('../config/redis.js')
+            if (redisClient?.isOpen) {
+                await redisClient.del('featured_listings_public').catch(() => {})
+            }
+        } catch (_) { /* non-fatal */ }
 
         res.status(201).json({ success: true, listing })
     } catch (error) {
@@ -846,6 +889,12 @@ router.patch('/featured-listings/:id', async (req, res) => {
             await Tool.findByIdAndUpdate(listing.tool._id, { featuredTier: update.tier })
         }
 
+        // Invalidate featured listings cache (BUG-19)
+        try {
+            const { default: redisClient } = await import('../config/redis.js')
+            if (redisClient?.isOpen) await redisClient.del('featured_listings_public').catch(() => {})
+        } catch (_) {}
+
         res.json({ success: true, listing })
     } catch (error) {
         console.error('Featured listing update error:', error)
@@ -875,6 +924,12 @@ router.delete('/featured-listings/:id', async (req, res) => {
         if (otherActive === 0) {
             await Tool.findByIdAndUpdate(listing.tool, { isFeatured: false, featuredTier: null })
         }
+
+        // Invalidate featured listings cache (BUG-19)
+        try {
+            const { default: redisClient } = await import('../config/redis.js')
+            if (redisClient?.isOpen) await redisClient.del('featured_listings_public').catch(() => {})
+        } catch (_) {}
 
         res.json({ success: true, message: 'Listing deactivated and tool un-featured' })
     } catch (error) {

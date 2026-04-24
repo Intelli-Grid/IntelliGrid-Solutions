@@ -4,6 +4,18 @@ import ApiError from '../utils/ApiError.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import User from '../models/User.js'
 
+// BUG-17 fix: Single source of truth for authorizedParties.
+// Previously duplicated inline in both requireAuth and optionalAuth —
+// adding a new domain required updating two places (and one would always be missed).
+const AUTHORIZED_PARTIES = [
+    'https://www.intelligrid.online',
+    'https://intelligrid.online',
+    'https://admin.intelligrid.online',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5174',
+]
+
 /**
  * Verify Clerk JWT and authenticate user
  *
@@ -23,15 +35,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
         const token = authHeader.split(' ')[1]
 
         // Verify token with Clerk (local JWKS verification — no network call)
-        const authorizedParties = [
-            'https://www.intelligrid.online',
-            'https://intelligrid.online',
-            'https://admin.intelligrid.online',
-            'http://localhost:5173',
-            'http://localhost:3000',
-            'http://localhost:5174',
-        ]
-        const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties })
+        const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties: AUTHORIZED_PARTIES })
 
         if (!session) {
             throw ApiError.unauthorized('Invalid token')
@@ -139,15 +143,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
 
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1]
-            const authorizedParties = [
-                'https://www.intelligrid.online',
-                'https://intelligrid.online',
-                'https://admin.intelligrid.online',
-                'http://localhost:5173',
-                'http://localhost:3000',
-                'http://localhost:5174',
-            ]
-            const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties })
+            const session = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY, authorizedParties: AUTHORIZED_PARTIES })
 
             if (session) {
                 // DB-only lookup — no Clerk API call on the hot path

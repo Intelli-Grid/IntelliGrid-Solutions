@@ -37,7 +37,15 @@ app.listen(PORT, () => {
     // NOTE: linkValidationService.startScheduler() removed — its link-checking logic
     // duplicates linkHealthCron (Sunday 04:00 UTC). linkHealthCron is the canonical
     // link health job. linkValidationService is retained for its utility functions only.
-    discoveryScheduler.startScheduler()
+
+    // BUG-12 fix: Gate discoveryScheduler behind CRAWLER_ENABLED — mirrors the guard
+    // in app.js for startCrawlerScheduler(). Without this guard it ran unconditionally.
+    if (process.env.CRAWLER_ENABLED === 'true') {
+        discoveryScheduler.startScheduler()
+        console.log('[DiscoveryScheduler] Started (CRAWLER_ENABLED=true)')
+    } else {
+        console.log('[DiscoveryScheduler] Disabled (CRAWLER_ENABLED not set to true)')
+    }
 
     // Start cron jobs
     startTrialCron()       // Daily 08:00 UTC — trial lifecycle (expire, urgency, reminder, midpoint)

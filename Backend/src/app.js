@@ -1,4 +1,5 @@
 import express from 'express'
+import { randomUUID } from 'crypto'
 import dotenv from 'dotenv'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -322,6 +323,16 @@ app.use((req, res, next) => {
     next()
 })
 
+// ── Request Correlation IDs ──────────────────────────────────────────────────
+// BUG-24 fix: Attach a unique requestId to every request so errors in Sentry
+// and Railway logs can be correlated with user-reported incidents.
+// Propagates the upstream X-Request-Id header if already set (e.g. by Cloudflare).
+app.use((req, res, next) => {
+    req.requestId = req.headers['x-request-id'] || randomUUID()
+    res.setHeader('X-Request-Id', req.requestId)
+    next()
+})
+
 // ── Mount API Routes ──────────────────────────────────────────────────────────
 app.use('/api/v1/tools', toolRoutes)
 app.use('/api/v1/categories', categoryRoutes)
@@ -411,7 +422,9 @@ app.get('/api/v1/featured', async (req, res) => {
         if (!flagOn) return res.json({ listings: [] })
 
         const CACHE_KEY = 'featured_listings_public'
-        const CACHE_TTL = 300 // 5 minutes
+        // BUG-18 fix: Featured listings only change when an admin updates them.
+        // 5 min was too aggressive — raise to 30 min to reduce DB load on busy pages.
+        const CACHE_TTL = 1800 // 30 minutes
 
         // Try Redis cache first
         if (redisClient?.isOpen) {
@@ -465,6 +478,8 @@ app.use((err, req, res, next) => {
     }
 
     console.error('❌ Unhandled Error:', {
+        requestId: req.requestId,
+        userId: req.user?._id?.toString() || 'anonymous',
         message: err.message,
         statusCode: err.statusCode,
         path: req.originalUrl,

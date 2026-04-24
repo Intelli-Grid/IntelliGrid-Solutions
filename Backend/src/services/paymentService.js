@@ -223,7 +223,10 @@ class PaymentService {
                 customer_id: userId.toString(),
                 customer_email: userRecord?.email || 'noreply@intelligrid.online',
                 // Cashfree requires a 10-digit phone; use provided phone or fallback
-                customer_phone: customerPhone || '9999999999',
+                // '0000000000' is accepted by Cashfree PROD as a format-valid fallback.
+                // '9999999999' is a known test placeholder explicitly rejected by Cashfree PROD API.
+                // Best practice: collect the real phone on checkout (CheckoutPage.jsx phone input).
+                customer_phone: customerPhone || '0000000000',
             },
             order_meta: {
                 return_url: `${process.env.FRONTEND_URL}/payment/success?orderId={order_id}&method=cashfree`,

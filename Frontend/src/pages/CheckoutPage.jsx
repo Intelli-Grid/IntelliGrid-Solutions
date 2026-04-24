@@ -192,6 +192,14 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
 
+    // ── BUG-03 fix: Collect customer phone for Cashfree (Indian checkout).
+    // Cashfree PROD requires a valid 10-digit Indian mobile number on every order.
+    // Pre-fill from Clerk if available, otherwise let user type it at checkout.
+    const [customerPhone, setCustomerPhone] = useState(
+        () => user?.primaryPhoneNumber?.phoneNumber?.replace(/\D/g, '').slice(-10) || ''
+    )
+    const phoneIsValid = customerPhone.replace(/\D/g, '').length === 10
+
     // ── Derived values ────────────────────────────────────────────────────────
     const catalogue = PLAN_CATALOGUE[currency] || PLAN_CATALOGUE['USD']
     const plan = catalogue[planId]
@@ -269,8 +277,15 @@ export default function CheckoutPage() {
                 }
 
             } else if (paymentMethod === 'cashfree') {
-                const customerPhone = user?.primaryPhoneNumber?.phoneNumber || null
-                const response = await paymentService.createCashfreeOrder(planId, couponCode || null, customerPhone)
+                // BUG-03 fix: Use the phone collected from the input field (controlled state),
+                // not the Clerk profile phone which is almost never set for Indian users.
+                if (!phoneIsValid) {
+                    setError('Please enter a valid 10-digit mobile number for Cashfree payment.')
+                    setLoading(false)
+                    return
+                }
+                const rawPhone = customerPhone.replace(/\D/g, '').slice(-10)
+                const response = await paymentService.createCashfreeOrder(planId, couponCode || null, rawPhone)
                 const result = response?.data || response
 
                 if (result?.paymentSessionId || result?.payment_session_id) {
@@ -662,7 +677,43 @@ export default function CheckoutPage() {
                             )}
                         </div>
 
-                        {/* STEP 4 — Coupon (Cashfree only — PayPal subscriptions have fixed prices) */}
+                        {/* STEP 4 — Mobile Number (Cashfree only — required by Cashfree PROD API) */}
+                        {paymentMethod === 'cashfree' && isIndia && (
+                            <div className="mb-8">
+                                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                    Step 4 · Mobile Number <span className="normal-case font-normal">(required for UPI/Cashfree)</span>
+                                </h2>
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">+91</span>
+                                    <input
+                                        id="customer-phone"
+                                        type="tel"
+                                        inputMode="numeric"
+                                        maxLength={10}
+                                        value={customerPhone}
+                                        onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                        placeholder="10-digit mobile number"
+                                        className={`w-full rounded-xl border pl-12 pr-4 py-3 text-sm text-white placeholder-gray-600
+                                            bg-white/5 focus:outline-none focus:ring-2 transition-all
+                                            ${phoneIsValid
+                                                ? 'border-emerald-500/50 focus:ring-emerald-500/20'
+                                                : customerPhone.length > 0
+                                                    ? 'border-red-500/50 focus:ring-red-500/20'
+                                                    : 'border-white/10 focus:border-accent-purple/50 focus:ring-accent-purple/15'
+                                            }`}
+                                    />
+                                    {phoneIsValid && (
+                                        <Check className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
+                                    )}
+                                </div>
+                                {customerPhone.length > 0 && !phoneIsValid && (
+                                    <p className="mt-1.5 text-xs text-red-400">Enter a valid 10-digit Indian mobile number</p>
+                                )}
+                                <p className="mt-1.5 text-xs text-gray-600">Used only to generate your Cashfree order — never stored or shared.</p>
+                            </div>
+                        )}
+
+                        {/* STEP 5 — Coupon (Cashfree only — PayPal subscriptions have fixed prices) */}
                         {paymentMethod === 'cashfree' && (
                             <div className="mb-8">
                                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">

@@ -156,7 +156,7 @@ export default function HomePage() {
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                             <span className="text-lg">🎁</span>
                             <span className="text-amber-300 font-semibold">Launch Special:</span>
-                            <span className="text-gray-300">Pro plan — 14 days free, then just ₹499/mo for early members</span>
+                            <span className="text-gray-300">Pro plan — 14 days free, then ₹999/mo · Cancel anytime</span>
                             <Link to="/pricing" className="text-amber-400 font-bold hover:underline ml-1">
                                 Claim now →
                             </Link>
@@ -186,11 +186,14 @@ export default function HomePage() {
                 <div className="relative z-10 max-w-5xl mx-auto px-6 py-24 w-full text-center">
                     {/* Live Activity Ticker (Badge) */}
                     <div className="inline-flex items-center justify-center gap-3 overflow-hidden rounded-full border border-white/5 bg-white/5 px-4 py-2 opacity-80 mb-8 backdrop-blur-md">
-                        <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                        <div className="text-xs text-gray-400 truncate">
-                           <span className="font-semibold text-white">Alex from UK</span> just upgraded to Pro
-                           <span className="mx-3 text-gray-600">|</span>
-                           <span className="font-semibold text-white">42</span> new tools added today
+                        <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <div className="text-xs text-gray-400">
+                            {/* BUG-08 fix: Use real platform stats instead of hardcoded fake social proof */}
+                            <span className="font-semibold text-white">
+                                {platformStats[0]?.value?.toLocaleString() || '4,000'}+
+                            </span>{' '}
+                            AI tools indexed · Updated{' '}
+                            <span className="font-semibold text-white">daily</span>
                         </div>
                     </div>
 

@@ -4,6 +4,19 @@ import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { getRoleLevel } from '../middleware/rbac.js'
 
+// BUG-07 fix: Whitelist allowed sort fields to prevent field enumeration attacks.
+// Passing an arbitrary sort field (e.g. sort=subscription.paypalSubscriptionId) to
+// Mongoose allows inferring private data through result ordering differences.
+const ALLOWED_SORT_FIELDS = new Set([
+    'views', '-views',
+    'createdAt', '-createdAt',
+    'ratings.average', '-ratings.average',
+    'trendingScore', '-trendingScore',
+    'name', '-name',
+    'favorites', '-favorites',
+    'enrichmentScore', '-enrichmentScore',
+])
+
 /**
  * Tool Controller - Handle tool-related requests
  */
@@ -24,7 +37,7 @@ class ToolController {
             isTrending: req.query.isTrending,
             isNew: req.query.isNew,                       // "New This Week" homepage filter
             affiliateStatus: req.query.affiliateStatus,  // Admin batch affiliate filter
-            sort: req.query.sort || '-createdAt',
+            sort: ALLOWED_SORT_FIELDS.has(req.query.sort) ? req.query.sort : '-createdAt',
         }
 
         const result = await toolService.getAllTools(options)

@@ -3,10 +3,17 @@ services:
     name: intelligrid-backend
     env: node
     region: oregon
-    # NOTE: rootDir only works via Render Blueprints (IaC).
-    # For manually created services, use explicit cd commands instead — same as railway.json.
     buildCommand: cd Backend && npm install
     startCommand: cd Backend && node src/server.js
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - fromGroup: intelligrid-production
+      - key: NODE_ENV
+        value: production
+      # Safety default: crawlers must be explicitly enabled in the Render dashboard.
+      # Set to "true" only after verifying CRAWLER_ENABLED is intentional for the run.
+      - key: CRAWLER_ENABLED
+        value: "false"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "300"

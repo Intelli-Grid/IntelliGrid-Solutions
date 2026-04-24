@@ -44,6 +44,7 @@ const BestToolsForPage = lazy(() => import('./pages/BestToolsForPage'))
 const NewsletterPage = lazy(() => import('./pages/NewsletterPage'))
 const EmbedPage = lazy(() => import('./pages/EmbedPage'))
 const IndustryPage = lazy(() => import('./pages/IndustryPage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -108,6 +109,7 @@ function App() {
                             <Route path="/terms-of-service" element={<TermsOfServicePage />} />
                             <Route path="/refund-policy" element={<RefundPolicyPage />} />
                             <Route path="/faq" element={<FAQPage />} />
+                            <Route path="/about" element={<AboutPage />} />
                             <Route path="/unsubscribe" element={<UnsubscribePage />} />
                             <Route path="/submit" element={<SubmitToolPage />} />
                             <Route path="/blog" element={<BlogPage />} />
