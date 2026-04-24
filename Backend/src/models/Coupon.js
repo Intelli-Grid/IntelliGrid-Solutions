@@ -73,7 +73,8 @@ const couponSchema = new mongoose.Schema(
 )
 
 // Indexes for fast lookup
-couponSchema.index({ code: 1 })           // already unique, but explicit
+// NOTE: { code: 1 } index is already created implicitly by unique:true on the field definition above.
+// Declaring it again via schema.index() causes a Mongoose duplicate-index warning.
 couponSchema.index({ isActive: 1 })
 couponSchema.index({ expiresAt: 1 })
 

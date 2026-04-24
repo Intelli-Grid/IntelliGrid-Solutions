@@ -42,7 +42,7 @@ const blogPostSchema = new mongoose.Schema(
     }
 )
 
-blogPostSchema.index({ slug: 1 })
+// NOTE: { slug: 1 } index is already created implicitly by unique:true on the field definition above.
 blogPostSchema.index({ status: 1, publishedAt: -1 })
 
 const BlogPost = mongoose.model('BlogPost', blogPostSchema)

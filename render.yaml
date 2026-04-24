@@ -4,7 +4,7 @@ services:
     env: node
     region: oregon
     buildCommand: cd Backend && npm install
-    startCommand: cd Backend && node src/server.js
+    startCommand: cd Backend && node --import ./src/instrument.js src/server.js
     healthCheckPath: /health
     autoDeploy: true
     envVars:

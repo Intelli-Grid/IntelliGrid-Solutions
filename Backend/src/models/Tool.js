@@ -202,7 +202,10 @@ const toolSchema = new mongoose.Schema(
 
         // ── Batch 4 — Enrichment source fields ─────────────────────────────────
         isNew: {
-            // True when tool was added to IntelliGrid within the last 30 days
+            // True when tool was added to IntelliGrid within the last 30 days.
+            // NOTE: 'isNew' is a Mongoose reserved pathname — we intentionally keep
+            // the name for DB compatibility (toolService, enrichmentCron, algolia all query it).
+            // suppressReservedKeysWarning: true is set in the schema options to silence the warning.
             type: Boolean,
             default: false,
         },
@@ -532,6 +535,9 @@ const toolSchema = new mongoose.Schema(
         timestamps: true,
         toJSON: { virtuals: true },
         toObject: { virtuals: true },
+        // 'isNew' is a Mongoose-reserved pathname used intentionally here for DB compat.
+        // suppressReservedKeysWarning silences the startup warning without any data migration.
+        suppressReservedKeysWarning: true,
     }
 )
 
