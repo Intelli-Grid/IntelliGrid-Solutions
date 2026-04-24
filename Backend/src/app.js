@@ -380,22 +380,36 @@ app.get('/api/v1/platform-stats', async (req, res) => {
             if (cached) return res.json(JSON.parse(cached))
         }
 
-        const [{ default: Tool }, { default: Category }] = await Promise.all([
+        const [{ default: Tool }, { default: Category }, { default: Order }] = await Promise.all([
             import('./models/Tool.js'),
             import('./models/Category.js'),
+            import('./models/Order.js'),
         ])
 
-        const [totalTools, totalCategories] = await Promise.all([
+        // Weekly trial count — Orders created in last 7 days (any status means they started checkout)
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+        const [totalTools, totalCategories, weeklyTrials] = await Promise.all([
             Tool.countDocuments({ status: 'active', isActive: { $ne: false } }),
             Category.countDocuments({ isActive: true }),
+            Order.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
         ])
 
         const payload = {
             success: true,
+            // 'data' kept for backwards compat with homepage platformStats hook
             data: {
                 totalTools,
                 totalCategories,
-                uptime: 99, // SLA uptime — static by design
+                uptime: 99,
+            },
+            // 'stats' used by PricingPage weekly trial counter
+            stats: {
+                totalTools,
+                totalCategories,
+                weeklyTrials,
+                uptime: 99,
             }
         }
 

@@ -8,6 +8,7 @@ import { useUser } from '@clerk/clerk-react'
 import SEO from '../components/common/SEO'
 import { useFlag } from '../hooks/useFeatureFlags'
 import { useGeoLocation } from '../hooks/useGeoLocation'
+import apiClient from '../services/apiClient'
 
 // ─── Pricing data per currency ─────────────────────────────────────────────────
 const PLAN_PRICING = {
@@ -154,6 +155,8 @@ export default function PricingPage() {
     const [billing, setBilling] = useState('annual')
     const [openFaq, setOpenFaq] = useState(null)
     const [timeLeft, setTimeLeft] = useState('')
+    // Real weekly trial count — fetched from backend, falls back gracefully
+    const [weeklyTrials, setWeeklyTrials] = useState(null)
 
     useEffect(() => {
         const updateTimer = () => {
@@ -168,6 +171,19 @@ export default function PricingPage() {
         updateTimer()
         const interval = setInterval(updateTimer, 60000)
         return () => clearInterval(interval)
+    }, [])
+
+    // Fetch real weekly trial signups from backend
+    // Endpoint: GET /api/v1/platform-stats → res.data.stats.weeklyTrials
+    useEffect(() => {
+        apiClient.get('/platform-stats')
+            .then(res => {
+                const weeklyCount = res.data?.stats?.weeklyTrials
+                if (typeof weeklyCount === 'number' && weeklyCount > 0) {
+                    setWeeklyTrials(weeklyCount)
+                }
+            })
+            .catch(() => { /* non-fatal — badge simply hidden if fetch fails */ })
     }, [])
 
     // Build plans from current billing + currency
@@ -289,7 +305,7 @@ export default function PricingPage() {
                         <Clock className="w-3.5 h-3.5" /> Launch Offer Ends in {timeLeft}
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">Lock in 40% Off For Life.</h2>
-                    <p className="text-sm text-gray-400">First 100 users get Pro for just $6.67/mo (billed annually). Only 67 spots remaining.</p>
+                    <p className="text-sm text-gray-400">First subscribers lock in launch pricing — current rate stays yours as long as you remain subscribed.</p>
                 </div>
 
                 {/* ── Currency indicator ── */}
@@ -439,10 +455,10 @@ export default function PricingPage() {
 
                                 {/* CTA */}
                                 <div className="mt-auto">
-                                    {plan.highlighted && (
+                                    {plan.highlighted && weeklyTrials !== null && (
                                         <div className="mb-3 py-2 px-3 rounded-lg bg-white/4 border border-white/6 text-center">
                                             <p className="text-xs text-gray-400">
-                                                🔥 <span className="text-white font-semibold">147 people</span> started their trial this week
+                                                🔥 <span className="text-white font-semibold">{weeklyTrials} people</span> started their trial this week
                                             </p>
                                         </div>
                                     )}
