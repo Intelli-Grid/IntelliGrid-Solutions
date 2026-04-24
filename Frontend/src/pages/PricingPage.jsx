@@ -8,7 +8,7 @@ import { useUser } from '@clerk/clerk-react'
 import SEO from '../components/common/SEO'
 import { useFlag } from '../hooks/useFeatureFlags'
 import { useGeoLocation } from '../hooks/useGeoLocation'
-import apiClient from '../services/apiClient'
+import apiClient from '../services/api'
 
 // ─── Pricing data per currency ─────────────────────────────────────────────────
 const PLAN_PRICING = {
