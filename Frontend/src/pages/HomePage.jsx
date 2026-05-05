@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Sparkles, TrendingUp, ArrowRight, Star, Users, Zap, ChevronDown, ArrowUpRight } from 'lucide-react'
-import { toolService, categoryService } from '../services'
+import { toolService, categoryService, newsletterService } from '../services'
 import apiClient from '../services/api'
 import ToolCard from '../components/tools/ToolCard'
 import ToolCardSkeleton from '../components/tools/ToolCardSkeleton'
@@ -52,6 +52,93 @@ function AnimatedStat({ stat, started, delay }) {
             </div>
             <div className="text-sm text-gray-500 font-medium">{stat.label}</div>
         </div>
+    )
+}
+
+// \u2500\u2500 Newsletter capture section \u2014 IMPL-C \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function NewsletterSection() {
+    const [email, setEmail] = useState('')
+    const [status, setStatus] = useState('idle') // idle | loading | success | error | duplicate
+
+    const handleSubmit = async (e) => {
+        e.preventDefault()
+        if (!email.trim()) return
+        setStatus('loading')
+        try {
+            await newsletterService.subscribe(email.trim(), 'homepage')
+            setStatus('success')
+            setEmail('')
+        } catch (err) {
+            const serverMsg = err?.response?.data?.message || ''
+            if (err?.response?.status === 409 || serverMsg.toLowerCase().includes('already')) {
+                setStatus('duplicate')
+            } else {
+                setStatus('error')
+            }
+        }
+    }
+
+    return (
+        <section className="py-20 bg-[#0a0a1f] border-t border-white/5">
+            <div className="max-w-3xl mx-auto px-6 text-center">
+                {/* Badge */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs text-purple-400 mb-6">
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                    Weekly AI Newsletter — Free
+                </div>
+
+                <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4 tracking-tight">
+                    Never miss the next<br />
+                    <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                        breakthrough AI tool
+                    </span>
+                </h2>
+                <p className="text-gray-400 text-base mb-8 max-w-xl mx-auto">
+                    Every week we curate the best new AI tools from 4,000+ in our directory.
+                    Join builders, creators, and teams who stay ahead.
+                </p>
+
+                {status === 'success' ? (
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-6 py-5 max-w-md mx-auto">
+                        <p className="text-emerald-400 font-semibold">🎉 You're on the list!</p>
+                        <p className="text-gray-500 text-sm mt-1">Check your inbox for a confirmation — AI picks incoming.</p>
+                    </div>
+                ) : status === 'duplicate' ? (
+                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 px-6 py-5 max-w-md mx-auto">
+                        <p className="text-blue-400 font-semibold">✅ Already subscribed!</p>
+                        <p className="text-gray-500 text-sm mt-1">You're already getting our weekly picks — check your inbox!</p>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                        <input
+                            type="email"
+                            required
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="your@email.com"
+                            disabled={status === 'loading'}
+                            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-60"
+                        />
+                        <button
+                            type="submit"
+                            disabled={status === 'loading'}
+                            className="px-7 py-3.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-purple-500/25 disabled:opacity-60 whitespace-nowrap"
+                        >
+                            {status === 'loading' ? 'Subscribing...' : 'Get Weekly Picks'}
+                        </button>
+                    </form>
+                )}
+
+                {status === 'error' && (
+                    <p className="text-red-400 text-xs mt-3">Something went wrong — please try again.</p>
+                )}
+
+                <p className="text-gray-600 text-xs mt-4">
+                    No spam, ever. Unsubscribe with one click.
+                    Already <span className="text-gray-500">2,000+</span> subscribers.
+                </p>
+            </div>
+        </section>
     )
 }
 
@@ -415,7 +502,10 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {/* ════════════════ BOTTOM CTA ════════════════ */}
+            {/* ══════════════════ NEWSLETTER ══════════════════ */}
+            <NewsletterSection />
+
+            {/* ══════════════════ BOTTOM CTA ══════════════════ */}
             <section className="py-24 bg-[#07071a] border-t border-white/5">
                 <div className="max-w-3xl mx-auto px-6 text-center">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs text-purple-400 mb-6">

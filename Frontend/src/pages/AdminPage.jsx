@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import {
@@ -118,6 +118,7 @@ export default function AdminPage() {
         { id: 'claims', label: 'Claims', icon: ShieldCheck },
         { id: 'submissions', label: 'Submissions', icon: Plus },
         { id: 'featured-listings', label: 'Sponsored', icon: Megaphone },
+        { id: 'vendor-outreach', label: 'Vendor Outreach', icon: Mail },
         { id: 'blog', label: 'Blog', icon: TrendingUp },
         { id: 'coupons', label: 'Coupons', icon: DollarSign },
         { id: 'users', label: 'Users', icon: Users },
@@ -207,6 +208,7 @@ export default function AdminPage() {
                     {activeTab === 'claims' && <ClaimsTab />}
                     {activeTab === 'submissions' && <SubmissionsTab />}
                     {activeTab === 'featured-listings' && <FeaturedListingsAdminTab />}
+                    {activeTab === 'vendor-outreach' && <VendorOutreachTab />}
                     {activeTab === 'blog' && <BlogAdminTab />}
                     {activeTab === 'coupons' && <CouponsAdminTab />}
                     {activeTab === 'users' && <UsersTab />}
@@ -3507,6 +3509,208 @@ function EnrichmentTab() {
                         )}
                     </div>
                 </>
+            )}
+        </div>
+    )
+}
+// ─── Vendor Outreach Tab ───────────────────────────────────────────────────────
+function VendorOutreachTab() {
+    const { toast } = useToast()
+    const [tools, setTools] = useState([])
+    const [summary, setSummary] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [filter, setFilter] = useState('all') // all | true | false
+    const [selected, setSelected] = useState(new Set())
+    const [batchLoading, setBatchLoading] = useState(false)
+    const [batchResult, setBatchResult] = useState(null)
+
+    const loadTools = async (hasEmail = filter) => {
+        setLoading(true)
+        setBatchResult(null)
+        try {
+            const res = await adminService.getVendorOutreachTools({ limit: 200, hasEmail })
+            setTools(res?.tools || [])
+            setSummary(res?.summary || null)
+        } catch {
+            toast({ title: 'Error', description: 'Failed to load outreach data', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { loadTools(filter) }, [filter])
+
+    const toggleSelect = (id) => setSelected(prev => {
+        const next = new Set(prev)
+        next.has(id) ? next.delete(id) : next.add(id)
+        return next
+    })
+
+    const toggleAll = () => {
+        const readyIds = tools.filter(t => t.hasContactEmail).map(t => t._id)
+        if (selected.size === readyIds.length) setSelected(new Set())
+        else setSelected(new Set(readyIds))
+    }
+
+    const handleBatch = async (dryRun) => {
+        if (selected.size === 0) {
+            toast({ title: 'Select tools first', description: 'Check at least one tool with a contact email', variant: 'destructive' })
+            return
+        }
+        setBatchLoading(true)
+        setBatchResult(null)
+        try {
+            const res = await adminService.batchVendorOutreach([...selected], dryRun)
+            setBatchResult(res?.results || null)
+            toast({
+                title: dryRun ? '🔍 Dry run complete' : '📬 Batch sent',
+                description: res?.message || '',
+            })
+            setSelected(new Set())
+        } catch (err) {
+            toast({ title: 'Error', description: err?.response?.data?.message || 'Batch failed', variant: 'destructive' })
+        } finally {
+            setBatchLoading(false)
+        }
+    }
+
+    const readyCount = tools.filter(t => t.hasContactEmail).length
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h2 className="text-2xl font-bold text-white">Vendor Outreach</h2>
+                    <p className="text-sm text-gray-500 mt-1">Send claim invitations to tool vendors</p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => handleBatch(true)} disabled={batchLoading || selected.size === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm font-medium transition disabled:opacity-40">
+                        <Search size={14} /> Dry Run ({selected.size})
+                    </button>
+                    <button onClick={() => handleBatch(false)} disabled={batchLoading || selected.size === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition disabled:opacity-40">
+                        <Mail size={14} /> {batchLoading ? 'Sending...' : `Send Invites (${selected.size})`}
+                    </button>
+                </div>
+            </div>
+
+            {/* Summary Cards */}
+            {summary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { label: 'Total Active', value: summary.totalActive?.toLocaleString(), color: 'text-white' },
+                        { label: 'Has Email', value: summary.withEmail?.toLocaleString(), color: 'text-emerald-400' },
+                        { label: 'Missing Email', value: summary.withoutEmail?.toLocaleString(), color: 'text-red-400' },
+                        { label: 'Coverage', value: `${summary.coverage}%`, color: 'text-purple-400' },
+                    ].map(s => (
+                        <div key={s.label} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+                            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                            <div className="text-xs text-gray-500 mt-1">{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Filter */}
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Filter:</span>
+                {[['all', 'All Tools'], ['true', '✅ Has Email'], ['false', '🔴 Missing Email']].map(([v, l]) => (
+                    <button key={v} onClick={() => setFilter(v)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filter === v ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'}`}>
+                        {l}
+                    </button>
+                ))}
+                <span className="ml-auto text-xs text-gray-600">{readyCount} tools ready for outreach</span>
+            </div>
+
+            {/* Batch Result */}
+            {batchResult && (
+                <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-3">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                        {batchResult.dryRun ? '🔍 Dry Run Results' : '📬 Batch Send Results'}
+                    </h3>
+                    <div className="flex gap-4 text-sm">
+                        <span className="text-emerald-400">✅ {batchResult.sent} {batchResult.dryRun ? 'would send' : 'sent'}</span>
+                        <span className="text-gray-400">⏭️ {batchResult.skipped} skipped</span>
+                        {batchResult.errors?.length > 0 && <span className="text-red-400">❌ {batchResult.errors.length} errors</span>}
+                    </div>
+                    {batchResult.preview?.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto space-y-1">
+                            {batchResult.preview.map((r, i) => (
+                                <div key={i} className="flex items-center gap-2 text-xs">
+                                    <span className={r.status === 'sent' || r.status === 'would_send' ? 'text-emerald-400' : r.status === 'skipped' ? 'text-gray-500' : 'text-red-400'}>
+                                        {r.status === 'sent' ? '✅' : r.status === 'would_send' ? '📧' : r.status === 'skipped' ? '⏭️' : '❌'}
+                                    </span>
+                                    <span className="text-white font-medium">{r.name}</span>
+                                    {r.email && <span className="text-gray-500">{r.email}</span>}
+                                    {r.reason && <span className="text-gray-600">({r.reason})</span>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Tools Table */}
+            {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+            ) : tools.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
+                    <Mail className="h-12 w-12 mx-auto mb-4 text-gray-600" />
+                    <p className="text-gray-500 text-sm">No tools match the current filter.</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                    <table className="w-full text-sm">
+                        <thead className="bg-white/5 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th className="px-4 py-3 text-left">
+                                    <input type="checkbox"
+                                        checked={selected.size === tools.filter(t => t.hasContactEmail).length && tools.filter(t => t.hasContactEmail).length > 0}
+                                        onChange={toggleAll}
+                                        className="rounded border-white/20 bg-white/5 text-purple-600 focus:ring-purple-500/50" />
+                                </th>
+                                <th className="px-4 py-3 text-left">Tool</th>
+                                <th className="px-4 py-3 text-left">Contact Email</th>
+                                <th className="px-4 py-3 text-right">Views</th>
+                                <th className="px-4 py-3 text-left">Pricing</th>
+                                <th className="px-4 py-3 text-left">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {tools.map(tool => (
+                                <tr key={tool._id} className={`hover:bg-white/3 transition-colors ${selected.has(tool._id) ? 'bg-purple-500/5' : ''}`}>
+                                    <td className="px-4 py-3">
+                                        <input type="checkbox"
+                                            checked={selected.has(tool._id)}
+                                            disabled={!tool.hasContactEmail}
+                                            onChange={() => toggleSelect(tool._id)}
+                                            className="rounded border-white/20 bg-white/5 text-purple-600 focus:ring-purple-500/50 disabled:opacity-30" />
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="font-medium text-white">{tool.name}</div>
+                                        <div className="text-xs text-gray-600 font-mono">{tool.slug}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {tool.hasContactEmail ? (
+                                            <span className="text-emerald-400 text-xs">{tool.contactEmail}</span>
+                                        ) : (
+                                            <span className="text-red-400/60 text-xs">— missing</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 text-right text-gray-300">{(tool.views || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-gray-400 text-xs">{tool.pricing || '—'}</td>
+                                    <td className="px-4 py-3">
+                                        {tool.isVerified && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">Verified</span>}
+                                        {tool.isFeatured && <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full ml-1">Featured</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
         </div>
     )

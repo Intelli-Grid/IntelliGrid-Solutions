@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { toolService, analyticsService, userService } from '../services'
+import { toolService, analyticsService, userService, newsletterService } from '../services'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import ErrorMessage from '../components/common/ErrorMessage'
 import SEO from '../components/common/SEO'
@@ -17,6 +17,82 @@ import ToolContent from '../components/tools/ToolContent'
 import SimilarTools from '../components/tools/SimilarTools'
 import ClaimToolModal from '../components/tools/ClaimToolModal'
 import EmbedToolModal from '../components/tools/EmbedToolModal'
+
+// ── Newsletter CTA strip — injected between content and related tools ──────────
+function ToolNewsletterCTA({ toolName }) {
+    const [email, setEmail] = useState('')
+    const [status, setStatus] = useState('idle') // idle | loading | success | error | duplicate
+    const [msg, setMsg] = useState('')
+
+    const handleSubmit = async (e) => {
+        e.preventDefault()
+        if (!email.trim()) return
+        setStatus('loading')
+        try {
+            await newsletterService.subscribe(email.trim(), 'tool_details')
+            setStatus('success')
+            setMsg('You\'re in! 🎉 Watch your inbox for weekly AI tool picks.')
+            setEmail('')
+        } catch (err) {
+            const serverMsg = err?.response?.data?.message || ''
+            if (err?.response?.status === 409 || serverMsg.toLowerCase().includes('already')) {
+                setStatus('duplicate')
+                setMsg('You\'re already subscribed — we\'ll keep sending the good stuff! ✅')
+            } else {
+                setStatus('error')
+                setMsg('Something went wrong. Please try again.')
+            }
+        }
+    }
+
+    if (status === 'success' || status === 'duplicate') {
+        return (
+            <div className="mt-16 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-8 py-7 text-center">
+                <p className="text-emerald-400 font-semibold text-base">{msg}</p>
+                <p className="text-gray-500 text-sm mt-1">Discover 4,000+ AI tools updated daily on IntelliGrid.</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="mt-16 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-950/50 via-[#0c0920]/60 to-purple-950/50 px-8 py-8">
+            <div className="max-w-xl mx-auto text-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/15 border border-purple-500/25 rounded-full text-xs text-purple-400 mb-4">
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                    Weekly AI Digest
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                    Like <span className="text-purple-400">{toolName}</span>? Get weekly picks like this.
+                </h3>
+                <p className="text-gray-400 text-sm mb-6">
+                    Join thousands discovering the best AI tools every week — free, no spam.
+                </p>
+                <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                    <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        disabled={status === 'loading'}
+                        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-60"
+                    />
+                    <button
+                        type="submit"
+                        disabled={status === 'loading'}
+                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-purple-500/20 disabled:opacity-60 whitespace-nowrap"
+                    >
+                        {status === 'loading' ? 'Subscribing...' : 'Get Weekly Picks →'}
+                    </button>
+                </form>
+                {status === 'error' && (
+                    <p className="text-red-400 text-xs mt-3">{msg}</p>
+                )}
+                <p className="text-gray-600 text-xs mt-3">No spam. Unsubscribe any time.</p>
+            </div>
+        </div>
+    )
+}
 
 function RecentlyViewedStrip({ currentSlug }) {
     const [history, setHistory] = useState([])
@@ -252,7 +328,10 @@ export default function ToolDetailsPage() {
                     <ToolContent tool={tool} relatedBuckets={relatedBuckets} />
                 </div>
 
-                {/* 4. Bottom Section: Related Tools — 4 enriched buckets (Phase 3.2) */}
+                {/* 4. Newsletter CTA — IMPL-C */}
+                <ToolNewsletterCTA toolName={tool.name} />
+
+                {/* 5. Bottom Section: Related Tools — 4 enriched buckets (Phase 3.2) */}
                 <div className="mt-24 border-t border-white/10 pt-16">
                     <SimilarTools
                         relatedBuckets={relatedBuckets}

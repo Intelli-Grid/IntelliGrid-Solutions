@@ -306,6 +306,164 @@ router.post('/tools/:id/invite', async (req, res) => {
 })
 
 /**
+ * @route  GET /api/v1/admin/vendor-outreach/tools
+ * @desc   List top 200 tools by views with contactEmail status.
+ *         Used by the Vendor Outreach admin tab to identify which tools
+ *         are ready to receive invitations vs. which need email research first.
+ * @query  limit (default 200, max 500), page, hasEmail (true|false|all)
+ * @access Admin only
+ */
+router.get('/vendor-outreach/tools', async (req, res) => {
+    try {
+        const { limit = 200, page = 1, hasEmail = 'all' } = req.query
+        const limitNum = Math.min(parseInt(limit) || 200, 500)
+        const skip = (parseInt(page) - 1) * limitNum
+
+        const baseFilter = { status: 'active' }
+        if (hasEmail === 'true') baseFilter.contactEmail = { $exists: true, $ne: '' }
+        if (hasEmail === 'false') {
+            baseFilter.$or = [
+                { contactEmail: { $exists: false } },
+                { contactEmail: '' },
+                { contactEmail: null },
+            ]
+        }
+
+        const [tools, total] = await Promise.all([
+            Tool.find(baseFilter)
+                .sort({ views: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .select('name slug officialUrl contactEmail views isFeatured isVerified pricing claimedBy')
+                .lean(),
+            Tool.countDocuments(baseFilter),
+        ])
+
+        // Augment with hasContactEmail flag for the UI
+        const augmented = tools.map(t => ({
+            ...t,
+            hasContactEmail: !!(t.contactEmail && t.contactEmail.trim()),
+        }))
+
+        // Summary stats
+        const [totalWithEmail, totalWithoutEmail] = await Promise.all([
+            Tool.countDocuments({ status: 'active', contactEmail: { $exists: true, $ne: '' } }),
+            Tool.countDocuments({
+                status: 'active',
+                $or: [{ contactEmail: { $exists: false } }, { contactEmail: '' }, { contactEmail: null }],
+            }),
+        ])
+
+        res.json({
+            success: true,
+            tools: augmented,
+            pagination: { total, page: parseInt(page), limit: limitNum, pages: Math.ceil(total / limitNum) },
+            summary: {
+                totalActive: total,
+                withEmail: totalWithEmail,
+                withoutEmail: totalWithoutEmail,
+                coverage: total > 0 ? Math.round((totalWithEmail / total) * 100) : 0,
+            },
+        })
+    } catch (error) {
+        console.error('Vendor outreach tools error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch vendor outreach tools' })
+    }
+})
+
+/**
+ * @route  POST /api/v1/admin/vendor-outreach/batch
+ * @desc   Send claim invitations to a batch of tools by toolId array.
+ *         Supports dryRun mode — returns what would be sent without actually sending.
+ *         Skips tools with no contactEmail and logs errors per tool (non-fatal).
+ * @body   { toolIds: string[], dryRun?: boolean }
+ * @access Admin only
+ */
+router.post('/vendor-outreach/batch', async (req, res) => {
+    try {
+        const { toolIds, dryRun = false } = req.body
+
+        if (!Array.isArray(toolIds) || toolIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'toolIds array is required and must not be empty' })
+        }
+
+        if (toolIds.length > 100) {
+            return res.status(400).json({ success: false, message: 'Maximum 100 tools per batch. Split into multiple requests.' })
+        }
+
+        // Validate all IDs are proper ObjectIds
+        const { default: mongoose } = await import('mongoose')
+        const invalidIds = toolIds.filter(id => !mongoose.Types.ObjectId.isValid(id))
+        if (invalidIds.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid MongoDB ObjectId(s): ${invalidIds.slice(0, 3).join(', ')}`,
+            })
+        }
+
+        const tools = await Tool.find({
+            _id: { $in: toolIds },
+            status: 'active',
+        }).select('name slug officialUrl contactEmail').lean()
+
+        const results = {
+            dryRun,
+            total: toolIds.length,
+            found: tools.length,
+            sent: 0,
+            skipped: 0,
+            errors: [],
+            preview: [],  // populated in dry-run mode
+        }
+
+        for (const tool of tools) {
+            if (!tool.contactEmail || !tool.contactEmail.trim()) {
+                results.skipped++
+                results.preview.push({ toolId: tool._id, name: tool.name, status: 'skipped', reason: 'No contactEmail' })
+                continue
+            }
+
+            if (dryRun) {
+                results.preview.push({ toolId: tool._id, name: tool.name, email: tool.contactEmail, status: 'would_send' })
+                results.sent++ // count in dry run too so the UI knows how many will go out
+                continue
+            }
+
+            try {
+                const sent = await emailService.sendClaimInvitation(tool, tool.contactEmail)
+                if (sent) {
+                    results.sent++
+                    results.preview.push({ toolId: tool._id, name: tool.name, email: tool.contactEmail, status: 'sent' })
+                } else {
+                    results.errors.push({ toolId: tool._id, name: tool.name, error: 'Email service returned false' })
+                    results.preview.push({ toolId: tool._id, name: tool.name, email: tool.contactEmail, status: 'error' })
+                }
+            } catch (emailErr) {
+                results.errors.push({ toolId: tool._id, name: tool.name, error: emailErr.message })
+                results.preview.push({ toolId: tool._id, name: tool.name, email: tool.contactEmail, status: 'error', reason: emailErr.message })
+            }
+        }
+
+        // Log the campaign
+        console.log(
+            `[VendorOutreach] Batch ${dryRun ? '(DRY RUN) ' : ''}by ${req.user?.email}: ` +
+            `${results.sent} sent, ${results.skipped} skipped, ${results.errors.length} errors`
+        )
+
+        res.json({
+            success: true,
+            message: dryRun
+                ? `Dry run complete: ${results.sent} would be sent, ${results.skipped} skipped`
+                : `Batch complete: ${results.sent} sent, ${results.skipped} skipped, ${results.errors.length} errors`,
+            results,
+        })
+    } catch (error) {
+        console.error('Vendor outreach batch error:', error)
+        res.status(500).json({ success: false, message: 'Failed to process vendor outreach batch' })
+    }
+})
+
+/**
  * @route   GET /api/v1/admin/reviews/pending
  * @desc    Get pending reviews for moderation
  * @access  Admin only

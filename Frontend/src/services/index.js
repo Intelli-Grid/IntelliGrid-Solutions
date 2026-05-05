@@ -154,6 +154,9 @@ export const adminService = {
     getRecentActivity: (limit = 20) => apiClient.get('/admin/activity/recent', { params: { limit } }),
     // Affiliate revenue report
     getAffiliateReport: (from, to) => apiClient.get('/admin/affiliate/report', { params: { from, to } }),
+    // Vendor Outreach — IMPL-B
+    getVendorOutreachTools: (params = {}) => apiClient.get('/admin/vendor-outreach/tools', { params }),
+    batchVendorOutreach: (toolIds, dryRun = false) => apiClient.post('/admin/vendor-outreach/batch', { toolIds, dryRun }),
 }
 
 /**
