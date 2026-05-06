@@ -265,8 +265,9 @@ export default function HomePage() {
 
             {/* ════════════════ HERO ════════════════ */}
             <section className="relative overflow-hidden bg-gradient-to-br from-[#07071a] via-[#0c0c22] to-[#07071a] min-h-[90vh] flex items-center">
-                {/* Animated blobs */}
-                <div className="absolute inset-0 pointer-events-none">
+                {/* Animated blobs — hidden on mobile to prevent blur-filter paint blocking mobile LCP.
+                     The gradient section background already provides visual depth on small screens. */}
+                <div className="absolute inset-0 pointer-events-none hidden sm:block" aria-hidden="true">
                     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/15 rounded-full blur-[120px] animate-blob" />
                     <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-[100px] animate-blob" style={{ animationDelay: '2s' }} />
                     <div className="absolute bottom-1/4 left-1/2 w-72 h-72 bg-violet-500/10 rounded-full blur-[100px] animate-blob" style={{ animationDelay: '4s' }} />
@@ -378,8 +379,15 @@ export default function HomePage() {
                         <Link to={`/tools/${trendingTools[0].slug}`} className="group flex flex-col sm:flex-row gap-6 p-6 rounded-2xl bg-gradient-to-r from-amber-500/8 to-orange-500/5 border border-amber-500/15 hover:border-amber-500/30 transition-all">
                             {/* Logo */}
                             {trendingTools[0].logo && (
-                                <img src={trendingTools[0].logo} alt={trendingTools[0].name}
-                                     className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10" />
+                                <img
+                                    src={trendingTools[0].logo}
+                                    alt={trendingTools[0].name}
+                                    width={64}
+                                    height={64}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                                />
                             )}
                             <div className="flex-1 min-w-0">
                                 <h3 className="text-xl font-bold text-white mb-1 group-hover:text-amber-300 transition-colors">
