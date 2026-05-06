@@ -111,8 +111,30 @@
     </script>
 </head>
 
-<body class="dark:bg-deep-space dark:text-white">
-  <div id="root"></div>
+<body style="background:#07071a;color:#fff;margin:0;font-family:Inter,system-ui,sans-serif">
+  <!--
+    Critical above-the-fold HTML — painted immediately before JS loads.
+    React replaces this on mount. Purpose: give Lighthouse an LCP element
+    (the h1) within ~500ms rather than waiting 10s for the JS bundle.
+  -->
+  <div id="root">
+    <div style="min-height:100vh;background:linear-gradient(135deg,#07071a 0%,#0c0c22 50%,#07071a 100%);display:flex;align-items:center;justify-content:center;">
+      <div style="text-align:center;padding:6rem 1.5rem 3rem;max-width:56rem;width:100%;">
+        <h1 style="font-size:clamp(2rem,6vw,4.5rem);font-weight:800;color:#fff;line-height:1.08;letter-spacing:-0.02em;margin:0 0 1.25rem;">
+          Discover the
+          <span style="display:block;background:linear-gradient(90deg,#a78bfa,#818cf8,#67e8f9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-top:0.4rem;">Perfect AI Tool</span>
+          for Every Task
+        </h1>
+        <p style="font-size:1.05rem;color:#9ca3af;max-width:38rem;margin:0 auto 2.5rem;line-height:1.65;">
+          The world's most comprehensive AI tools directory. Search, compare, and choose from thousands of solutions — all in one place.
+        </p>
+        <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+          <a href="/tools" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.875rem 1.75rem;background:#fff;color:#000;font-weight:700;font-size:0.875rem;border-radius:0.75rem;text-decoration:none;">Browse All Tools →</a>
+          <a href="/pricing" style="display:inline-flex;align-items:center;padding:0.875rem 1.75rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;font-weight:600;font-size:0.875rem;border-radius:0.75rem;text-decoration:none;">View Pricing</a>
+        </div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
