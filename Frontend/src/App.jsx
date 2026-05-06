@@ -8,10 +8,12 @@ import Layout from './components/layout/Layout'
 // Auth
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
-// Components
+// Components (eagerly loaded — no heavy deps)
 import CookieConsent from './components/CookieConsent'
-import OnboardingDrawer from './components/common/OnboardingDrawer'
-import FeedbackWidget from './components/common/FeedbackWidget'
+
+// Components with Framer Motion — lazy loaded to keep motion-vendor OUT of critical path
+const OnboardingDrawer = lazy(() => import('./components/common/OnboardingDrawer'))
+const FeedbackWidget   = lazy(() => import('./components/common/FeedbackWidget'))
 
 // Auth Pages — Dedicated Clerk sign-in/sign-up (required by Clerk Dashboard "application domain" path setting)
 // Lazy-loaded like all other pages to keep the initial bundle lean
@@ -201,10 +203,11 @@ function App() {
                     </Suspense>
                 </Layout>
 
-                {/* Global Components */}
+                {/* Global Components — CookieConsent is eager; modal/widget are lazy (defer framer-motion) */}
                 <CookieConsent />
-                <OnboardingDrawer />
-                <FeedbackWidget />
+                <Suspense fallback={null}><OnboardingDrawer /></Suspense>
+                <Suspense fallback={null}><FeedbackWidget /></Suspense>
+
             </>}
             />
         </Routes>
