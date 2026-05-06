@@ -169,3 +169,10 @@
 .focus-ring {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/60 focus-visible:ring-offset-1 focus-visible:ring-offset-black;
 }
+
+/* ── GPU acceleration for hero blob animations ────────────────────────────── */
+/* Moves blob divs to their own compositor layer — prevents paint jank on mobile */
+.animate-blob {
+  will-change: transform;
+  backface-visibility: hidden;
+}

@@ -24,7 +24,9 @@ const CATEGORY_SHOWCASE = [
 
 // Animated counter card component
 function AnimatedStat({ stat, started, delay }) {
-    const [count, setCount] = useState(0)
+    // Initialise with real value if counters already started (prevents 0-flash on fast
+    // pages and headless browser screenshots that capture before animation triggers)
+    const [count, setCount] = useState(started ? stat.value : 0)
     const startedRef = useRef(false)
 
     useEffect(() => {
@@ -459,9 +461,16 @@ export default function HomePage() {
                         </div>
                     ) : (
                         <div className="rounded-2xl border border-white/8 bg-white/3 p-12 text-center">
-                            <p className="text-gray-500 text-sm mb-4">No trending tools yet.</p>
-                            <Link to="/tools" className="text-purple-400 hover:text-purple-300 text-sm font-medium">
-                                Browse all tools →
+                            <div className="text-4xl mb-4">🔥</div>
+                            <p className="text-white font-semibold mb-2">Trending tools loading...</p>
+                            <p className="text-gray-500 text-sm mb-4">
+                                Our trending algorithm updates daily. Browse the full directory while it warms up.
+                            </p>
+                            <Link
+                                to="/tools"
+                                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+                            >
+                                Browse All Tools →
                             </Link>
                         </div>
                     )}

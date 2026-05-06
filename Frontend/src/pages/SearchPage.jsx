@@ -65,6 +65,12 @@ function Hit({ hit }) {
                             <Sparkles size={8} /> Featured
                         </span>
                     )}
+                    {/* v2.5.0 — Verification trust signal on search results */}
+                    {hit.humanVerified && (
+                        <span className="flex-shrink-0 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            ✓ Verified
+                        </span>
+                    )}
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2 mb-2">{hit.shortDescription}</p>
 
@@ -82,6 +88,17 @@ function Hit({ hit }) {
                             #{tag}
                         </span>
                     ))}
+                    {/* v2.5.0 — Outcome signals on search results */}
+                    {hit.outcomes?.timeSaved && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                            ⚡ {hit.outcomes.timeSaved}
+                        </span>
+                    )}
+                    {hit.isWaitlist && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            Waitlist
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -97,6 +114,9 @@ function Hit({ hit }) {
 
 function NoResults() {
     const { refine } = useClearRefinements();
+    // Get the current live search query to pre-fill the submit tool form
+    const { indexUiState } = useInstantSearch();
+    const currentQuery = indexUiState?.query || '';
 
     return (
         <div className="py-20 text-center">
@@ -118,7 +138,17 @@ function NoResults() {
                 >
                     Browse Popular Tools
                 </Link>
+                {/* Capture user intent — pre-fill submit page with the failed search query */}
+                <Link
+                    to={`/submit${currentQuery ? `?name=${encodeURIComponent(currentQuery)}` : ''}`}
+                    className="px-5 py-2 rounded-xl bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 text-emerald-400 text-sm font-medium transition-all flex items-center gap-1.5"
+                >
+                    <span>+</span> Submit this tool
+                </Link>
             </div>
+            <p className="text-xs text-gray-700 mt-4">
+                Can't find a tool? Help us grow the directory.
+            </p>
         </div>
     )
 }

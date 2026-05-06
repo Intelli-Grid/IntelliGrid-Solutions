@@ -472,6 +472,11 @@ app.get('/api/v1/featured', async (req, res) => {
 })
 
 
+// ── Suppress favicon.ico 404 noise in Railway/Render API logs ────────────────
+// Browsers and bots auto-request /favicon.ico even against an API server.
+// Return 204 No Content instead of letting it fall through to the 404 handler.
+app.get('/favicon.ico', (req, res) => res.status(204).end())
+
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {
     res.status(404).json({

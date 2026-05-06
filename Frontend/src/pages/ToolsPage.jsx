@@ -289,7 +289,7 @@ export default function ToolsPage() {
                     <div className="flex items-center gap-2 px-4 py-3 min-w-max mx-auto max-w-7xl">
                         <button
                             onClick={() => setFilter('category', '')}
-                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!filters.category
+                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${!filters.category
                                 ? 'bg-purple-600 text-white'
                                 : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
                                 }`}
@@ -300,7 +300,7 @@ export default function ToolsPage() {
                             <button
                                 key={cat._id || cat.slug}
                                 onClick={() => setFilter('category', cat.slug)}
-                                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filters.category === cat.slug
+                                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${filters.category === cat.slug
                                     ? 'bg-purple-600 text-white'
                                     : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5'
                                     }`}
@@ -318,6 +318,24 @@ export default function ToolsPage() {
 
             {/* ══════════════ FILTER BAR ══════════════ */}
             <div className="sticky top-0 z-20 bg-gray-950/95 backdrop-blur-md border-b border-white/5">
+                {/* Mobile-only sticky search — visible once hero search scrolls out of view */}
+                <div className="lg:hidden border-b border-white/5 px-4 py-2">
+                    <form onSubmit={handleSearchSubmit} className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 pointer-events-none" size={14} />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => handleSearchInput(e.target.value)}
+                            placeholder="Search AI tools..."
+                            className="w-full pl-8 pr-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-600 text-xs focus:outline-none focus:border-purple-500/50 transition-all"
+                        />
+                        {searchQuery && (
+                            <button type="button" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                <X size={12} />
+                            </button>
+                        )}
+                    </form>
+                </div>
                 {/* Row 1: Pricing + Sort + Controls */}
                 <div className="container mx-auto max-w-7xl px-4 flex flex-wrap items-center justify-between gap-2 py-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -326,7 +344,7 @@ export default function ToolsPage() {
                             <button
                                 key={opt.value}
                                 onClick={() => setFilter('pricing', opt.value)}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.pricing === opt.value
+                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${filters.pricing === opt.value
                                     ? 'bg-white/15 text-white border border-white/20'
                                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                     }`}
@@ -344,7 +362,7 @@ export default function ToolsPage() {
                                 <button
                                     key={tab.value}
                                     onClick={() => setFilter('sort', tab.value)}
-                                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${filters.sort === tab.value
+                                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${filters.sort === tab.value
                                         ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
                                         : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                         }`}
@@ -569,6 +587,12 @@ export default function ToolsPage() {
                         >
                             Browse All Tools
                         </button>
+                        <Link
+                            to={`/submit${activeSearch ? `?name=${encodeURIComponent(activeSearch)}` : ''}`}
+                            className="mt-3 text-xs text-emerald-400 hover:text-emerald-300 underline transition-colors"
+                        >
+                            + Submit a missing tool
+                        </Link>
                     </div>
                 )}
             </div>
