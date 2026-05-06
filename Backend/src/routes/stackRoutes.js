@@ -23,7 +23,7 @@ import express from 'express'
 import Stack from '../models/Stack.js'
 import Tool from '../models/Tool.js'
 import { authenticate } from '../middleware/auth.js'
-import { requireRole } from '../middleware/requireRole.js'
+import { requireRole } from '../middleware/rbac.js'
 
 const router = express.Router()
 
