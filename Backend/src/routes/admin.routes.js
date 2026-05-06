@@ -408,6 +408,53 @@ router.put('/tools/:id/approve', async (req, res) => {
 })
 
 /**
+ * @route   POST /api/v1/admin/tools/:id/reject
+ * @desc    Soft-reject a pending tool — sets status to 'rejected', keeps the
+ *          record in DB for audit trail. Does NOT delete the document.
+ * @body    { reason?: string }
+ * @access  Admin only
+ */
+router.post('/tools/:id/reject', async (req, res) => {
+    try {
+        const { reason } = req.body
+        const tool = await Tool.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    status: 'rejected',
+                    isActive: false,
+                    rejectedAt: new Date(),
+                    rejectedBy: req.user._id,
+                    ...(reason && { rejectionReason: reason }),
+                }
+            },
+            { new: true }
+        )
+
+        if (!tool) {
+            return res.status(404).json({ success: false, message: 'Tool not found' })
+        }
+
+        // Remove from Algolia index if it was ever published
+        try {
+            const { deleteToolFromAlgolia } = await import('../config/algolia.js')
+            await deleteToolFromAlgolia(tool._id.toString()).catch(() => {})
+        } catch (_) { /* non-fatal */ }
+
+        console.log(`[Admin] ${req.user?.email} rejected tool "${tool.name}"${reason ? ` — Reason: ${reason}` : ''}`)
+
+        res.json({
+            success: true,
+            message: `Tool "${tool.name}" rejected successfully`,
+            tool: { _id: tool._id, name: tool.name, status: tool.status }
+        })
+    } catch (error) {
+        console.error('Tool rejection error:', error)
+        res.status(500).json({ success: false, message: 'Failed to reject tool' })
+    }
+})
+
+/**
  * @route   DELETE /api/v1/admin/tools/:id
  * @desc    Delete a tool (Algolia + cache invalidation included)
  * @access  Admin only
