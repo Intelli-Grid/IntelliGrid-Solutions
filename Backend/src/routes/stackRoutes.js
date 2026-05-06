@@ -22,7 +22,7 @@
 import express from 'express'
 import Stack from '../models/Stack.js'
 import Tool from '../models/Tool.js'
-import { authenticate } from '../middleware/auth.js'
+import { requireAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/rbac.js'
 
 const router = express.Router()
@@ -139,7 +139,7 @@ router.get('/featured', async (req, res) => {
  * Returns the authenticated user's own stacks (both public and private).
  * Must be placed before /:slug to prevent route shadowing.
  */
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
     try {
         const page  = Math.max(1, parseInt(req.query.page) || 1)
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20))
@@ -224,7 +224,7 @@ router.post('/:id/view', async (req, res) => {
  * Create a new stack.
  * Body: { name, description, tools, useCase, tags, isPublic }
  */
-router.post('/', authenticate, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
     try {
         const {
             name,
@@ -264,7 +264,7 @@ router.post('/', authenticate, async (req, res) => {
  * PUT /api/v1/stacks/:id
  * Update own stack. Only the owner can update.
  */
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
     try {
         const stack = await Stack.findById(req.params.id)
         if (!stack) {
@@ -306,7 +306,7 @@ router.put('/:id', authenticate, async (req, res) => {
  * DELETE /api/v1/stacks/:id
  * Delete own stack.
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
     try {
         const stack = await Stack.findById(req.params.id)
         if (!stack) {
@@ -333,7 +333,7 @@ router.delete('/:id', authenticate, async (req, res) => {
  * If that field does not exist yet, we increment/decrement the counter
  * directly on Stack. A future migration can add per-user saved lists.
  */
-router.post('/:id/save', authenticate, async (req, res) => {
+router.post('/:id/save', requireAuth, async (req, res) => {
     try {
         const stack = await Stack.findById(req.params.id)
         if (!stack) {
@@ -371,7 +371,7 @@ router.post('/:id/save', authenticate, async (req, res) => {
  * POST /api/v1/stacks/:id/clone
  * Fork another user's public stack to the current user's account.
  */
-router.post('/:id/clone', authenticate, async (req, res) => {
+router.post('/:id/clone', requireAuth, async (req, res) => {
     try {
         const source = await Stack.findById(req.params.id)
         if (!source || !source.isPublic) {
@@ -408,7 +408,7 @@ router.post('/:id/clone', authenticate, async (req, res) => {
  * PATCH /api/v1/stacks/:id/feature
  * Toggle isFeatured. Admin only.
  */
-router.patch('/:id/feature', authenticate, requireRole('admin'), async (req, res) => {
+router.patch('/:id/feature', requireAuth, requireRole('admin'), async (req, res) => {
     try {
         const stack = await Stack.findById(req.params.id)
         if (!stack) {
@@ -433,7 +433,7 @@ router.patch('/:id/feature', authenticate, requireRole('admin'), async (req, res
  * DELETE /api/v1/stacks/:id/admin
  * Hard delete any stack. Admin only.
  */
-router.delete('/:id/admin', authenticate, requireRole('admin'), async (req, res) => {
+router.delete('/:id/admin', requireAuth, requireRole('admin'), async (req, res) => {
     try {
         const stack = await Stack.findByIdAndDelete(req.params.id)
         if (!stack) {
