@@ -172,7 +172,14 @@ Scraped Body Text (first 2500 chars): ${scrapeData.bodyText || 'N/A'}
         `.trim()
         : 'Website scraping failed — use only the tool name and description below.'
 
-    const prompt = `You are a professional AI tool database curator. Analyze this AI tool and return ONLY valid JSON with no markdown, no backticks, no extra text.
+    const prompt = `You are a professional AI tool database curator following a strict NO-ADJECTIVES rule. Analyze this AI tool and return ONLY valid JSON with no markdown, no backticks, no extra text.
+
+CRITICAL RULE — NO ADJECTIVES IN outcome_driven_summary:
+Bad: "Powerful AI writing assistant that intelligently automates content creation"
+Good: "Generates blog posts and social captions from topic inputs"
+Bad: "Revolutionary tool that seamlessly integrates with your workflow"
+Good: "Connects to Notion and Slack to sync task updates automatically"
+All other fields follow normal descriptive rules. Only outcome_driven_summary enforces the no-adjectives constraint.
 
 Tool Name: ${tool.name}
 Website URL: ${tool.officialUrl || tool.websiteUrl || 'N/A'}
@@ -205,7 +212,14 @@ Return EXACTLY this JSON structure (no extra fields, no missing fields):
   "foundedYear": <4-digit year number or null>,
   "hqCountry": "<country name or empty string if unknown>",
   "twitterHandle": "<twitter username without @ symbol, empty string if unknown>",
-  "isActivelyMaintained": <true or false or null>
+  "isActivelyMaintained": <true or false or null>,
+  "outcome_driven_summary": "<Describe the tool's PRIMARY function in 15 words or fewer. Use ONLY verbs and nouns. Zero adjectives. Example: 'Transcribes audio files and generates formatted meeting notes automatically.' NOT 'Powerful AI that intelligently transcribes...'>",
+  "estimated_time_saved": "<One specific, quantifiable time claim if found on the homepage. Examples: '2 hours/day', '3x faster than manual', '10 minutes per report'. Empty string if no specific claim found — DO NOT invent this.>",
+  "estimated_cost_reduction": "<One specific, quantifiable cost claim if found. Examples: '30% less than agency fees', 'replaces $500/mo VA'. Empty string if no claim found — DO NOT invent.>",
+  "detected_skill_level": "<one of: Beginner | Intermediate | Expert | Unknown — based on technical complexity of the tool>",
+  "detected_waitlist": <true if the homepage mentions 'waitlist', 'join the waitlist', 'coming soon', 'request access', 'early access only' — otherwise false>,
+  "requires_credit_card_for_trial": <true if the free trial or free tier explicitly requires a credit card — otherwise false>,
+  "true_free_tier_exists": <true if there is a free tier with no time limit AND no credit card required — false if trial-only — null if unclear>
 }`
 
     try {
@@ -278,6 +292,12 @@ export function computeEnrichmentScore(tool) {
 
     // Human verification bonus
     if (tool.humanVerified) score += 5
+
+    // v2.5.0 — Outcome data bonus (rewards anti-slop enrichment)
+    if (tool.outcomes?.timeSaved || tool.outcomes?.costReduction) score += 6
+    if (tool.outcomes?.skillLevel && tool.outcomes.skillLevel !== '') score += 2
+    // Waitlist penalty — incomplete/inaccessible tools should not rank high
+    if (tool.isWaitlist) score = Math.max(0, score - 15)
 
     return Math.min(Math.round(score), 100)
 }
@@ -445,8 +465,42 @@ export function buildUpdatePayload(tool, groqData, scrapeData) {
     // Enrichment tracking fields
     updates.enrichmentVersion = (tool.enrichmentVersion || 0) + 1
     updates.lastEnrichedAt = new Date()
-    updates.enrichmentSource = 'groq-v1'
+    updates.enrichmentSource = 'groq-v2'
     updates.needsEnrichment = false
+
+    // ── v2.5.0 — Outcome and pricing trust signal mapping ────────────────────
+    const adjectives = /\b(powerful|revolutionary|seamless|intelligent|innovative|cutting-edge|robust|comprehensive|advanced|best-in-class)\b/i
+
+    if (groqData.outcome_driven_summary && groqData.outcome_driven_summary.length > 10) {
+        // Only overwrite shortDescription if it currently contains marketing-fluff adjectives
+        if (!tool.shortDescription || adjectives.test(tool.shortDescription)) {
+            updates.shortDescription = groqData.outcome_driven_summary
+        }
+    }
+
+    if (groqData.estimated_time_saved && groqData.estimated_time_saved.length > 0) {
+        updates['outcomes.timeSaved'] = groqData.estimated_time_saved
+    }
+
+    if (groqData.estimated_cost_reduction && groqData.estimated_cost_reduction.length > 0) {
+        updates['outcomes.costReduction'] = groqData.estimated_cost_reduction
+    }
+
+    if (groqData.detected_skill_level && groqData.detected_skill_level !== 'Unknown') {
+        updates['outcomes.skillLevel'] = groqData.detected_skill_level
+    }
+
+    if (typeof groqData.detected_waitlist === 'boolean') {
+        updates.isWaitlist = groqData.detected_waitlist
+    }
+
+    if (typeof groqData.requires_credit_card_for_trial === 'boolean') {
+        updates.requiresCreditCardForTrial = groqData.requires_credit_card_for_trial
+    }
+
+    if (groqData.true_free_tier_exists !== undefined && groqData.true_free_tier_exists !== null) {
+        updates.trueFreeTier = groqData.true_free_tier_exists
+    }
 
     return updates
 }

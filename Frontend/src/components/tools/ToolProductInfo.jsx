@@ -7,6 +7,8 @@ import { useUser } from '@clerk/clerk-react';
 import { userService } from '../../services';
 import { useNudge } from '../common/NudgeContext';
 import { useFlag } from '../../hooks/useFeatureFlags';
+import VerificationBadge from './VerificationBadge';
+import OutcomeChips from './OutcomeChips';
 
 export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
     const { isSignedIn } = useUser();
@@ -154,6 +156,8 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
                                 <Sparkles className="h-3 w-3" /> New
                             </span>
                         )}
+                        {/* v2.5.0 — Verification badge (sm size inline with other badges) */}
+                        <VerificationBadge tool={tool} size="sm" />
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-gray-400 border border-white/10">
                             {typeof tool.category === 'object' ? tool.category.name : tool.category}
                         </span>
@@ -202,6 +206,12 @@ export default function ToolProductInfo({ tool, onClaim, onEmbed }) {
             <p className="text-base text-gray-400 leading-relaxed">
                 {tool.shortDescription}
             </p>
+
+            {/* v2.5.0 — Outcome signals + trust flags */}
+            <OutcomeChips tool={tool} compact={false} />
+
+            {/* v2.5.0 — Verified block */}
+            <VerificationBadge tool={tool} size="md" />
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 pt-4">

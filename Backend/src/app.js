@@ -32,6 +32,7 @@ import submissionRoutes from './routes/submissionRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import blogRoutes from './routes/blogRoutes.js'
 import stackAdvisorRoutes from './routes/stackAdvisorRoutes.js'
+import stackRoutes from './routes/stackRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import telegramRoutes from './routes/telegram.routes.js'
 import communityTelegramRoutes from './routes/communityTelegram.routes.js'
@@ -46,7 +47,7 @@ import { timingMiddleware } from './middleware/timing.js'
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express()
 
-console.log(`🚀 INTELLIGRID BACKEND v2.4.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
+console.log(`🚀 INTELLIGRID BACKEND v2.5.0 | NODE_ENV=${process.env.NODE_ENV || 'development'}`)
 console.log(`   PayPal mode: ${process.env.PAYPAL_MODE || 'live'} | Cashfree env: ${process.env.CASHFREE_ENV || 'PROD'}`)
 
 // Trust proxy (Railway sits behind a proxy layer)
@@ -285,7 +286,7 @@ app.get('/api/v1', (req, res) => {
     res.status(200).json({
         status: 'success',
         message: 'IntelliGrid API v1',
-        version: '2.4.0',
+        version: '2.5.0',
         endpoints: {
             health: '/health',
             tools: '/api/v1/tools',
@@ -302,6 +303,7 @@ app.get('/api/v1', (req, res) => {
             submissions: '/api/v1/submissions',
             coupons: '/api/v1/coupons',
             blog: '/api/v1/blog',
+            stacks: '/api/v1/stacks',
         },
     })
 })
@@ -349,6 +351,7 @@ app.use('/api/v1/submissions', submissionRoutes)
 app.use('/api/v1/coupons', couponRoutes)
 app.use('/api/v1/blog', blogRoutes)
 app.use('/api/v1/stack-advisor', stackAdvisorRoutes)
+app.use('/api/v1/stacks', stackRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
 app.use('/api/v1/telegram', telegramRoutes)
 app.use('/api/v1/telegram', communityTelegramRoutes)

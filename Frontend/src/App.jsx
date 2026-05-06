@@ -45,6 +45,7 @@ const NewsletterPage = lazy(() => import('./pages/NewsletterPage'))
 const EmbedPage = lazy(() => import('./pages/EmbedPage'))
 const IndustryPage = lazy(() => import('./pages/IndustryPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
+const StacksPage = lazy(() => import('./pages/StacksPage'))
 
 // Lazy Load Pages — Protected (User)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -119,6 +120,7 @@ function App() {
                             <Route path="/best-tools/:role" element={<BestToolsForPage />} />
                             <Route path="/best-ai-tools-for/:useCase" element={<BestToolsForPage />} />
                             <Route path="/industry/:tag" element={<IndustryPage />} />
+                            <Route path="/stacks" element={<StacksPage />} />
 
                             {/* ── Payment / Checkout Routes ──────────────────── */}
                             <Route

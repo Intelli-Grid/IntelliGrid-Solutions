@@ -140,6 +140,11 @@ const userSchema = new mongoose.Schema(
             ],
             default: [],
         },
+        // v2.5.0 — Workflow Stacks bookmarks (stacks saved from other users' public stacks)
+        bookmarkedStacks: {
+            type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Stack' }],
+            default: [],
+        },
     },
     {
         timestamps: true,

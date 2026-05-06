@@ -530,6 +530,53 @@ const toolSchema = new mongoose.Schema(
             type: [String],
             default: [],
         },
+
+        // ── v2.5.0 Anti-Slop Fields ─────────────────────────────────────────────
+
+        // Outcome signals — quantifiable benefits extracted from homepage by enrichment v2
+        outcomes: {
+            timeSaved: { type: String, default: '' },       // e.g. "2 hours/day", "3x faster"
+            costReduction: { type: String, default: '' },   // e.g. "30% cheaper than hiring"
+            skillLevel: {
+                type: String,
+                enum: ['Beginner', 'Intermediate', 'Expert', ''],
+                default: '',
+            },
+        },
+
+        // Verification metadata — extends existing humanVerified boolean
+        verifiedBy: {
+            // Admin email/username who performed the human verification
+            type: String,
+            default: null,
+        },
+        reliabilityScore: {
+            // 0-100 data accuracy score assigned during human verification
+            type: Number,
+            min: 0,
+            max: 100,
+            default: null,  // null = not yet scored
+        },
+
+        // Pricing trust signals — granular signals for ranking and filtering
+        isWaitlist: {
+            // Tool is waitlisted / not yet publicly accessible
+            type: Boolean,
+            default: false,
+            index: true,    // indexed — used in Algolia penalty filter
+        },
+        requiresCreditCardForTrial: {
+            // Free trial requires credit card upfront — negative trust signal
+            type: Boolean,
+            default: false,
+        },
+        trueFreeTier: {
+            // true  = genuinely usable free tier with no time limit and no CC required
+            // false = credit card required, OR trial-only, OR waitlist
+            // null  = unknown
+            type: Boolean,
+            default: null,
+        },
     },
     {
         timestamps: true,
@@ -577,6 +624,10 @@ toolSchema.index({ hasFreeTier: 1, status: 1 })               // free tools filt
 toolSchema.index({ platforms: 1, status: 1 })                 // platform filter
 toolSchema.index({ integrationTags: 1 })                      // integration filter
 toolSchema.index({ linkStatus: 1, status: 1 })                // dead link audit queries
+// v2.5.0 — Anti-Slop indexes
+toolSchema.index({ isWaitlist: 1, status: 1 })                // waitlist filter + dimmer
+toolSchema.index({ reliabilityScore: -1, status: 1 })         // reliability sort
+toolSchema.index({ 'outcomes.skillLevel': 1, status: 1 })     // skill level filter
 
 /**
  * ✅ Cascade Delete Hook

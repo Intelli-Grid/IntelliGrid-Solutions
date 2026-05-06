@@ -53,10 +53,15 @@ export const configureToolsIndex = async () => {
                 'filterOnly(linkStatus)',
                 'filterOnly(humanVerified)',
                 'filterOnly(isActive)',
+                // v2.5.0 — Anti-slop trust signal facets
+                'filterOnly(isWaitlist)',                 // filter out waitlist-only tools
+                'filterOnly(requiresCreditCardForTrial)', // filter out CC-required trials
+                'filterOnly(trueFreeTier)',               // filter for truly free tools
+                'filterOnly(outcomes.skillLevel)',        // skill level filter
             ],
             customRanking: [
-                'desc(trendingScore)',           // trending-first by default
-                'desc(enrichmentScore)',         // higher quality tools ranked higher
+                'desc(rankingScore)',            // v2.5.0 — composite anti-slop score (primary)
+                'desc(trendingScore)',           // trending boost
                 'desc(ratings.average)',
                 'desc(views)',
                 'desc(favorites)',
@@ -91,6 +96,17 @@ export const syncToolToAlgolia = async (tool) => {
         const categoryName = tool.category?.name ||
             (typeof tool.category === 'string' ? tool.category : null) ||
             null
+
+        // v2.5.0 — Compute anti-slop ranking score before Algolia sync
+        // Algolia customRanking cannot express percentage weights directly,
+        // so we compute a composite score field and rank by it.
+        const baseScore = tool.enrichmentScore || 0
+        let rankingScore = baseScore
+        if (tool.humanVerified) rankingScore = Math.min(100, rankingScore + 15)
+        if (tool.isWaitlist) rankingScore = Math.max(0, rankingScore - 40)
+        if (tool.requiresCreditCardForTrial) rankingScore = Math.max(0, rankingScore - 8)
+        if (tool.linkStatus === 'dead') rankingScore = 0
+        if (tool.linkStatus === 'redirected') rankingScore = Math.max(0, rankingScore - 10)
 
         await toolsIndex.saveObject({
             objectID: tool._id.toString(),
@@ -146,6 +162,14 @@ export const syncToolToAlgolia = async (tool) => {
 
             // Quality
             enrichmentScore: tool.enrichmentScore || 0,
+            rankingScore,                                   // v2.5.0 — composite anti-slop rank
+
+            // v2.5.0 — Anti-slop trust signal fields
+            isWaitlist: tool.isWaitlist || false,
+            requiresCreditCardForTrial: tool.requiresCreditCardForTrial || false,
+            trueFreeTier: tool.trueFreeTier ?? null,
+            outcomes: tool.outcomes || {},
+            reliabilityScore: tool.reliabilityScore ?? null,
         })
     } catch (error) {
         console.error('Failed to sync tool to Algolia:', error)

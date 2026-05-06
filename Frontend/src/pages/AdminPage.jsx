@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import {
@@ -17,6 +17,7 @@ import {
     Check,
     X,
     ShieldCheck,
+    BadgeCheck,
     Mail,
     TrendingUp,
     Activity,
@@ -110,6 +111,7 @@ export default function AdminPage() {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'tools', label: 'Tools', icon: Package },
+        { id: 'verification', label: 'Verification', icon: BadgeCheck },
         { id: 'affiliate-mapper', label: 'Affiliates (Edit)', icon: DollarSign },
         { id: 'affiliate', label: 'Affiliates (Stats)', icon: Link2 },
         { id: 'enrichment', label: 'Enrichment', icon: Database },
@@ -200,6 +202,7 @@ export default function AdminPage() {
                 <div className="rounded-lg border border-white/10 bg-white/5 p-6">
                     {activeTab === 'overview' && <OverviewTab setActiveTab={setActiveTab} stats={stats} />}
                     {activeTab === 'tools' && <ToolsTab />}
+                    {activeTab === 'verification' && <VerificationTab />}
                     {activeTab === 'affiliate-mapper' && <AffiliateMapperTab />}
                     {activeTab === 'affiliate' && <AffiliateTab />}
                     {activeTab === 'enrichment' && <EnrichmentTab />}
@@ -593,6 +596,247 @@ function ToolsTab() {
                 toolId={editingToolId}
                 onUpdate={fetchTools}
             />
+        </div>
+    )
+}
+
+function VerificationTab() {
+    const { toast } = useToast()
+    const [tools, setTools] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [actionLoading, setActionLoading] = useState({})
+    const [page, setPage] = useState(1)
+    const [pagination, setPagination] = useState({ total: 0, pages: 1, unverified: 0, verified: 0 })
+    const [expandedId, setExpandedId] = useState(null)
+    const [correctedDesc, setCorrectedDesc] = useState({})
+    const [reliabilityInput, setReliabilityInput] = useState({})
+
+    const load = async (p = 1) => {
+        setLoading(true)
+        try {
+            const res = await adminService.getVerificationQueue(p, 50)
+            if (res.success) {
+                setTools(res.tools || [])
+                setPagination({
+                    total: res.pagination?.total || 0,
+                    pages: res.pagination?.pages || 1,
+                    unverified: res.summary?.unverified || 0,
+                    verified: res.summary?.verified || 0,
+                })
+            }
+        } catch (err) {
+            toast({ title: 'Error', description: 'Failed to load verification queue', variant: 'destructive' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { load(page) }, [page])
+
+    const handleVerify = async (tool) => {
+        setActionLoading(prev => ({ ...prev, [tool._id]: 'verify' }))
+        try {
+            const payload = {}
+            const reliability = parseInt(reliabilityInput[tool._id])
+            if (!isNaN(reliability) && reliability >= 0 && reliability <= 100) {
+                payload.reliabilityScore = reliability
+            }
+            if (correctedDesc[tool._id]?.trim()) {
+                payload.correctedDescription = correctedDesc[tool._id].trim()
+            }
+            await adminService.verifyTool(tool._id, payload)
+            toast({ title: '✅ Verified', description: `"${tool.name}" is now human-verified` })
+            setTools(prev => prev.filter(t => t._id !== tool._id))
+            setExpandedId(null)
+            setPagination(prev => ({
+                ...prev,
+                unverified: Math.max(0, prev.unverified - 1),
+                verified: prev.verified + 1,
+            }))
+        } catch (err) {
+            toast({ title: 'Error', description: err?.response?.data?.message || 'Verification failed', variant: 'destructive' })
+        } finally {
+            setActionLoading(prev => ({ ...prev, [tool._id]: null }))
+        }
+    }
+
+    const scoreColor = (s) => {
+        if (s >= 80) return 'text-emerald-400 bg-emerald-500/10'
+        if (s >= 50) return 'text-yellow-400 bg-yellow-500/10'
+        return 'text-red-400 bg-red-500/10'
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <BadgeCheck className="h-6 w-6 text-purple-400" />
+                        Human Verification Queue
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Review active tools and mark them as human-verified. Work top-down by views.
+                    </p>
+                </div>
+                <button
+                    onClick={() => load(page)}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-gray-400 hover:text-white transition"
+                >
+                    <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                </button>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+                    <p className="text-xs text-gray-500 mb-1">Awaiting Verification</p>
+                    <p className="text-2xl font-bold text-red-400">{pagination.unverified.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <p className="text-xs text-gray-500 mb-1">Verified Tools</p>
+                    <p className="text-2xl font-bold text-emerald-400">{pagination.verified.toLocaleString()}</p>
+                </div>
+            </div>
+
+            {/* Queue List */}
+            {loading ? (
+                <div className="flex justify-center py-16"><LoadingSpinner /></div>
+            ) : tools.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-12 text-center">
+                    <BadgeCheck className="mx-auto mb-4 h-12 w-12 text-emerald-400 opacity-70" />
+                    <h3 className="text-lg font-semibold text-white mb-1">Queue is empty 🎉</h3>
+                    <p className="text-sm text-gray-500">All active tools on this page have been verified.</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {tools.map(tool => (
+                        <div key={tool._id} className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:border-white/20">
+                            {/* Tool Row */}
+                            <div className="flex items-center gap-4">
+                                {tool.logo ? (
+                                    <img src={tool.logo} alt="" className="h-9 w-9 rounded-lg object-contain bg-white/5 border border-white/10 flex-shrink-0" />
+                                ) : (
+                                    <div className="h-9 w-9 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                                        <Package className="h-4 w-4 text-purple-400" />
+                                    </div>
+                                )}
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-semibold text-white">{tool.name}</span>
+                                        {tool.isWaitlist && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">Waitlist</span>
+                                        )}
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${scoreColor(tool.enrichmentScore || 0)}`}>
+                                            Score: {tool.enrichmentScore || 0}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{tool.shortDescription}</p>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+                                    <TrendingUp className="h-3.5 w-3.5" />
+                                    {(tool.views || 0).toLocaleString()} views
+                                </div>
+
+                                <div className="flex gap-2 flex-shrink-0">
+                                    <a
+                                        href={`https://www.intelligrid.online/tools/${tool.slug}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="p-1.5 rounded-lg bg-white/5 text-gray-400 hover:text-white transition"
+                                        title="View tool page"
+                                    >
+                                        <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                    <button
+                                        onClick={() => setExpandedId(expandedId === tool._id ? null : tool._id)}
+                                        className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs font-medium transition"
+                                    >
+                                        {expandedId === tool._id ? 'Cancel' : 'Verify'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Expanded verification form */}
+                            {expandedId === tool._id && (
+                                <div className="mt-4 border-t border-white/10 pt-4 space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">
+                                                Reliability Score (0–100) <span className="text-gray-600">— optional</span>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0" max="100"
+                                                placeholder="e.g. 85"
+                                                value={reliabilityInput[tool._id] || ''}
+                                                onChange={e => setReliabilityInput(prev => ({ ...prev, [tool._id]: e.target.value }))}
+                                                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">
+                                                Corrected Description <span className="text-gray-600">— replaces if adjective-heavy</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Verb-noun only, ≤15 words"
+                                                value={correctedDesc[tool._id] || ''}
+                                                onChange={e => setCorrectedDesc(prev => ({ ...prev, [tool._id]: e.target.value }))}
+                                                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleVerify(tool)}
+                                            disabled={!!actionLoading[tool._id]}
+                                            className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50"
+                                        >
+                                            {actionLoading[tool._id] === 'verify'
+                                                ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                                : <BadgeCheck className="h-4 w-4" />}
+                                            Mark as Verified
+                                        </button>
+                                        <button
+                                            onClick={() => setExpandedId(null)}
+                                            className="px-4 py-2 rounded-lg border border-white/10 text-sm text-gray-400 hover:text-white transition"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+                <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                    <p className="text-xs text-gray-500">
+                        Page {page} of {pagination.pages} · {pagination.total.toLocaleString()} total
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white disabled:opacity-30 transition"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                            disabled={page === pagination.pages}
+                            className="p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white disabled:opacity-30 transition"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

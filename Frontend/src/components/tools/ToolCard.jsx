@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Star, ExternalLink, TrendingUp, Sparkles, Plus, ArrowUpRight, Crown, Zap, Heart } from 'lucide-react'
 import { getPricingDisplay, formatToolName, getInitials, getOptimizedImageUrl } from '../../utils/helpers'
 import AddToCollectionModal from './AddToCollectionModal'
+import VerificationBadge from './VerificationBadge'
+import OutcomeChips from './OutcomeChips'
 import { useFlag } from '../../hooks/useFeatureFlags'
 import { useUser } from '@clerk/clerk-react'
 import { useToast } from '../../context/ToastContext'
@@ -158,6 +160,9 @@ export default function ToolCard({ tool }) {
                         )}
                     </div>
 
+                    {/* v2.5.0 — Verification badge */}
+                    <VerificationBadge tool={tool} size="sm" />
+
                     {/* Description */}
                     <p
                         className="text-sm text-gray-400 line-clamp-2 leading-relaxed mb-3 flex-1"
@@ -180,6 +185,9 @@ export default function ToolCard({ tool }) {
                             ))}
                         </div>
                     )}
+
+                    {/* v2.5.0 — Outcome signal chips */}
+                    <OutcomeChips tool={tool} compact={true} />
 
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-3 border-t border-white/5">

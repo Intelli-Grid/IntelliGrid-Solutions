@@ -200,6 +200,166 @@ router.get('/tools/enrichment-stats', async (req, res) => {
     }
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v2.5.0 — Human Verification Workflow
+// NOTE: These routes MUST be registered before /tools/:id to avoid Express
+// matching "verification-queue" as an :id param.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @route   GET /api/v1/admin/tools/verification-queue
+ * @desc    Active unverified tools sorted by views DESC — the admin verification workflow.
+ *          Work through this list top-down to verify the highest-traffic tools first.
+ * @query   page (default 1), limit (default 50, max 200)
+ * @access  Admin only
+ */
+router.get('/tools/verification-queue', async (req, res) => {
+    try {
+        const { limit = 50, page = 1 } = req.query
+        const limitNum = Math.min(parseInt(limit) || 50, 200)
+        const skip = (parseInt(page) - 1) * limitNum
+
+        const [tools, unverifiedTotal, verifiedCount] = await Promise.all([
+            Tool.find({
+                status: 'active',
+                isActive: { $ne: false },
+                humanVerified: { $ne: true },
+            })
+                .sort({ views: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .select('name slug logo shortDescription pricing hasFreeTier isWaitlist views enrichmentScore humanVerified verifiedAt outcomes')
+                .lean(),
+            Tool.countDocuments({
+                status: 'active',
+                isActive: { $ne: false },
+                humanVerified: { $ne: true },
+            }),
+            Tool.countDocuments({
+                status: 'active',
+                humanVerified: true,
+            }),
+        ])
+
+        res.json({
+            success: true,
+            tools,
+            pagination: {
+                total: unverifiedTotal,
+                page: parseInt(page),
+                limit: limitNum,
+                pages: Math.ceil(unverifiedTotal / limitNum),
+            },
+            summary: {
+                unverified: unverifiedTotal,
+                verified: verifiedCount,
+            },
+        })
+    } catch (error) {
+        console.error('Verification queue error:', error)
+        res.status(500).json({ success: false, message: 'Failed to fetch verification queue' })
+    }
+})
+
+/**
+ * @route   PATCH /api/v1/admin/tools/:id/verify
+ * @desc    Mark a tool as human-verified. Records verifier email, timestamp,
+ *          optionally sets a reliability score and corrects the shortDescription.
+ *          Recomputes enrichmentScore and re-syncs to Algolia automatically.
+ * @body    { reliabilityScore?: number (0-100), correctedDescription?: string, verifiedNote?: string }
+ * @access  Admin only
+ */
+router.patch('/tools/:id/verify', async (req, res) => {
+    try {
+        const { reliabilityScore, correctedDescription } = req.body
+
+        const updates = {
+            humanVerified: true,
+            verifiedBy: req.user?.email || req.user?._id?.toString() || 'admin',
+            verifiedAt: new Date(),
+        }
+
+        if (reliabilityScore !== undefined) {
+            const score = parseInt(reliabilityScore)
+            if (isNaN(score) || score < 0 || score > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'reliabilityScore must be a number between 0 and 100',
+                })
+            }
+            updates.reliabilityScore = score
+        }
+
+        if (correctedDescription?.trim()) {
+            updates.shortDescription = correctedDescription.trim().substring(0, 500)
+        }
+
+        const tool = await Tool.findByIdAndUpdate(
+            req.params.id,
+            { $set: updates },
+            { new: true, select: 'name slug humanVerified verifiedBy verifiedAt reliabilityScore shortDescription enrichmentScore' }
+        )
+
+        if (!tool) {
+            return res.status(404).json({ success: false, message: 'Tool not found' })
+        }
+
+        // Recompute enrichment score with humanVerified bonus now applied
+        const { computeEnrichmentScore } = await import('../services/enrichmentService.js')
+        const fullTool = await Tool.findById(req.params.id).lean()
+        const newScore = computeEnrichmentScore(fullTool)
+        await Tool.findByIdAndUpdate(req.params.id, { $set: { enrichmentScore: newScore } })
+
+        // Re-sync to Algolia (non-blocking)
+        const { syncToolToAlgolia } = await import('../config/algolia.js')
+        syncToolToAlgolia({ ...fullTool, humanVerified: true, enrichmentScore: newScore })
+            .catch(err => console.warn('[Verify] Algolia sync failed:', err.message))
+
+        console.log(`[Admin] ${req.user?.email} verified tool "${tool.name}" (new score: ${newScore})`)
+
+        res.json({
+            success: true,
+            message: `"${tool.name}" marked as human-verified`,
+            tool: { ...tool.toObject(), enrichmentScore: newScore },
+        })
+    } catch (error) {
+        console.error('Tool verification error:', error)
+        res.status(500).json({ success: false, message: 'Failed to verify tool' })
+    }
+})
+
+/**
+ * @route   PATCH /api/v1/admin/tools/:id/unverify
+ * @desc    Remove human verification from a tool (undo action).
+ *          Re-syncs to Algolia after clearing verification fields.
+ * @access  Admin only
+ */
+router.patch('/tools/:id/unverify', async (req, res) => {
+    try {
+        const tool = await Tool.findByIdAndUpdate(
+            req.params.id,
+            { $set: { humanVerified: false, verifiedBy: null, verifiedAt: null, reliabilityScore: null } },
+            { new: true, select: 'name slug humanVerified' }
+        )
+
+        if (!tool) {
+            return res.status(404).json({ success: false, message: 'Tool not found' })
+        }
+
+        // Re-sync to Algolia (non-blocking)
+        const { syncToolToAlgolia } = await import('../config/algolia.js')
+        const fullTool = await Tool.findById(req.params.id).lean()
+        syncToolToAlgolia(fullTool).catch(() => {})
+
+        console.log(`[Admin] ${req.user?.email} removed verification from "${tool.name}"`)
+
+        res.json({ success: true, message: `Verification removed from "${tool.name}"` })
+    } catch (error) {
+        console.error('Tool unverify error:', error)
+        res.status(500).json({ success: false, message: 'Failed to unverify tool' })
+    }
+})
+
 /**
  * @route   PUT /api/v1/admin/tools/:id/approve
  * @desc    Approve a pending tool — syncs to Algolia via toolService

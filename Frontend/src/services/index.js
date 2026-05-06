@@ -157,6 +157,13 @@ export const adminService = {
     // Vendor Outreach — IMPL-B
     getVendorOutreachTools: (params = {}) => apiClient.get('/admin/vendor-outreach/tools', { params }),
     batchVendorOutreach: (toolIds, dryRun = false) => apiClient.post('/admin/vendor-outreach/batch', { toolIds, dryRun }),
+    // v2.5.0 — Human Verification Workflow
+    getVerificationQueue: (page = 1, limit = 50) =>
+        apiClient.get(`/admin/tools/verification-queue?page=${page}&limit=${limit}`),
+    verifyTool: (toolId, payload = {}) =>
+        apiClient.patch(`/admin/tools/${toolId}/verify`, payload),
+    unverifyTool: (toolId) =>
+        apiClient.patch(`/admin/tools/${toolId}/unverify`),
 }
 
 /**
@@ -240,4 +247,22 @@ export const stackAdvisorService = {
     getRecommendations: (data) => apiClient.post('/stack-advisor/recommend', data),
     getHistory: () => apiClient.get('/stack-advisor/history'),
     deleteStack: (stackId) => apiClient.delete(`/stack-advisor/history/${stackId}`),
+}
+
+/**
+ * Workflow Stacks Service (v2.5.0)
+ */
+export const stackService = {
+    getStacks:     (params = {}) => apiClient.get('/stacks', { params }),
+    getFeatured:   ()             => apiClient.get('/stacks/featured'),
+    getStack:      (slug)         => apiClient.get(`/stacks/${slug}`),
+    recordView:    (id)           => apiClient.post(`/stacks/${id}/view`),
+    getMyStacks:   (params = {}) => apiClient.get('/stacks/me', { params }),
+    create:        (data)         => apiClient.post('/stacks', data),
+    update:        (id, data)     => apiClient.put(`/stacks/${id}`, data),
+    remove:        (id)           => apiClient.delete(`/stacks/${id}`),
+    save:          (id)           => apiClient.post(`/stacks/${id}/save`),
+    clone:         (id)           => apiClient.post(`/stacks/${id}/clone`),
+    toggleFeature: (id)           => apiClient.patch(`/stacks/${id}/feature`),
+    adminDelete:   (id)           => apiClient.delete(`/stacks/${id}/admin`),
 }
