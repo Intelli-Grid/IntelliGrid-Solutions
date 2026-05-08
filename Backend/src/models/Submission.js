@@ -42,6 +42,31 @@ const submissionSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Tool',
         },
+        // ── War Room Agent Scoring Fields ─────────────────────────────────
+        // Set by submissionAnalyzer.js after the Submission Agent analyses the tool
+        agentScore: {
+            type: Number,
+            min: 0,
+            max: 100,
+            default: null,
+        },
+        agentNotes: {
+            type: String,
+            default: null,
+        },
+        agentRecommendation: {
+            type: String,
+            enum: ['approve', 'review', 'reject', null],
+            default: null,
+        },
+        agentCategory: {
+            type: String,
+            default: null,
+        },
+        agentProcessedAt: {
+            type: Date,
+            default: null,
+        },
     },
     {
         timestamps: true,

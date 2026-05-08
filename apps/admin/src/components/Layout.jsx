@@ -14,7 +14,8 @@ import {
     ShieldCheck,
     Star,
     ToggleLeft,
-    Radio
+    Radio,
+    Zap
 } from "lucide-react";
 import { useState } from "react";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
@@ -55,6 +56,7 @@ const PAGE_TITLES = {
     '/claims': 'Claim Requests',
     '/revenue': 'Revenue & Finance',
     '/featured': 'Featured Listings',
+    '/war-room': 'War Room ⚡',
     '/flags': 'Feature Flags',
     '/system': 'System Health',
 }
@@ -83,8 +85,9 @@ const AdminLayout = ({ children }) => {
             { icon: Star, label: 'Featured Listings', to: '/featured' },
         ],
         platform: [
-            { icon: ToggleLeft, label: 'Feature Flags', to: '/flags' },
-            { icon: Settings, label: 'System Health', to: '/system' },
+            { icon: Zap,        label: 'War Room',      to: '/war-room' },
+            { icon: ToggleLeft, label: 'Feature Flags',  to: '/flags' },
+            { icon: Settings,   label: 'System Health',  to: '/system' },
         ],
     };
 

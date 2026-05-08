@@ -144,7 +144,10 @@ const toolSchema = new mongoose.Schema(
         },
         sourceFoundBy: {
             type: String,
-            enum: ['manual', 'scraper', 'producthunt', 'twitter', 'hacker-news', 'submission', 'csv-import'],
+            enum: [
+                'manual', 'scraper', 'producthunt', 'github-trending',
+                'twitter', 'hacker-news', 'submission', 'csv-import',
+            ],
             default: 'manual',
         },
 
@@ -529,6 +532,18 @@ const toolSchema = new mongoose.Schema(
             // Automated quality issue flags (e.g. "missing_screenshot", "website_unreachable")
             type: [String],
             default: [],
+        },
+
+        // ── War Room Agent Fields ──────────────────────────────────────────────
+        // Set by the scraper agent approval executor when an admin approves a discovered tool.
+        approvedAt: {
+            type: Date,
+            default: null,
+        },
+        approvedByAgent: {
+            // Which agent discovered and queued this tool for approval
+            type: String,
+            default: null,
         },
 
         // ── v2.5.0 Anti-Slop Fields ─────────────────────────────────────────────
