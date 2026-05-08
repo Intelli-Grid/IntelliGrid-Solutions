@@ -3,6 +3,7 @@ import ApiResponse from '../utils/ApiResponse.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { getRoleLevel } from '../middleware/rbac.js'
+import FailedSearch from '../models/FailedSearch.js'
 
 // BUG-07 fix: Whitelist allowed sort fields to prevent field enumeration attacks.
 // Passing an arbitrary sort field (e.g. sort=subscription.paypalSubscriptionId) to
@@ -85,6 +86,19 @@ class ToolController {
         }
 
         const result = await toolService.searchTools(q || '', options)
+
+        // War Room — Failed Search Capture
+        // If the search returned 0 hits, log the term so the Content Agent
+        // can draft an SEO blog post targeting it. Non-blocking.
+        const hitCount = result?.nbHits ?? result?.hits?.length ?? 0
+        const searchTerm = (q || '').trim()
+        if (hitCount === 0 && searchTerm.length > 2) {
+            FailedSearch.findOneAndUpdate(
+                { term: searchTerm.toLowerCase() },
+                { $inc: { count: 1 }, $set: { lastSearchedAt: new Date() } },
+                { upsert: true, new: true }
+            ).catch(() => {}) // Never throw — search must always respond
+        }
 
         res.status(200).json(
             new ApiResponse(200, result, 'Search completed successfully')

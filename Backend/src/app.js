@@ -36,9 +36,12 @@ import stackRoutes from './routes/stackRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import telegramRoutes from './routes/telegram.routes.js'
 import communityTelegramRoutes from './routes/communityTelegram.routes.js'
+import warRoomRoutes from './routes/warRoom.routes.js'
 import { initialiseTelegramBot } from './services/telegramBot.js'
 import { initialiseCommunityBot } from './services/communityBot.js'
 import { startCrawlerScheduler } from './jobs/crawlerScheduler.js'
+import { startScraperAgentCron } from './jobs/scraperAgentCron.js'
+import { startContentAgentCron } from './jobs/contentAgentCron.js'
 import { getEnabledFlagKeys } from './services/featureFlags.js'
 import { timingMiddleware } from './middleware/timing.js'
 
@@ -82,6 +85,12 @@ if (process.env.CRAWLER_ENABLED === 'true') {
 } else {
     console.log('⚠️  [CrawlerScheduler] Disabled (set CRAWLER_ENABLED=true to activate nightly crawls)')
 }
+
+// ── War Room Agent Crons ──────────────────────────────────────────────
+// Only activate when WAR_ROOM_ENABLED=true is set in Railway.
+// These are completely independent from the existing crawler crons.
+startScraperAgentCron()   // every 6h: discover new tools from PH + GitHub
+startContentAgentCron()   // midnight: draft SEO posts from failed searches
 
 // ── CORS — must be before helmet and any other middleware ────────────────────
 const ALLOWED_ORIGINS = [
@@ -355,6 +364,7 @@ app.use('/api/v1/stacks', stackRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
 app.use('/api/v1/telegram', telegramRoutes)
 app.use('/api/v1/telegram', communityTelegramRoutes)
+app.use('/api/v1/admin/war-room', warRoomRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────
 // Returns only the list of enabled flag keys — no auth required, no sensitive data.

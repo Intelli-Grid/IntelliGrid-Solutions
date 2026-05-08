@@ -1,0 +1,567 @@
+# IntelliGrid — Complete Technical Audit
+> Version 2.4.0 | Audited: May 2026
+
+---
+
+## 1. Platform Overview
+
+IntelliGrid is a **production SaaS AI tools discovery platform** that aggregates, enriches, and monetizes access to AI tool listings. It operates as a marketplace with a freemium/subscription model, automated data pipelines, and programmatic SEO.
+
+- **Live URL:** https://www.intelligrid.online
+- **Backend:** Node.js ESM + Express → Railway
+- **Frontend:** React 18 + Vite + Tailwind → Vercel
+- **Database:** MongoDB Atlas
+- **Cache:** Redis (Upstash)
+- **Search:** Algolia
+- **Auth:** Clerk
+- **Payments:** PayPal (USD, global) + Cashfree (INR, India)
+- **Error Tracking:** Sentry
+- **Notifications:** Telegram Bot (owner alerts + community bot)
+- **Email:** Resend (transactional)
+
+---
+
+## 2. Repository Structure
+
+```
+INTELLIGRID NEW/
+├── Backend/
+│   └── src/
+│       ├── app.js                    # Express app factory, middleware, route mounting
+│       ├── server.js                 # HTTP server bootstrap, cron startup
+│       ├── models/                   # Mongoose schemas
+│       ├── routes/                   # Express routers
+│       ├── controllers/              # Request handlers
+│       ├── services/                 # Business logic
+│       ├── jobs/                     # Cron jobs & crawlers
+│       ├── middleware/               # Auth, RBAC, rate limiting
+│       ├── config/                   # External service configs
+│       └── utils/                   # ApiError, ApiResponse, asyncHandler
+└── Frontend/
+    └── src/
+        ├── pages/                    # Route-level React components
+        ├── components/               # Reusable UI components
+        ├── services/                 # API client (axios)
+        ├── hooks/                    # Custom React hooks
+        └── context/                  # React context providers
+```
+
+---
+
+## 3. Backend Architecture
+
+### 3.1 `app.js` — Express Application
+
+The core Express app is assembled here with full middleware stack:
+
+| Middleware | Purpose |
+|---|---|
+| `helmet()` | HTTP security headers |
+| `cors()` | Whitelist-based CORS (FRONTEND_URL + localhost) |
+| `mongo-sanitize` | NoSQL injection prevention |
+| `express.json()` | JSON body parsing (global, 10kb limit) |
+| `express.raw()` | Raw buffer for webhook routes (PayPal/Cashfree signature verification) |
+| `morgan` | HTTP request logging |
+| `Sentry` | Error monitoring (requestHandler + errorHandler) |
+| `rateLimit` | Per-endpoint granular rate limiting |
+| `timingMiddleware` | Performance timing headers on responses |
+
+**Public Routes (no auth required):**
+- `GET /api/v1/platform-stats` — aggregated counts (tools, categories, active trials), Redis-cached 5 min
+- `GET /api/v1/featured` — sponsored tool listings, Redis-cached, feature-flagged
+- `GET /api/v1/tools` — paginated tool listing with filters
+- `GET /api/v1/tools/search` — Algolia search proxy
+- `GET /api/v1/tools/:slug` — individual tool detail
+- `GET /api/v1/categories` — all categories
+
+**Authenticated Routes:**
+- `/api/v1/payment/*` — PayPal + Cashfree order creation/capture/webhooks
+- `/api/v1/users/*` — user profile, subscription, favorites, reviews
+- `/api/v1/tools` (POST/PUT/DELETE) — admin tool management
+- `/api/v1/admin/*` — admin dashboard, tool approval, revenue, vendor claims
+
+**SEO/Programmatic Routes:**
+- `GET /api/v1/seo/alternatives/:slug` — "X alternatives" pages
+- `GET /api/v1/seo/best-tools/:role` — "Best AI tools for [role]" pages
+- `GET /api/v1/sitemap.xml` — auto-generated XML sitemap
+
+### 3.2 `server.js` — Bootstrap & Cron Startup
+
+On startup, the server:
+1. Connects to MongoDB
+2. Connects to Redis
+3. Registers Sentry
+4. Starts HTTP server
+5. Launches all cron jobs in sequence:
+   - `startTrialCron()` — daily trial lifecycle management
+   - `startWinBackCron()` — churn win-back email sequences
+   - `startEnrichmentCron()` — daily trending score recompute
+   - `startDiscoveryScheduler()` — every 4h crawler + Groq enrichment
+
+---
+
+## 4. Data Models
+
+### 4.1 `Tool.js` — Core Schema
+
+The most complex model. Key field groups:
+
+**Identity:**
+- `name`, `slug` (auto-generated, unique), `officialUrl`, `websiteUrl`
+- `logo`, `screenshotUrl`, `screenshotTakenAt`, `videoEmbedUrl`
+
+**Content:**
+- `shortDescription`, `longDescription` (AI-generated, 150-250 words)
+- `tags[]`, `keyFeatures[]`, `useCaseExamples[]`
+
+**Classification:**
+- `category` (ObjectId → Category), `categorySlug`
+- `useCaseTags[]`, `audienceTags[]`, `industryTags[]`, `integrationTags[]`
+- `platforms[]` (Web, iOS, Android, Chrome Extension, API, etc.)
+- `alternativeTo[]` (competitor tool names)
+
+**Pricing Intelligence:**
+- `pricing` (Free/Freemium/Paid/Trial/Unknown)
+- `startingPrice` (string, e.g. "$12/mo")
+- `hasFreeTier` (boolean)
+- `hasFreeTrialDays` (number)
+
+**Engagement:**
+- `views`, `weeklyViews`, `weeklyBookmarks`
+- `ratings.average`, `ratings.count`
+- `favorites` (count)
+- `trendingScore` (computed, weighted formula)
+
+**Status Flags:**
+- `status` (pending/active/auto_approved/rejected/archived)
+- `isActive`, `isFeatured`, `isTrending`, `isNew`, `isVerified`
+- `humanVerified`, `needsEnrichment`
+
+**Enrichment Tracking:**
+- `enrichmentScore` (0-100), `enrichmentVersion`, `lastEnrichedAt`
+- `enrichmentSource` ('groq-v1')
+- `isEnriched` (boolean)
+- `dataQualityFlags[]` (e.g. 'groq_failed', 'enrichment_error')
+
+**Affiliate:**
+- `affiliateUrl`, `affiliateStatus` (none/pending/active/rejected)
+- `affiliateCommissionType`, `affiliateCommissionValue`
+- `affiliateNetwork`, `affiliateNotes`
+
+**SEO:**
+- `metaTitle` (60 chars max), `metaDescription` (160 chars max)
+- `targetAudience`, `seoKeywords[]`
+- `twitterHandle`, `companyName`, `foundedYear`, `hqCountry`
+
+**Crawler Metadata:**
+- `sourceUrl`, `sourceSite` (futurepedia/taaft/aitools)
+- `externalId`, `linkStatus` (active/dead/redirected)
+- `lastLinkCheckAt`
+
+**Cascade Delete Hook:** `findOneAndDelete` post-hook removes all associated `Favorite` and `Review` documents.
+
+**Indexes:** `slug` (unique), `category`, `trendingScore`, `enrichmentScore`, `status+isActive`, `tags`, `affiliateStatus`
+
+### 4.2 `User.js` — User Schema
+
+**Identity (via Clerk):**
+- `clerkId` (unique), `email`, `firstName`, `lastName`, `avatar`
+
+**Roles (RBAC):**
+- `role`: USER → MODERATOR → ADMIN → SUPER_ADMIN
+
+**Subscription:**
+- `subscription.tier` (Free/Basic/Pro/Enterprise)
+- `subscription.status` (active/inactive/cancelled/expired/trial)
+- `subscription.startDate`, `subscription.endDate`, `subscription.autoRenew`
+- `subscription.paypalSubscriptionId`, `subscription.cashfreeOrderId`
+- `subscription.normalizedAmountUSD` (for revenue analytics)
+
+**Reverse-Trial:**
+- `subscription.reverseTrial.active` (boolean)
+- `subscription.reverseTrial.startDate`, `subscription.reverseTrial.endDate` (now + 14 days)
+- `subscription.reverseTrial.converted` (set true when user pays)
+- `subscription.reverseTrial.downgradedAt`
+
+**Win-Back:**
+- `winBack.eligible` (set true when trial expires without converting)
+- `winBack.emailsSent[]`, `winBack.lastEmailAt`
+- `winBack.convertedAt`
+
+**Interaction History:**
+- `favorites[]` (Tool ObjectIds)
+- `savedSearches[]`, `viewHistory[]`
+- `reviewCount`, `submittedTools[]`
+
+**Newsletter:**
+- `newsletter.subscribed`, `newsletter.subscribedAt`
+
+### 4.3 Other Models
+
+| Model | Purpose |
+|---|---|
+| `Category` | Tool categories with slug, icon, description, toolCount |
+| `Review` | User reviews: rating (1-5), title, body, toolId, userId |
+| `Order` | Payment orders: orderId, user, subscription, amount (currency+total+discount), gateway, status |
+| `Coupon` | Discount codes: type (percentage/fixed), value, maxUses, usedCount, expiresAt, applicablePlans |
+| `WebhookLog` | Full log of every PayPal/Cashfree webhook: payload, headers, status (received/processed/signature_failed/error) |
+| `Submission` | Community tool submissions pending review |
+| `VendorClaim` | B2B vendor claim requests for tool ownership |
+| `Newsletter` | Standalone newsletter subscribers (non-user) |
+
+---
+
+## 5. Enrichment Pipeline
+
+### Architecture
+
+```
+Tool (needsEnrichment=true OR enrichmentScore < 50)
+  ↓
+[1] scrapeToolWebsite()     — Cheerio HTTP scraper
+  ↓ title, metaDesc, h1, h2s, bodyText, ogImage, twitterHandle
+[2] enrichWithGroq()        — LLaMA-3.1-8b-instant via Groq API
+  ↓ 20-field JSON response
+[3] buildUpdatePayload()    — Merge (never overwrite populated fields)
+[4] resolveCategoryId()     — Auto-assign MongoDB Category ObjectId
+[5] computeEnrichmentScore() — 0-100 quality score
+[6] Tool.findByIdAndUpdate() — Save to MongoDB
+[7] syncToolToAlgolia()     — Non-blocking Algolia re-index
+```
+
+### Groq Key Rotator
+
+- Supports up to 10 Groq API keys (`GROQ_API_KEY` through `GROQ_API_KEY_10`)
+- Lazy-initialized on first enrichment call (prevents startup crash if key missing)
+- Handles **TPD (tokens per day)** limit: marks key exhausted, rotates to next
+- Handles **TPM (tokens per minute)** limit: parses retry-after header, waits, retries same key (max 2 retries)
+- If all keys exhausted: throws `DailyTokenLimitError` → stops the batch cleanly
+
+### Groq Prompt Output (20 fields)
+
+`pricingModel`, `startingPrice`, `hasFreeVersion`, `hasFreeTrialDays`, `hasAPI`, `platforms[]`, `useCaseTags[]`, `audienceTags[]`, `industryTags[]`, `integrationTags[]`, `keyFeatures[]`, `useCaseExamples[]`, `longDescription`, `seoTitle`, `seoDescription`, `seoKeywords[]`, `targetAudience`, `alternativeTo[]`, `companyName`, `foundedYear`, `hqCountry`, `twitterHandle`, `isActivelyMaintained`
+
+### Enrichment Score Formula (0-100)
+
+| Signal | Points |
+|---|---|
+| shortDescription > 80 chars | 8 |
+| longDescription > 200 chars | 12 |
+| screenshotUrl (< 30 days old) | 15 |
+| screenshotUrl (> 30 days old) | 5 |
+| pricing set (not Unknown) | 8 |
+| hasFreeTier set | 4 |
+| useCaseTags >= 3 | 10 |
+| useCaseTags >= 7 (bonus) | 5 |
+| audienceTags >= 1 | 5 |
+| industryTags >= 1 | 3 |
+| platforms >= 1 | 6 |
+| keyFeatures >= 3 | 8 |
+| alternativeTo >= 1 | 5 |
+| videoEmbedUrl set | 7 |
+| metaTitle + metaDescription | 4 |
+| targetAudience set | 3 |
+| humanVerified = true | 5 |
+
+### Batch Selection
+
+`getEnrichmentBatch(50)` selects tools where:
+- `status` in `[active, pending, auto_approved]`
+- `isActive != false`
+- `lastEnrichedAt` is null OR `enrichmentScore < 50` OR last enriched > 30 days ago
+
+Sorted by `enrichmentScore ASC, lastEnrichedAt ASC` (lowest quality first).
+
+---
+
+## 6. Crawler / Discovery System
+
+### Crawler Scheduler (`crawlerScheduler.js`)
+
+Runs every **4 hours**. Tasks per run:
+1. Run all registered source crawlers (Futurepedia, Taaft, AITools.fyi)
+2. Deduplicate against existing tools by `officialUrl` / `externalId`
+3. Insert new tools with `status: 'auto_approved'`, `isNew: true`, `needsEnrichment: true`
+4. Run Groq enrichment batch on newly discovered + unenriched tools
+5. Flag dead links via `linkHealthChecker`
+
+### Category Normalizer (`normalizer.js`)
+
+Maps free-text tags/categories from scrapers to IntelliGrid's canonical category slugs. Used by `resolveCategoryId()` to auto-assign categories during enrichment.
+
+### Link Health Checker
+
+Periodically HEAD-requests tool URLs. Updates `linkStatus` field to `active`, `dead`, or `redirected`. Dead tools are flagged for admin review.
+
+---
+
+## 7. Cron Jobs
+
+| Cron | Schedule | Tasks |
+|---|---|---|
+| `trialCron` | Daily 08:00 UTC | Expire trials → downgrade to Free; Day 12 urgency email; Day 11 reminder; Day 7 midpoint nudge |
+| `winBackCron` | Daily | Sequences for churned users: D+1, D+3, D+7, D+14 emails |
+| `enrichmentCron` | Daily 03:00 UTC | Recompute trendingScores; reset isNew (>30 days); flag stale tools (>70 days) |
+| `trendingCron` | Daily 03:00 UTC | Backup: mark top 10 by trendingScore as isTrending |
+| `crawlerScheduler` | Every 4 hours | Crawl sources; import new tools; Groq batch enrichment |
+
+### Trending Score Formula
+
+```
+trendingScore =
+  (weeklyViews × 2.0)
++ (weeklyBookmarks × 3.5)
++ (recentReviews[14d] × 4.0)
++ (enrichmentScore × 0.3)
++ (isFeatured ? 10 : 0)
++ (isNew ? 8 : 0)
+- min(daysSinceEnriched × 0.1, 20)
+```
+
+Top 20 by trendingScore → `isTrending = true`. Weekly counters reset every Monday.
+
+---
+
+## 8. Payment System
+
+### Dual-Gateway Architecture
+
+- **PayPal** — USD payments for global users (one-time + recurring subscriptions)
+- **Cashfree** — INR payments for Indian users (UPI, netbanking, cards)
+
+### Plans
+
+| Key | Tier | Duration |
+|---|---|---|
+| pro_monthly | Pro | Monthly |
+| pro_yearly | Pro | Yearly |
+| basic_monthly | Basic | Monthly |
+| basic_yearly | Basic | Yearly |
+| enterprise_monthly | Enterprise | Monthly |
+| enterprise_yearly | Enterprise | Yearly |
+
+### PayPal Flow
+
+1. `POST /payment/paypal/create-order` → Creates PayPal payment, returns `approvalUrl`
+2. User redirects to PayPal, approves
+3. `POST /payment/paypal/capture` → Executes payment, activates subscription
+4. Webhook: `BILLING.SUBSCRIPTION.ACTIVATED` → activates on subscription approval
+5. Webhook: `BILLING.SUBSCRIPTION.RENEWED/UPDATED` → extends endDate on renewal
+6. Webhook: `BILLING.SUBSCRIPTION.CANCELLED/EXPIRED` → downgrades to Free
+7. Webhook: `PAYMENT.SALE.DENIED` → marks order failed, suspends subscription
+
+### PayPal Subscription (v2 API)
+
+- `POST /payment/paypal/create-subscription` → Creates recurring billing plan subscription
+- `POST /payment/paypal/cancel-subscription` → User-initiated cancel via API
+- Plan IDs stored in env: `PAYPAL_PLAN_PRO_MONTHLY`, etc.
+- `getPlanIdMap()` reverse-maps PayPal plan_id → `{tier, duration}` for webhook handling
+
+### Cashfree Flow
+
+1. `POST /payment/cashfree/create-order` → Creates Cashfree order, returns `payment_session_id`
+2. Frontend uses Cashfree SDK to render payment UI
+3. User completes payment, redirected to `/payment/success?orderId=...&method=cashfree`
+4. `POST /payment/cashfree/verify` → Polls Cashfree API, activates subscription
+5. Webhook: `PAYMENT_SUCCESS_WEBHOOK` → activates via `verifyCashfreePayment()`
+6. Webhook: `PAYMENT_FAILED_WEBHOOK` → marks order failed
+7. Webhook: `PAYMENT_USER_DROPPED_WEBHOOK` → marks order cancelled
+
+### Webhook Security
+
+- **PayPal:** HMAC signature verification via `verifyPayPalWebhook()` using raw Buffer body
+- **Cashfree:** HMAC-SHA256 via `x-webhook-signature` + `x-webhook-timestamp` headers
+- Both routes use `express.raw()` middleware (not `express.json()`) to preserve exact bytes for signature verification
+- **Deduplication:** PayPal uses `paypal-transmission-id`; Cashfree uses `cf_payment_id` — both checked against `WebhookLog` for already-processed status
+
+### Coupon System
+
+- Code lookup: case-insensitive, active-only
+- Validates: expiry date, usage limit (`maxUses`), plan applicability
+- Atomic increment: `findOneAndUpdate` with `$expr: { $lt: ['$usedCount', '$maxUses'] }` prevents race conditions
+- Supports: percentage discount + fixed-amount discount
+- INR conversion: `discountValueINR` field on coupon; falls back to `discountValue × 83` for legacy coupons
+
+### Reverse-Trial
+
+On new user signup:
+- `subscription.tier = 'Pro'`
+- `subscription.reverseTrial.active = true`
+- `subscription.reverseTrial.endDate = now + 14 days`
+
+`trialCron` handles the full lifecycle with 4 email touchpoints. On payment: `reverseTrial.converted = true`.
+
+---
+
+## 9. Security & RBAC
+
+### Role Hierarchy
+
+```
+USER < MODERATOR < ADMIN < SUPER_ADMIN
+```
+
+`getRoleLevel()` returns numeric rank for comparison. `requireRole('ADMIN')` middleware blocks lower roles.
+
+### Rate Limiting (per-endpoint)
+
+| Endpoint | Limit |
+|---|---|
+| Auth routes | 10 req/15 min |
+| Tool submission | 5 req/hour |
+| Search | 60 req/min |
+| General API | 100 req/15 min |
+| Webhook routes | No rate limit (IP whitelisted) |
+
+### Other Security
+
+- `mongo-sanitize` on all request bodies
+- Sort field whitelist in `toolController.js` (prevents field enumeration via Mongoose sort)
+- Helmet sets: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+- CORS: only `FRONTEND_URL` + localhost origins allowed
+
+---
+
+## 10. Frontend Pages
+
+| Page | Route | Description |
+|---|---|---|
+| `HomePage` | `/` | Hero, trending tools, recent tools, platform stats (animated counters), newsletter CTA |
+| `ExplorePage` | `/explore` | Full tool listing with filters (category, pricing, platform, audience) + Algolia search |
+| `ToolDetailPage` | `/tool/:slug` | Full tool profile: description, pricing, features, reviews, alternatives, affiliate CTA |
+| `CategoryPage` | `/category/:slug` | Tools filtered by category |
+| `SearchPage` | `/search` | Algolia-powered search results |
+| `PricingPage` | `/pricing` | Subscription plans, feature comparison, PayPal/Cashfree checkout |
+| `CheckoutPage` | `/checkout` | Payment form, coupon input, gateway selection |
+| `PaymentSuccessPage` | `/payment/success` | Post-payment confirmation, subscription activation |
+| `DashboardPage` | `/dashboard` | User dashboard: favorites, saved searches, subscription status |
+| `ProfilePage` | `/profile` | Account settings, billing management |
+| `SubmitToolPage` | `/submit` | Community tool submission form |
+| `AlternativesPage` | `/alternatives/:slug` | Programmatic SEO: "X alternatives" |
+| `BestToolsPage` | `/best-tools/:role` | Programmatic SEO: "Best AI tools for [role]" |
+| `AdminDashboard` | `/admin` | Admin overview: pending tools, revenue, users, enrichment stats |
+| `AdminToolsPage` | `/admin/tools` | Tool approval queue, bulk enrichment trigger |
+| `AdminRevenuePages` | `/admin/revenue` | Order history, subscription metrics |
+
+### Key Frontend Services
+
+- `apiService.js` — Axios instance with base URL + Clerk JWT injection
+- `algoliaService.js` — Algolia InstantSearch client
+- `authService.js` — Clerk hooks wrappers
+
+### Homepage Stats
+
+`/api/v1/platform-stats` returns:
+- `totalTools` — count of active tools
+- `totalCategories` — count of categories
+- `activeTrials` — users currently on reverse trial
+- Cached in Redis for 5 minutes
+
+Stats counters use `IntersectionObserver` to trigger animated number counting when scrolled into view.
+
+---
+
+## 11. SEO Strategy
+
+### Technical SEO
+
+- `GET /api/v1/sitemap.xml` — dynamically generated XML sitemap with all tool slugs
+- Each tool page: unique `<title>` (format: `[Tool] — [Category] AI Tool | IntelliGrid`), `<meta description>`, canonical URL
+- Structured data (JSON-LD) on tool detail pages
+
+### Programmatic SEO Pages
+
+- `/alternatives/:slug` — "Best [Tool] alternatives in 2026" — targets comparison searches
+- `/best-tools/:role` — "Best AI tools for marketers / developers / designers" — targets role-based intent
+
+### Algolia Search
+
+- All active tools synced to Algolia index
+- Searchable attributes: name, shortDescription, tags, useCaseTags, alternativeTo
+- Facets: category, pricing, platforms, audienceTags
+- Re-synced after every enrichment update
+
+---
+
+## 12. Observability & Operations
+
+### Sentry
+
+- `SENTRY_DSN` env var
+- Request handler + error handler middleware
+- Captures unhandled exceptions + async errors
+
+### Telegram Bot Alerts
+
+- `TELEGRAM_BOT_TOKEN` — owner alert bot (payment events, errors)
+- `COMMUNITY_BOT_TOKEN` — community engagement bot
+- Alerts fired for: new Pro signup, payment failure, enrichment daily limit hit
+
+### Email (Resend)
+
+Transactional emails via `emailService.js`:
+- `sendSubscriptionConfirmation` — on payment success
+- `sendPaymentReceipt` — on payment success
+- `sendPaymentFailure` — on failed payment
+- `sendTrialExpiredEmail` — day 14 (trial end)
+- `sendTrialUrgencyEmail` — day 12 (2 days left)
+- `sendTrialReminderEmail` — day 11 (3 days left)
+- `sendTrialMidpointEmail` — day 7
+
+### WebhookLog Model
+
+Every incoming webhook (PayPal + Cashfree) is persisted with: source, eventType, full payload, headers, and status. Enables debugging and replay.
+
+---
+
+## 13. Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `MONGODB_URI` | MongoDB Atlas connection string |
+| `REDIS_URL` | Upstash Redis URL |
+| `CLERK_SECRET_KEY` | Clerk server-side auth |
+| `ALGOLIA_APP_ID` / `ALGOLIA_ADMIN_KEY` | Algolia search |
+| `GROQ_API_KEY` (+ 2-10) | LLM enrichment keys |
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | PayPal API |
+| `PAYPAL_MODE` | sandbox / live |
+| `PAYPAL_WEBHOOK_ID` | For signature verification |
+| `PAYPAL_PLAN_PRO_MONTHLY` etc. | PayPal Billing Plan IDs |
+| `CASHFREE_APP_ID` / `CASHFREE_SECRET` | Cashfree API |
+| `CASHFREE_ENV` | sandbox / production |
+| `SENTRY_DSN` | Error monitoring |
+| `TELEGRAM_BOT_TOKEN` | Owner alert bot |
+| `COMMUNITY_BOT_TOKEN` | Community bot |
+| `RESEND_API_KEY` | Email delivery |
+| `FRONTEND_URL` | CORS + redirect URLs |
+| `CRAWLER_ENABLED` | Enable/disable discovery scheduler |
+| `FEATURED_LISTINGS` | Enable/disable sponsored listings |
+
+---
+
+## 14. Known Issues & Current State
+
+### Resolved (Recent Fixes)
+
+- **BUG-04:** Subscription activation used timing heuristic → fixed with `getPlanIdMap()` reverse lookup
+- **BUG-07:** Sort field enumeration attack vector → fixed with `ALLOWED_SORT_FIELDS` whitelist
+- **BUG-11:** PLAN_MAP copy-pasted 3x → extracted to module-level constant
+- **BUG-13:** Cashfree webhook deduplication used wrong field → fixed to use `cf_payment_id`
+- **BUG-14:** Webhook body was re-serialized (breaking HMAC) → fixed with `express.raw()` + Buffer parsing
+- **isEnriched bug:** Was only set inside `if(categoryId)` block → caused infinite re-enrichment loop → fixed to always set
+- **Groq initialization:** Was eagerly initialized (crashed if no key) → fixed to lazy-init
+
+### In Progress
+
+- Affiliate-to-tool matching pipeline (passive revenue)
+- Newsletter CTA expansion across all landing pages
+- Vendor claim workflow finalization (B2B outreach)
+- Admin enrichment stats/reporting improvements
+
+### Production Configuration Required
+
+- `CRAWLER_ENABLED=true` must be set in Railway for discovery to run
+- All 6 PayPal Billing Plan IDs must be set for subscription renewal webhooks to map correctly
+- Cashfree must be in `production` mode with real APP_ID/SECRET
+- PayPal webhook URL must be registered in PayPal Developer dashboard: `POST /api/v1/payment/webhooks/paypal`
+- Cashfree webhook URL must be registered: `POST /api/v1/payment/webhooks/cashfree`

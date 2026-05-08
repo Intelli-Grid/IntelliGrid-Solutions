@@ -9,6 +9,7 @@ import ApiError from '../utils/ApiError.js'
 import emailService from '../services/emailService.js'
 import toolService from '../services/toolService.js'
 import { sendOwnerAlert } from '../services/telegramBot.js'
+import { analyzeSubmission } from '../services/submissionAnalyzer.js'
 
 const router = express.Router()
 
@@ -72,6 +73,12 @@ router.post('/',
         `By: ${submission.submittedBy.name}\n\n` +
         `👉 Tap to approve instantly:\n` +
         `/approve\_${submission._id}`
+    )
+
+    // War Room: analyse the submission quality in the background (non-blocking)
+    // Never await — must not delay the 201 response to the submitter
+    analyzeSubmission(submission).catch((err) =>
+        console.error('[SubmissionRoute] Agent analysis error:', err.message)
     )
 
     // Send confirmation email if we have an email
