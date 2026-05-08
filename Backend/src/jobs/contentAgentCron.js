@@ -1,307 +1,276 @@
 // Backend/src/jobs/contentAgentCron.js
-// War Room — Content Agent (Phase 2)
-// Runs every night at midnight UTC.
-// Reads the top failed search terms (count >= 3, no blog drafted yet),
-// generates SEO blog posts via OpenAI, saves them as drafts,
-// and queues them for human approval before publishing.
+// Content Agent — nightly SEO blog post drafting.
+// Runs daily at 00:00 UTC (scheduled in app.js).
+//
+// Flow:
+//   1. Query FailedSearch for terms with count >= AGENT_BLOG_MIN_FAILED_COUNT
+//   2. For each term, call Groq to generate a structured SEO blog post draft
+//   3. Save draft BlogPost (status: 'draft') to MongoDB
+//   4. Queue a PendingAction for admin approval before publishing
+//   5. Mark the FailedSearch term as "processed" (blogPostDrafted: true)
+//
+// Nothing publishes without an admin clicking Approve in the War Room UI.
 
 import cron from 'node-cron'
-import OpenAI from 'openai'
 import FailedSearch from '../models/FailedSearch.js'
 import BlogPost from '../models/BlogPost.js'
-import Tool from '../models/Tool.js'
 import User from '../models/User.js'
 import { agentLog, queueForApproval, setAgentStatus } from '../services/agentOrchestrator.js'
+import { groqComplete } from '../services/groqClient.js'
 
-// ── OpenAI client — lazy, initialised on first run ──────────────────────────
-let _openai = null
-function getOpenAI() {
-  if (!_openai) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not set in environment variables')
-    }
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  }
-  return _openai
+const AGENT_NAME = 'content'
+const MIN_FAILED_COUNT = parseInt(process.env.AGENT_BLOG_MIN_FAILED_COUNT || '3', 10)
+const MAX_POSTS_PER_NIGHT = parseInt(process.env.AGENT_MAX_BLOG_POSTS_PER_NIGHT || '5', 10)
+
+// ── Blog Post Prompt ─────────────────────────────────────────────────────────
+
+function buildBlogPrompt(searchTerm) {
+    return `You are an expert AI tools content writer for IntelliGrid, a directory of AI tools.
+Write a comprehensive, SEO-optimised blog post about the search term: "${searchTerm}"
+
+This search term was queried by real users who found zero results on IntelliGrid.
+Your post should address what they were looking for and recommend relevant AI tools.
+
+REQUIREMENTS:
+- Tone: professional, helpful, informative (no fluff, no filler)
+- Length: 600-900 words
+- Structure: Use H2 and H3 markdown headings
+- SEO: Include the search term naturally in title, first paragraph, and at least 2 headings
+- Include: what the category of tool does, who it is for, what to look for when choosing one
+- End with a call to action to explore IntelliGrid for the best tools in this category
+
+FORMAT: Return plain markdown only. No code fences. Start directly with the H1 title.
+The first line must be: # <SEO title that includes "${searchTerm}">
+The second line must be blank.
+Then the post body.`
 }
 
-/**
- * Slugify a title into a URL-safe slug + timestamp suffix to ensure uniqueness.
- * @param {string} title
- * @returns {string}
- */
-function makeSlug(title) {
-  const base = title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim()
-    .slice(0, 60)
-  return `${base}-${Date.now()}`
+function buildMetaPrompt(searchTerm, bodyPreview) {
+    return `Given this blog post about "${searchTerm}", return ONLY a JSON object.
+No markdown, no backticks, no explanation.
+
+Post preview (first 400 chars):
+${bodyPreview}
+
+Return exactly:
+{
+  "slug": "<url-friendly slug, lowercase, hyphens only, 50 chars max>",
+  "metaTitle": "<SEO title, 60 chars max, includes '${searchTerm}'>",
+  "metaDescription": "<compelling 150 char meta description>",
+  "tags": ["<3-5 relevant tags>"],
+  "excerpt": "<2-sentence compelling excerpt for blog index pages>"
+}`
 }
 
-/**
- * Find the admin user to use as the blog post author.
- * Falls back to SUPERADMIN if no 'admin' role user exists.
- * @returns {Promise<import('mongoose').Document|null>}
- */
-async function getAdminAuthor() {
-  const adminUser = await User.findOne({
-    role: { $in: ['admin', 'SUPERADMIN'] },
-  }).lean()
-  return adminUser
-}
+// ── Core runner ──────────────────────────────────────────────────────────────
 
-/**
- * Generate a blog post for a failed search term using OpenAI.
- * @param {string} term - The failed search term
- * @param {Array} relatedTools - Tools already in the DB matching this topic
- * @returns {Promise<{title: string, content: string}>}
- */
-async function generateBlogPost(term, relatedTools) {
-  const openai = getOpenAI()
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-
-  const toolList =
-    relatedTools.length > 0
-      ? relatedTools
-          .map(
-            (t) =>
-              `- **${t.name}**: ${t.shortDescription} (https://www.intelligrid.online/tools/${t.slug})`
-          )
-          .join('\n')
-      : 'No specific tools found yet — encourage readers to explore the full directory.'
-
-  const termCapitalized = term.charAt(0).toUpperCase() + term.slice(1)
-
-  const systemPrompt = `You are a content writer for IntelliGrid (intelligrid.online), an AI tool discovery platform.
-Write SEO-optimised blog posts that are genuinely helpful, informative, and link back to IntelliGrid tool pages.
-Always link to IntelliGrid tool pages using the format: https://www.intelligrid.online/tools/{slug}
-Tone: professional but conversational. Avoid clickbait. Write for developers and knowledge workers.
-Format output in clean Markdown.`
-
-  const userPrompt = `Write a blog post titled "Top AI Tools for ${termCapitalized}" targeting users who searched for "${term}" on our platform and found no results.
-
-Include these IntelliGrid tools if relevant:
-${toolList}
-
-Post format:
-- Title: Top AI Tools for ${termCapitalized}
-- Introduction (2 short paragraphs explaining the use case)
-- One H2 section per tool (100–150 words each, include the IntelliGrid link)
-- If fewer than 3 tools are listed, include a section on "How to find more ${term} tools on IntelliGrid"
-- Conclusion with a call to action to explore intelligrid.online
-- Total length: 600–900 words
-- Include the exact phrase "${term}" naturally 2–3 times`
-
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    max_tokens: 1800,
-    temperature: 0.7,
-  })
-
-  const content = completion.choices[0]?.message?.content || ''
-  const title = `Top AI Tools for ${termCapitalized}`
-  return { title, content }
-}
-
-/**
- * Main content agent run function.
- * Exported so it can be triggered manually from the War Room UI.
- */
 export async function runContentAgent() {
-  // Guard against concurrent runs
-  if (runContentAgent._running) {
-    await agentLog('content', '⚠️ Content agent already running — skipping trigger', 'warning')
-    return
-  }
-
-  runContentAgent._running = true
-  setAgentStatus('content', 'running')
-
-  const stats = { processed: 0, drafted: 0, skipped: 0, errors: 0 }
-  const maxPostsPerNight = parseInt(process.env.AGENT_MAX_BLOG_POSTS_PER_NIGHT) || 5
-  const minFailedCount = parseInt(process.env.AGENT_BLOG_MIN_FAILED_COUNT) || 3
-
-  try {
-    await agentLog('content', '🖊️ Content agent starting nightly run', 'info')
-
-    // Verify OpenAI is configured before doing anything
-    if (!process.env.OPENAI_API_KEY) {
-      await agentLog('content', '❌ OPENAI_API_KEY not set — content agent skipped', 'error')
-      return
+    // Prevent concurrent runs
+    const { getAgentRegistry } = await import('../services/agentOrchestrator.js')
+    if (getAgentRegistry()[AGENT_NAME]?.status === 'running') {
+        await agentLog(AGENT_NAME, '⚠️ Already running — skipped duplicate trigger', 'warning')
+        return
     }
 
-    // Find the admin user for blog post authorship
-    const adminAuthor = await getAdminAuthor()
-    if (!adminAuthor) {
-      await agentLog('content', '❌ No admin user found in DB — cannot create blog posts', 'error')
-      return
-    }
+    setAgentStatus(AGENT_NAME, 'running')
+    await agentLog(AGENT_NAME, '🚀 Content Agent starting — scanning failed searches', 'info')
 
-    // Step 1: Find top un-drafted failed search terms
-    const targets = await FailedSearch.find({
-      blogPostDrafted: false,
-      count: { $gte: minFailedCount },
-    })
-      .sort({ count: -1 })
-      .limit(maxPostsPerNight)
-      .lean()
+    let drafted = 0
+    let skipped = 0
+    let errors = 0
 
-    if (targets.length === 0) {
-      await agentLog(
-        'content',
-        `💤 No failed search terms with count >= ${minFailedCount}. Sleeping until tomorrow.`,
-        'info'
-      )
-      return
-    }
-
-    await agentLog(
-      'content',
-      `📋 Found ${targets.length} search term(s) to draft blog posts for`,
-      'info',
-      { terms: targets.map((t) => t.term) }
-    )
-
-    // Step 2: Process each term
-    for (const target of targets) {
-      stats.processed++
-      try {
-        await agentLog('content', `✍️ Drafting blog post for: "${target.term}"`, 'info')
-
-        // Find related tools already in the DB
-        const relatedTools = await Tool.find({
-          status: 'active',
-          isActive: { $ne: false },
-          $or: [
-            { tags: { $regex: target.term, $options: 'i' } },
-            { shortDescription: { $regex: target.term, $options: 'i' } },
-            { name: { $regex: target.term, $options: 'i' } },
-            { useCaseTags: { $regex: target.term, $options: 'i' } },
-          ],
+    try {
+        // Step 1: Find unprocessed failed searches above threshold
+        const failedTerms = await FailedSearch.find({
+            count: { $gte: MIN_FAILED_COUNT },
+            blogPostDrafted: { $ne: true },
         })
-          .select('name shortDescription officialUrl slug')
-          .limit(5)
-          .lean()
+            .sort({ count: -1 })
+            .limit(MAX_POSTS_PER_NIGHT)
+            .lean()
 
-        // Generate the blog post via OpenAI
-        const { title, content } = await generateBlogPost(target.term, relatedTools)
-        const slug = makeSlug(title)
-
-        // Save as draft BlogPost
-        const post = await BlogPost.create({
-          title,
-          slug,
-          content,
-          excerpt: `Discover the best AI tools for ${target.term} — curated by IntelliGrid.`,
-          author: adminAuthor._id,
-          tags: [target.term, 'ai tools', 'productivity', 'guide'],
-          category: 'AI Tools Guide',
-          status: 'draft',
-        })
-
-        // Mark the search term as drafted so we don't re-draft it
-        await FailedSearch.findByIdAndUpdate(target._id, {
-          blogPostDrafted: true,
-          blogPostId: post._id,
-        })
-
-        // Queue for human approval — never auto-publish
-        await queueForApproval({
-          agentName: 'content',
-          actionType: 'publish_blog_post',
-          title: `Publish blog post: "${title}"`,
-          description:
-            `Auto-drafted from ${target.count} failed searches for "${target.term}".\n` +
-            `Related tools found: ${relatedTools.length}\n` +
-            `Preview slug: /blog/${slug}\n\n` +
-            `First 300 chars:\n${content.slice(0, 300)}...`,
-          payload: {
-            postId: post._id.toString(),
-            postSlug: slug,
-            postTitle: title,
-            searchTerm: target.term,
-          },
-        })
+        if (failedTerms.length === 0) {
+            await agentLog(AGENT_NAME, `ℹ️ No qualifying failed searches (threshold: ${MIN_FAILED_COUNT})`, 'info')
+            setAgentStatus(AGENT_NAME, 'idle')
+            return
+        }
 
         await agentLog(
-          'content',
-          `✅ Blog draft ready: "${title}"`,
-          'success',
-          { slug, postId: post._id.toString() }
+            AGENT_NAME,
+            `📋 Found ${failedTerms.length} qualifying terms — drafting up to ${MAX_POSTS_PER_NIGHT} posts`,
+            'info'
         )
 
-        stats.drafted++
-      } catch (err) {
-        stats.errors++
-        await agentLog(
-          'content',
-          `❌ Failed to draft post for "${target.term}": ${err.message}`,
-          'error'
-        )
-        console.error(`[ContentAgent] Error for term "${target.term}":`, err.message)
-      }
+        // Step 2: Resolve a system author (all agent-drafted posts need an author)
+        let authorId = null
+        try {
+            const adminUser = await User.findOne({
+                role: { $in: ['admin', 'ADMIN', 'SUPERADMIN'] },
+                isActive: { $ne: false },
+            }).select('_id').lean()
+            authorId = adminUser?._id || null
+        } catch (userErr) {
+            await agentLog(AGENT_NAME, `⚠️ Could not resolve admin author: ${userErr.message}`, 'warning')
+        }
+
+        if (!authorId) {
+            await agentLog(AGENT_NAME, '❌ No admin user found — cannot draft blog posts (author required)', 'error')
+            setAgentStatus(AGENT_NAME, 'error')
+            return
+        }
+
+        // Step 3: Draft a post for each qualifying term
+        for (const term of failedTerms) {
+            const searchTerm = term.term  // FailedSearch uses `term` field
+
+            try {
+                await agentLog(AGENT_NAME, `✍️ Drafting post for: "${searchTerm}" (${term.count} searches)`, 'info')
+
+                // Guard: skip if a draft already exists for this term
+                const existing = await BlogPost.findOne({
+                    title: { $regex: searchTerm, $options: 'i' },
+                }).select('_id').lean()
+
+                if (existing) {
+                    await agentLog(AGENT_NAME, `⏭️ Post already exists for "${searchTerm}" — skipping`, 'info')
+                    await FailedSearch.findByIdAndUpdate(term._id, {
+                        blogPostDrafted: true,
+                        blogPostId: existing._id,
+                    })
+                    skipped++
+                    continue
+                }
+
+                // Generate post body via Groq
+                const body = await groqComplete(buildBlogPrompt(searchTerm), {
+                    max_tokens: 1800,
+                    temperature: 0.35,
+                })
+
+                if (!body || body.length < 200) {
+                    throw new Error('Groq returned insufficient content')
+                }
+
+                // Generate SEO meta fields
+                let meta = null
+                try {
+                    const metaRaw = await groqComplete(
+                        buildMetaPrompt(searchTerm, body.substring(0, 400)),
+                        { max_tokens: 400, temperature: 0.1 }
+                    )
+                    const cleaned = metaRaw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
+                    meta = JSON.parse(cleaned)
+                } catch (_) {
+                    // Meta generation is non-fatal — use fallbacks below
+                }
+
+                // Extract title from first H1 line
+                const titleLine = body.split('\n')[0].replace(/^#+\s*/, '').trim()
+                const postContent = body.split('\n').slice(2).join('\n').trim()  // skip H1 + blank line
+
+                // Build a unique slug to avoid collisions
+                const baseSlug = (meta?.slug || searchTerm)
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '')
+                    .substring(0, 50)
+                const slug = `${baseSlug}-${Date.now().toString(36)}`
+
+                // Save draft to MongoDB (using `content` field — the BlogPost schema field name)
+                const post = await BlogPost.create({
+                    title: titleLine || `Best AI Tools for ${searchTerm}`,
+                    slug,
+                    content: postContent,  // BlogPost schema uses `content`, not `body`
+                    excerpt: meta?.excerpt
+                        || body.split('\n').find(l => l.trim().length > 80 && !l.startsWith('#'))?.trim()
+                        || '',
+                    metaTitle: meta?.metaTitle || titleLine,
+                    metaDescription: meta?.metaDescription || '',
+                    tags: meta?.tags || [searchTerm],
+                    author: authorId,
+                    status: 'draft',
+                })
+
+                // Mark FailedSearch as processed using its actual field name
+                await FailedSearch.findByIdAndUpdate(term._id, {
+                    blogPostDrafted: true,
+                    blogPostId: post._id,
+                })
+
+                // Queue for admin approval in War Room
+                await queueForApproval({
+                    agentName: AGENT_NAME,
+                    actionType: 'publish_blog_post',
+                    title: `Blog draft: "${titleLine || searchTerm}"`,
+                    description: [
+                        `Search term: "${searchTerm}" (${term.count} failed searches)`,
+                        `Post slug: /blog/${slug}`,
+                        `Word count: ~${body.split(/\s+/).length}`,
+                        '',
+                        'Preview (first 500 chars):',
+                        body.substring(0, 500),
+                        '...',
+                        '',
+                        'Approving this will publish the post to the live blog.',
+                    ].join('\n'),
+                    payload: {
+                        postId: post._id.toString(),
+                        postTitle: titleLine,
+                        postSlug: slug,
+                        searchTerm,
+                        failedCount: term.count,
+                    },
+                })
+
+                drafted++
+                await agentLog(
+                    AGENT_NAME,
+                    `✅ Draft created: "${titleLine}" → queued for approval`,
+                    'success',
+                    { postId: post._id.toString(), slug, searchTerm }
+                )
+
+                // Brief pause between Groq calls to stay within TPM limits
+                await new Promise(r => setTimeout(r, 3000))
+
+            } catch (termErr) {
+                errors++
+                await agentLog(
+                    AGENT_NAME,
+                    `❌ Failed to draft post for "${searchTerm}": ${termErr.message}`,
+                    'error',
+                    { searchTerm }
+                )
+            }
+        }
+
+        const summary = `Content run complete — drafted: ${drafted}, skipped: ${skipped}, errors: ${errors}`
+        await agentLog(AGENT_NAME, `🏁 ${summary}`, 'success')
+        setAgentStatus(AGENT_NAME, 'idle')
+
+    } catch (err) {
+        const msg = `Content Agent crashed: ${err.message}`
+        console.error(`[ContentAgent] ${msg}`)
+        await agentLog(AGENT_NAME, `❌ ${msg}`, 'error').catch(() => {})
+        setAgentStatus(AGENT_NAME, 'error')
     }
-
-    // Final summary
-    const summary = `✅ Content agent complete — Drafted: ${stats.drafted}/${stats.processed}, Errors: ${stats.errors}`
-    await agentLog('content', summary, 'success', stats)
-
-    if (stats.drafted > 0) {
-      try {
-        const { sendOwnerMessage } = await import('../services/telegramBot.js')
-        await sendOwnerMessage(
-          `✍️ *Content Agent Complete*\n` +
-          `Drafted *${stats.drafted} blog post(s)* awaiting your review.\n\n` +
-          `🔍 Based on your users' failed searches.\n` +
-          `Approve at: https://www.intelligrid.online/admin/war-room`
-        )
-      } catch (_) {
-        // Telegram failure is non-critical
-      }
-    }
-  } catch (err) {
-    stats.errors++
-    await agentLog('content', `❌ Content agent fatal error: ${err.message}`, 'error')
-    console.error('[ContentAgent] Fatal error:', err)
-  } finally {
-    runContentAgent._running = false
-    setAgentStatus('content', stats.errors > 0 ? 'error' : 'idle')
-  }
-
-  return stats
 }
-runContentAgent._running = false
 
-// ── Cron Registration ───────────────────────────────────────────────────────
-// Runs every night at midnight UTC
-// Only activates when WAR_ROOM_ENABLED=true
-let contentScheduled = false
+// ── Cron schedule ────────────────────────────────────────────────────────────
 
 export function startContentAgentCron() {
-  if (contentScheduled) return
-  contentScheduled = true
+    if (process.env.WAR_ROOM_ENABLED !== 'true') {
+        console.log('[ContentAgent] WAR_ROOM_ENABLED is not true — cron not scheduled')
+        return
+    }
 
-  if (process.env.WAR_ROOM_ENABLED !== 'true') {
-    console.log('⚠️  [ContentAgent] Disabled (set WAR_ROOM_ENABLED=true to activate)')
-    return
-  }
+    // Every day at midnight UTC
+    cron.schedule('0 0 * * *', () => {
+        console.log('[ContentAgent] Cron triggered — running content agent')
+        runContentAgent().catch(err =>
+            console.error('[ContentAgent] Cron error:', err.message)
+        )
+    }, { timezone: 'UTC' })
 
-  cron.schedule(
-    '0 0 * * *',
-    () => {
-      runContentAgent().catch((err) =>
-        console.error('[ContentAgent] Unhandled cron error:', err.message)
-      )
-    },
-    { timezone: 'UTC' }
-  )
-
-  console.log('✅ [ContentAgent] Scheduled — daily at 00:00 UTC')
+    console.log('[ContentAgent] ✅ Cron scheduled — daily at 00:00 UTC')
 }
