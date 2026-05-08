@@ -1,11 +1,13 @@
 import axios from 'axios'
 import { getAuthToken } from './tokenStore'
 
-let BASE_URL = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1'
-// Fallback override in case Vercel still has the old dead Railway URL configured in its environment variables
-if (BASE_URL.includes('intelligrid-solutions-production.up.railway.app')) {
-    BASE_URL = 'https://api.intelligrid.online/api/v1'
-}
+// VITE_API_URL may be set with or without /api/v1 — normalise here so all
+// axios calls in the admin panel always hit the correct versioned base path.
+const RAW_URL = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online')
+    .replace(/\/+$/, '') // strip trailing slashes
+    .replace('intelligrid-solutions-production.up.railway.app', 'api.intelligrid.online') // legacy Railway guard
+
+const BASE_URL = RAW_URL.endsWith('/api/v1') ? RAW_URL : `${RAW_URL}/api/v1`
 
 const apiClient = axios.create({
     baseURL: BASE_URL,

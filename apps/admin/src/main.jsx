@@ -13,9 +13,14 @@ if (!PUBLISHABLE_KEY) {
     throw new Error("Missing Publishable Key")
 }
 
-const isProduction = import.meta.env.VITE_ENV === 'production' || window.location.hostname !== 'localhost'
+// Satellite mode only works on the production domain.
+// On localhost (any port) we use standard (non-satellite) Clerk to avoid
+// the handshake redirect loop that crashes the admin panel in development.
+const isProductionDomain = typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
 
-const clerkProps = isProduction ? {
+const clerkProps = isProductionDomain ? {
     signInUrl: "https://intelligrid.online/sign-in",
     signUpUrl: "https://intelligrid.online/sign-up",
     afterSignOutUrl: "https://admin.intelligrid.online",
@@ -25,7 +30,6 @@ const clerkProps = isProduction ? {
     signInUrl: "/sign-in",
     signUpUrl: "/sign-up",
     afterSignOutUrl: "/",
-    // Satellite mode is unstable on localhost across different ports, so we use standard mode
 }
 
 createRoot(document.getElementById('root')).render(
