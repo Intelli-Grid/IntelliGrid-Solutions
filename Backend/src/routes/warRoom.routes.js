@@ -217,6 +217,7 @@ async function executeApprovedAction(action) {
           status: 'active',
           isActive: true,
           approvedAt: new Date(),
+          approvedByAgent: action.agentName,
         })
         // Sync to Algolia
         try {
