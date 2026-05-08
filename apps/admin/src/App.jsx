@@ -16,6 +16,7 @@ import DiscoveryQueue from "./pages/DiscoveryQueue";
 import ClaimRequests from "./pages/ClaimRequests";
 import FeaturedListings from "./pages/FeaturedListings";
 import FeatureFlags from "./pages/FeatureFlags";
+import WarRoom from "./pages/WarRoom";
 
 // ── Auth guard — wraps every admin route ──────────────────────────────────────
 // Forces sign-in via Clerk for any unauthenticated visitor.
@@ -63,6 +64,7 @@ const App = () => (
         <AdminRoute path="/featured"  element={FeaturedListings} />
 
         {/* ── Platform Control ───────────────────────────────────────────── */}
+        <AdminRoute path="/war-room" element={WarRoom} />
         <AdminRoute path="/flags"     element={FeatureFlags} />
         <AdminRoute path="/system"    element={SystemHealth} />
 

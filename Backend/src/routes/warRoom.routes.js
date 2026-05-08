@@ -3,7 +3,7 @@
 // All routes require admin authentication via requireAdmin middleware.
 
 import { Router } from 'express'
-import { requireAdmin } from '../middleware/auth.js'
+import { requireAdmin, verifyClerkTokenFromQuery } from '../middleware/auth.js'
 import AgentLog from '../models/AgentLog.js'
 import PendingAction from '../models/PendingAction.js'
 import {
@@ -12,6 +12,7 @@ import {
   getAgentRegistry,
   agentLog,
 } from '../services/agentOrchestrator.js'
+import emailService from '../services/emailService.js'
 
 const router = Router()
 
@@ -26,8 +27,8 @@ router.get('/status', (req, res) => {
 
 // ── GET /api/v1/admin/war-room/stream ─────────────────────────────────────
 // SSE endpoint — keeps connection open and streams agent events in real time.
-// The War Room dashboard connects here on page load.
-router.get('/stream', (req, res) => {
+// Uses clerk_token query param because EventSource API cannot set custom headers.
+router.get('/stream', verifyClerkTokenFromQuery, requireAdmin, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -251,8 +252,7 @@ async function executeApprovedAction(action) {
 
       // Submission Agent: send welcome email to a high-quality tool founder
       case 'send_welcome_email': {
-        const { sendEmail } = await import('./emailService.js')
-        await sendEmail(action.payload)
+        await emailService.sendEmail(action.payload)
         await agentLog(
           'submission',
           `✅ Welcome email sent to: ${action.payload.to}`,

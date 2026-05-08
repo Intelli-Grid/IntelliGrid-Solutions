@@ -160,3 +160,47 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
 
     next()
 })
+
+/**
+ * verifyClerkTokenFromQuery — for SSE endpoints only.
+ *
+ * The EventSource API (used for live agent logs) cannot set custom HTTP headers,
+ * so the Clerk session token is passed as ?clerk_token=<jwt> in the URL.
+ * This middleware extracts it, verifies it, and populates req.user identically
+ * to requireAuth. Chain with requireAdmin to enforce role gating.
+ *
+ * WARNING: Only use on SSE endpoints — never on regular REST routes.
+ * The token is in the URL which can be logged; it expires in 60s anyway.
+ */
+export const verifyClerkTokenFromQuery = asyncHandler(async (req, res, next) => {
+    const token = req.query.clerk_token
+
+    if (!token) {
+        throw ApiError.unauthorized('No token provided')
+    }
+
+    try {
+        const session = await verifyToken(token, {
+            secretKey: process.env.CLERK_SECRET_KEY,
+            authorizedParties: AUTHORIZED_PARTIES,
+        })
+
+        if (!session) {
+            throw ApiError.unauthorized('Invalid token')
+        }
+
+        const user = await User.findOne({ clerkId: session.sub })
+        if (!user) {
+            throw ApiError.unauthorized('User not found')
+        }
+        if (user.isActive === false) {
+            throw ApiError.forbidden('Account suspended')
+        }
+
+        req.user = user
+        next()
+    } catch (error) {
+        if (error instanceof ApiError) throw error
+        throw ApiError.unauthorized('SSE authentication failed')
+    }
+})
