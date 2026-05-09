@@ -3,7 +3,7 @@
 // All routes require admin authentication via requireAdmin middleware.
 
 import { Router } from 'express'
-import { requireAdmin, verifyClerkTokenFromQuery } from '../middleware/auth.js'
+import { requireAuth, requireAdmin, verifyClerkTokenFromQuery } from '../middleware/auth.js'
 import AgentLog from '../models/AgentLog.js'
 import PendingAction from '../models/PendingAction.js'
 import {
@@ -47,9 +47,12 @@ router.get('/stream', verifyClerkTokenFromQuery, requireAdmin, (req, res) => {
   })
 })
 
-// All remaining War Room routes require admin role via Bearer token
-// (set by requireAuth upstream in the adminRoutes chain).
-router.use(requireAdmin)
+// All REST routes below use Bearer tokens (sent by axios/apiClient).
+// requireAuth extracts + verifies the token and populates req.user.
+// requireAdmin then checks the admin role.
+// NOTE: /stream above is intentionally excluded — it uses verifyClerkTokenFromQuery
+// because EventSource cannot send Authorization headers.
+router.use(requireAuth, requireAdmin)
 
 // ── GET /api/v1/admin/war-room/status ─────────────────────────────────────
 // Returns current in-memory agent registry snapshot (status, lastRun, etc.)
