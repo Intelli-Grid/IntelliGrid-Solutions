@@ -353,6 +353,14 @@ app.use('/api/v1/reviews', reviewRoutes)
 app.use('/api/v1/payment', paymentRoutes)
 app.use('/api/v1/analytics', analyticsRoutes)
 app.use('/api/v1/gdpr', gdprRoutes)
+// IMPORTANT: warRoomRoutes MUST be mounted BEFORE adminRoutes.
+// adminRoutes has a global router.use(requireAuth, requireAdmin) that fires for
+// ALL paths starting with /api/v1/admin — including /api/v1/admin/war-room/*.
+// The SSE /stream endpoint uses ?clerk_token (no Bearer header) — if adminRoutes
+// runs first, requireAuth throws 401 before warRoomRoutes ever receives the request.
+// By mounting the more-specific /api/v1/admin/war-room prefix first, Express
+// handles all war-room requests here and never delegates them to adminRoutes.
+app.use('/api/v1/admin/war-room', warRoomRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collections', collectionRoutes)
 app.use('/api/v1/newsletter', newsletterRoutes)
@@ -364,7 +372,6 @@ app.use('/api/v1/stacks', stackRoutes)
 app.use('/api/v1/feedback', feedbackRoutes)
 app.use('/api/v1/telegram', telegramRoutes)
 app.use('/api/v1/telegram', communityTelegramRoutes)
-app.use('/api/v1/admin/war-room', warRoomRoutes)
 
 // ── Feature Flags Public Endpoint ────────────────────────────────────────────
 // Returns only the list of enabled flag keys — no auth required, no sensitive data.
