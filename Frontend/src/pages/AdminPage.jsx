@@ -46,6 +46,7 @@ import { adminService, toolService, submissionService, blogService, couponServic
 import { useToast } from '../context/ToastContext'
 import EditToolModal from '../components/tools/EditToolModal'
 import WorkspaceSwitcher from '../components/admin/WorkspaceSwitcher'
+import WarRoomTab from './admin/WarRoomTab'
 
 export default function AdminPage() {
     const { user } = useUser()
@@ -127,6 +128,7 @@ export default function AdminPage() {
         { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'payments', label: 'Payments', icon: DollarSign },
         { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+        { id: 'war-room', label: '⚡ War Room', icon: Zap },
         { id: 'feature-flags', label: 'Feature Flags', icon: Flag },
         { id: 'settings', label: 'Settings', icon: Settings },
     ]
@@ -218,6 +220,7 @@ export default function AdminPage() {
                     {activeTab === 'reviews' && <ReviewsTab />}
                     {activeTab === 'payments' && <PaymentsTab />}
                     {activeTab === 'analytics' && <AnalyticsTab />}
+                    {activeTab === 'war-room' && <WarRoomTab />}
                     {activeTab === 'feature-flags' && <FeatureFlagsTab />}
                     {activeTab === 'settings' && <SettingsTab />}
                 </div>

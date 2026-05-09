@@ -73,15 +73,13 @@ export default function Header() {
                     </Link>
 
                     {isAdmin && (
-                        <a
-                            href="https://admin.intelligrid.online"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <Link
+                            to="/admin"
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all duration-200"
                         >
                             <LayoutDashboard className="h-3.5 w-3.5" />
                             Admin
-                        </a>
+                        </Link>
                     )}
                 </div>
 
