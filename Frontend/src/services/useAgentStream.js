@@ -7,8 +7,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://backend.intelligrid.online/api/v1')
-  .replace(/\/+$/, '')
+// VITE_API_URL already includes /api/v1 — use it directly so the stream URL is correct.
+const BASE_URL = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online/api/v1')
+  .replace(/\/+$/, '') // strip trailing slash
 
 /**
  * @returns {{ events: Array, connected: boolean, reconnect: function }}
@@ -24,6 +25,7 @@ export function useAgentStream() {
       if (!token) return
 
       // EventSource does not support custom headers — pass token as query param
+      // BASE_URL already includes /api/v1 so just append the path
       const url = `${BASE_URL}/admin/war-room/stream?clerk_token=${encodeURIComponent(token)}`
       const source = new EventSource(url, { withCredentials: true })
 
