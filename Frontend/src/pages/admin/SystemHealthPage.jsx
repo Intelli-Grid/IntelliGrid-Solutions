@@ -11,14 +11,11 @@ export default function SystemHealthPage() {
         try {
             setLoading(true)
             setError(null)
-            // Use direct fetch or axios instance that points to base URL + /health
-            // Since api instance usually points to /api/v1, we might need to adjust.
-            // But let's assume /health is at root? 
-            // In app.js: app.get('/health') is at root, NOT under /api/v1.
-
-            // api instance likely has baseURL set to /api/v1. 
-            // We need to fetch from root.
-            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000'
+            // /health is at the API root (not under /api/v1).
+            // VITE_API_URL is set to https://api.intelligrid.online/api/v1 on Vercel.
+            // Strip the /api/v1 suffix to get the base URL for the health endpoint.
+            const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:10000/api/v1')
+                .replace(/\/api\/v1\/?$/, '')
             const response = await fetch(`${baseUrl}/health`)
             const data = await response.json()
 

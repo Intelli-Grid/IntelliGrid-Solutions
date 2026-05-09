@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Users, Target, Globe, Zap, Shield, BookOpen, ArrowRight, Star, Search, BarChart2 } from 'lucide-react'
 import SEO from '../components/common/SEO'
+import apiClient from '../services/api'
 
 // ─── Team members ──────────────────────────────────────────────────────────────
 const TEAM = [
@@ -12,8 +14,8 @@ const TEAM = [
     },
 ]
 
-// ─── Stats ─────────────────────────────────────────────────────────────────────
-const STATS = [
+// ─── Stats — fallback values shown until /platform-stats responds ─────────────
+const STATIC_STATS = [
     { value: '4,000+', label: 'AI Tools Indexed' },
     { value: '50+', label: 'Categories' },
     { value: 'Daily', label: 'Updates' },
@@ -55,6 +57,26 @@ const VALUES = [
 ]
 
 export default function AboutPage() {
+    // Live stats — fetched from /api/v1/platform-stats on mount
+    const [stats, setStats] = useState(STATIC_STATS)
+
+    useEffect(() => {
+        apiClient.get('/platform-stats')
+            .then(body => {
+                // apiClient unwraps response.data; platform-stats shape: { success, data: { totalTools, totalCategories } }
+                const d = body?.data
+                if (d?.totalTools) {
+                    setStats([
+                        { value: d.totalTools.toLocaleString() + '+', label: 'AI Tools Indexed' },
+                        { value: (d.totalCategories || 50) + '+', label: 'Categories' },
+                        { value: 'Daily', label: 'Updates' },
+                        { value: '99%', label: 'Uptime SLA' },
+                    ])
+                }
+            })
+            .catch(() => {}) // silent — static fallback stays visible
+    }, [])
+
     return (
         <div className="min-h-screen bg-gray-950 text-white">
             <SEO
@@ -111,7 +133,7 @@ export default function AboutPage() {
             <section className="border-y border-white/5 bg-white/[0.02] py-12">
                 <div className="mx-auto max-w-5xl px-6">
                     <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-                        {STATS.map(({ value, label }) => (
+                        {stats.map(({ value, label }) => (
                             <div key={label} className="text-center">
                                 <p className="text-3xl font-extrabold text-white md:text-4xl">{value}</p>
                                 <p className="mt-1 text-sm text-gray-500">{label}</p>

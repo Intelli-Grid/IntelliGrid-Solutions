@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DollarSign, TrendingUp, Users, CreditCard, Calendar, Download, RefreshCw, BarChart3, Link2, BadgePercent } from 'lucide-react'
-import api from '../../utils/api'
+import apiClient from '../../services/api'
 
 export default function RevenueDashboard() {
     const [loading, setLoading] = useState(true)
@@ -35,9 +35,10 @@ export default function RevenueDashboard() {
     const fetchRevenueData = async () => {
         try {
             setLoading(true)
-            const response = await api.get(`/analytics/revenue?days=${dateRange}`)
-            if (response.data.success) {
-                setStats(response.data.data)
+            // apiClient auto-unwraps response.data, so we get the parsed body directly
+            const body = await apiClient.get(`/analytics/revenue?days=${dateRange}`)
+            if (body.success) {
+                setStats(body.data)
             }
         } catch (error) {
             console.error('Error fetching revenue data:', error)
@@ -51,9 +52,10 @@ export default function RevenueDashboard() {
             setAffiliateLoading(true)
             const endDate = new Date().toISOString().split('T')[0]
             const startDate = new Date(Date.now() - Number(dateRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            const response = await api.get(`/analytics/affiliate-clicks?startDate=${startDate}&endDate=${endDate}`)
-            if (response.data.success) {
-                setAffiliateStats(response.data.data)
+            // apiClient auto-unwraps response.data
+            const body = await apiClient.get(`/analytics/affiliate-clicks?startDate=${startDate}&endDate=${endDate}`)
+            if (body.success) {
+                setAffiliateStats(body.data)
             }
         } catch (error) {
             console.error('Error fetching affiliate analytics:', error)
