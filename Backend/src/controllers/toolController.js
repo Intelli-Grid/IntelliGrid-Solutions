@@ -307,6 +307,32 @@ class ToolController {
     })
 
     /**
+     * Get Tool of the Day
+     * GET /api/v1/tools/tool-of-day
+     * Returns the single tool marked isToolOfTheDay: true.
+     * Returns { tool: null } gracefully when no selection exists yet.
+     */
+    getToolOfDay = asyncHandler(async (req, res) => {
+        const Tool = (await import('../models/Tool.js')).default
+        const today = new Date()
+        today.setUTCHours(0, 0, 0, 0)
+
+        const tool = await Tool.findOne({
+            isToolOfTheDay: true,
+            status: 'active',
+            isActive: { $ne: false },
+            toolOfDayDate: { $gte: today },
+        })
+            .select('name slug logo screenshotUrl shortDescription pricing ratings tags category toolOfDayDate trendingScore humanVerified')
+            .populate('category', 'name slug')
+            .lean()
+
+        res.status(200).json(
+            new ApiResponse(200, { tool: tool || null }, 'Tool of the Day retrieved')
+        )
+    })
+
+    /**
      * Get tools by industry tag
      * GET /api/v1/tools/industry/:tag
      */

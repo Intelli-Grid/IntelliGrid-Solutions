@@ -148,6 +148,7 @@ export default function HomePage() {
 
     const [trendingTools, setTrendingTools] = useState([])
     const [recentTools, setRecentTools] = useState([])
+    const [toolOfDay, setToolOfDay] = useState(null)
     const [categories, setCategories] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
@@ -179,14 +180,19 @@ export default function HomePage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [trendingDocs, recentDocs, catDocs, statsDocs] = await Promise.all([
+                const [trendingDocs, recentDocs, catDocs, statsDocs, totdDoc] = await Promise.all([
                     toolService.getTrendingTools(6),
                     toolService.getTools({ sort: '-createdAt', limit: 6 }),
                     categoryService.getCategories().catch(() => []),
                     apiClient.get('/platform-stats').catch(() => null),
+                    apiClient.get('/tools/tool-of-day').catch(() => null),
                 ])
                 setTrendingTools(trendingDocs.data || trendingDocs || [])
                 setRecentTools(recentDocs.data || recentDocs.tools || [])
+
+                // Tool of the Day — shape: { tool: {...} | null }
+                const totd = totdDoc?.data?.tool || totdDoc?.tool || null
+                setToolOfDay(totd)
 
                 // catDocs: apiClient unwraps response so we get the ApiResponse body
                 // shape is { success, data: [...] } or an array directly
@@ -367,43 +373,69 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {/* ════════════════ TODAY'S TOP PICK ════════════════ */}
-            {trendingTools[0] && (
-                <section className="py-12 bg-[#08081a]">
-                    <div className="max-w-5xl mx-auto px-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <span className="text-lg">⭐</span>
-                            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Today's Top Pick</span>
-                            <span className="text-xs text-gray-600">· Curated by IntelliGrid</span>
-                        </div>
-                        <Link to={`/tools/${trendingTools[0].slug}`} className="group flex flex-col sm:flex-row gap-6 p-6 rounded-2xl bg-gradient-to-r from-amber-500/8 to-orange-500/5 border border-amber-500/15 hover:border-amber-500/30 transition-all">
-                            {/* Logo */}
-                            {trendingTools[0].logo && (
-                                <img
-                                    src={trendingTools[0].logo}
-                                    alt={trendingTools[0].name}
-                                    width={64}
-                                    height={64}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10"
-                                />
-                            )}
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-amber-300 transition-colors">
-                                    {trendingTools[0].name}
-                                </h3>
-                                <p className="text-gray-400 text-sm mb-3 line-clamp-2">{trendingTools[0].shortDescription}</p>
-                                <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                                    <span className="text-amber-400">{trendingTools[0].pricing}</span>
-                                    <span>{trendingTools[0].category?.name}</span>
-                                    <span className="text-amber-400 font-semibold group-hover:underline">Explore →</span>
-                                </div>
+            {/* ════════════════ TOOL OF THE DAY ════════════════ */}
+            {/* Shows War Room selected TOTD or falls back to top trending tool */}
+            {(toolOfDay || trendingTools[0]) && (() => {
+                const todTool = toolOfDay || trendingTools[0]
+                const isAgentPicked = Boolean(toolOfDay)
+                return (
+                    <section className="py-12 bg-[#08081a]">
+                        <div className="max-w-5xl mx-auto px-6">
+                            <div className="flex items-center gap-2 mb-6">
+                                <span className="text-lg">⭐</span>
+                                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Tool of the Day</span>
+                                {isAgentPicked ? (
+                                    <span className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full font-semibold">
+                                        🤖 Agent Curated
+                                    </span>
+                                ) : (
+                                    <span className="text-xs text-gray-600">· Curated by IntelliGrid</span>
+                                )}
                             </div>
-                        </Link>
-                    </div>
-                </section>
-            )}
+                            <Link
+                                to={`/tools/${todTool.slug}`}
+                                className="group flex flex-col sm:flex-row gap-6 p-6 rounded-2xl bg-gradient-to-r from-amber-500/8 to-orange-500/5 border border-amber-500/15 hover:border-amber-500/30 transition-all"
+                            >
+                                {/* Logo */}
+                                {(todTool.logo || todTool.screenshotUrl) && (
+                                    <img
+                                        src={todTool.logo || todTool.screenshotUrl}
+                                        alt={todTool.name}
+                                        width={64}
+                                        height={64}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                                    />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <h3 className="text-xl font-bold text-white group-hover:text-amber-300 transition-colors">
+                                            {todTool.name}
+                                        </h3>
+                                        {todTool.humanVerified && (
+                                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                                                ✓ Verified
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-gray-400 text-sm mb-3 line-clamp-2">{todTool.shortDescription}</p>
+                                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                                        <span className="text-amber-400">{todTool.pricing}</span>
+                                        {todTool.category?.name && <span>{todTool.category.name}</span>}
+                                        {todTool.ratings?.average > 0 && (
+                                            <span className="flex items-center gap-1 text-amber-400">
+                                                ⭐ {todTool.ratings.average.toFixed(1)}
+                                            </span>
+                                        )}
+                                        <span className="text-amber-400 font-semibold group-hover:underline">Explore →</span>
+                                    </div>
+                                </div>
+                            </Link>
+                        </div>
+                    </section>
+                )
+            })()}
 
             {/* ════════════════ FEATURED (SPONSORED) ════════════════ */}
             <FeaturedSpot />

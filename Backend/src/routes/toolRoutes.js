@@ -89,6 +89,15 @@ router.get(
     toolController.getHotTools
 )
 
+// ── War Room: Tool of the Day ─────────────────────────────────────────────────
+// GET /api/v1/tools/tool-of-day — returns the single TOTD tool, cached 10 min
+// Falls back gracefully if no tool has been selected yet (returns null).
+router.get(
+    '/tool-of-day',
+    cacheMiddleware(600),
+    toolController.getToolOfDay
+)
+
 // ── Phase 2.1: Alternatives SEO pages ────────────────────────────────────────
 // GET /api/v1/tools/alternatives/:toolName
 // e.g. /alternatives/chatgpt → tools where alternativeTo includes "chatgpt"

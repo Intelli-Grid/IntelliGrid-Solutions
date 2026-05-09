@@ -118,6 +118,24 @@ function NoResults() {
     const { indexUiState } = useInstantSearch();
     const currentQuery = indexUiState?.query || '';
 
+    // War Room — report this failed search term to the backend so the Content Agent
+    // can draft an SEO blog post targeting it. Fire once per unique query per mount.
+    const reportedRef = useRef(false);
+    useEffect(() => {
+        const term = currentQuery.trim();
+        if (!term || term.length < 3 || reportedRef.current) return;
+        reportedRef.current = true;
+        // Non-blocking fire-and-forget — search UX must never depend on this
+        fetch(
+            `${import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1'}/analytics/failed-search`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ term }),
+            }
+        ).catch(() => {}); // Swallow all errors — this is a telemetry call only
+    }, [currentQuery]);
+
     return (
         <div className="py-20 text-center">
             <div className="mx-auto mb-4 h-14 w-14 flex items-center justify-center rounded-2xl bg-white/5 border border-white/8">

@@ -162,5 +162,35 @@ router.get(
     })
 )
 
+// ── War Room: Failed Search Telemetry ────────────────────────────────────────
+// POST /api/v1/analytics/failed-search
+// Called from the frontend SearchPage NoResults component when Algolia returns 0 hits.
+// Upserts a FailedSearch document so the Content Agent can draft SEO blog posts
+// targeting popular search terms that have no results in our directory.
+// No auth required — this is a telemetry endpoint, data is non-sensitive.
+router.post(
+    '/failed-search',
+    asyncHandler(async (req, res) => {
+        const { term } = req.body
+        const cleaned = (term || '').trim().toLowerCase()
+
+        if (!cleaned || cleaned.length < 3 || cleaned.length > 120) {
+            return res.status(200).json({ success: true }) // Accept but silently ignore junk
+        }
+
+        const FailedSearch = (await import('../models/FailedSearch.js')).default
+        await FailedSearch.findOneAndUpdate(
+            { term: cleaned },
+            {
+                $inc: { count: 1 },
+                $set: { lastSearchedAt: new Date() },
+            },
+            { upsert: true, new: true }
+        )
+
+        res.status(200).json({ success: true })
+    })
+)
+
 export default router
 

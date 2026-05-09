@@ -143,6 +143,13 @@ export default function ToolCard({ tool }) {
                             </span>
                         )
                     })()}
+
+                    {/* ── War Room: Offline Badge ─────────────────────── */}
+                    {tool.linkStatus === 'dead' && (
+                        <span className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm px-2 py-0.5 rounded-full border bg-red-900/80 text-red-300 border-red-500/40">
+                            ⚠ Offline
+                        </span>
+                    )}
                 </div>
 
                 {/* ── Card Body ──────────────────────────────────────── */}

@@ -86,6 +86,12 @@ const toolSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        toolOfDayDate: {
+            // Date this tool was most recently set as Tool of the Day.
+            // Used to ensure the selection rotates daily — trendingCron writes this.
+            type: Date,
+            default: null,
+        },
         isTrending: {
             type: Boolean,
             default: false,
@@ -544,6 +550,21 @@ const toolSchema = new mongoose.Schema(
             // Which agent discovered and queued this tool for approval
             type: String,
             default: null,
+        },
+
+        // ── Uptime Monitor Fields (War Room Group 6) ───────────────────────────
+        // Set by the enhanced linkHealthCron when 3+ consecutive checks fail.
+        // The admin sees these in the War Room and approves/rejects the offline action.
+        offlineSince: {
+            // Timestamp of the first failed check in the current outage streak
+            type: Date,
+            default: null,
+        },
+        offlineChecks: {
+            // Number of consecutive failed link health checks in current streak
+            // Resets to 0 when a check succeeds (tool recovered)
+            type: Number,
+            default: 0,
         },
 
         // ── v2.5.0 Anti-Slop Fields ─────────────────────────────────────────────
