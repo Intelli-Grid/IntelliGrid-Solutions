@@ -163,11 +163,32 @@ router.post('/pending/:id/reject', async (req, res) => {
   }
 })
 
+// ── GET /api/v1/admin/war-room/failed-searches ───────────────────────────
+// Returns top failed search terms ordered by count — powers the War Room insights panel.
+// Query params: limit (default 25)
+router.get('/failed-searches', async (req, res) => {
+  try {
+    const { limit = 25 } = req.query
+    const FailedSearch = (await import('../models/FailedSearch.js')).default
+    const terms = await FailedSearch.find({})
+      .sort({ count: -1, lastSearchedAt: -1 })
+      .limit(Number(limit))
+      .select('term count lastSearchedAt blogPostDrafted blogPostId')
+      .lean()
+
+    const totalUnblogged = await FailedSearch.countDocuments({ blogPostDrafted: { $ne: true }, count: { $gte: 3 } })
+
+    res.json({ success: true, terms, totalUnblogged })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
 // ── POST /api/v1/admin/war-room/agents/:agentName/run ────────────────────
 // Manually trigger an agent run from the War Room UI.
 router.post('/agents/:agentName/run', async (req, res) => {
   const { agentName } = req.params
-  const validAgents = ['scraper', 'content', 'submission', 'uptime']
+  const validAgents = ['scraper', 'content', 'submission', 'uptime', 'totd']
 
   if (!validAgents.includes(agentName)) {
     return res.status(400).json({ success: false, message: 'Invalid agent name' })
@@ -190,6 +211,20 @@ router.post('/agents/:agentName/run', async (req, res) => {
         const { runContentAgent } = await import('../jobs/contentAgentCron.js')
         runContentAgent().catch((err) =>
           console.error('[WarRoom] Content manual run error:', err.message)
+        )
+        break
+      }
+      case 'uptime': {
+        const runLinkHealthCheck = (await import('../jobs/linkHealthCron.js')).default
+        runLinkHealthCheck().catch((err) =>
+          console.error('[WarRoom] Uptime manual run error:', err.message)
+        )
+        break
+      }
+      case 'totd': {
+        const { selectToolOfTheDay } = await import('../jobs/trendingCron.js')
+        selectToolOfTheDay().catch((err) =>
+          console.error('[WarRoom] TOTD manual run error:', err.message)
         )
         break
       }
