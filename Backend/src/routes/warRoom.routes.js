@@ -16,23 +16,16 @@ import emailService from '../services/emailService.js'
 
 const router = Router()
 
-// All War Room routes require admin role
-router.use(requireAdmin)
-
-// ── GET /api/v1/admin/war-room/status ─────────────────────────────────────
-// Returns current in-memory agent registry snapshot (status, lastRun, etc.)
-router.get('/status', (req, res) => {
-  res.json({ success: true, registry: getAgentRegistry() })
-})
-
 // ── GET /api/v1/admin/war-room/stream ─────────────────────────────────────
-// SSE endpoint — keeps connection open and streams agent events in real time.
-// Uses clerk_token query param because EventSource API cannot set custom headers.
+// SSE endpoint — MUST be defined BEFORE router.use(requireAdmin) below.
+// EventSource cannot send Authorization headers, so the Clerk token arrives
+// as ?clerk_token query param. verifyClerkTokenFromQuery extracts + verifies
+// it and populates req.user, then requireAdmin checks the admin role.
 router.get('/stream', verifyClerkTokenFromQuery, requireAdmin, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
-  res.setHeader('X-Accel-Buffering', 'no') // Disable Nginx buffering on Railway
+  res.setHeader('X-Accel-Buffering', 'no') // Disable Nginx buffering on Render
   res.flushHeaders()
 
   // Register this browser tab as an SSE client
@@ -53,6 +46,17 @@ router.get('/stream', verifyClerkTokenFromQuery, requireAdmin, (req, res) => {
     removeSSEClient(res)
   })
 })
+
+// All remaining War Room routes require admin role via Bearer token
+// (set by requireAuth upstream in the adminRoutes chain).
+router.use(requireAdmin)
+
+// ── GET /api/v1/admin/war-room/status ─────────────────────────────────────
+// Returns current in-memory agent registry snapshot (status, lastRun, etc.)
+router.get('/status', (req, res) => {
+  res.json({ success: true, registry: getAgentRegistry() })
+})
+
 
 // ── GET /api/v1/admin/war-room/logs ──────────────────────────────────────
 // Paginated agent activity logs from MongoDB.

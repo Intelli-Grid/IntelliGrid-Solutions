@@ -111,7 +111,7 @@ router.get(
                         as: 'tool',
                     },
                 },
-                { $unwind: { path: '$tool', preserveNullAndEmpty: true } },
+                { $unwind: { path: '$tool', preserveNullAndEmptyArrays: true } },
                 {
                     $project: {
                         clicks: 1,

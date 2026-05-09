@@ -3225,13 +3225,19 @@ function AffiliateMapperTab() {
         setLoading(true)
         try {
             const data = await toolService.getTools({ page: currentPage, limit: 15, search: q, sort: '-createdAt' })
-            const items = data.data || data.tools || (Array.isArray(data) ? data : [])
+            // API shape: { status, data: { tools: [...], total, pages, page } }
+            // apiClient interceptor already returns response.data, so:
+            //   data        = { status, data: { tools, total, pages, page } }
+            //   data.data   = { tools: [...], total, pages, page }
+            //   data.data.tools = the actual array
+            const inner = data.data || data
+            const items = inner.tools || inner.data || (Array.isArray(inner) ? inner : [])
             setTools(items)
-            setPagination({ 
-                total: data.total || data.count || items.length, 
-                pages: data.pages || Math.ceil((data.total || data.count || items.length) / 15) || 1 
+            setPagination({
+                total: inner.total || inner.count || items.length,
+                pages: inner.pages || Math.ceil((inner.total || inner.count || items.length) / 15) || 1,
             })
-            setPage(data.page || data.currentPage || currentPage)
+            setPage(inner.page || inner.currentPage || currentPage)
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to search tools', variant: 'destructive' })
         } finally {
