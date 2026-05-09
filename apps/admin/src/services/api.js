@@ -3,9 +3,8 @@ import { getAuthToken } from './tokenStore'
 
 // VITE_API_URL may be set with or without /api/v1 — normalise here so all
 // axios calls in the admin panel always hit the correct versioned base path.
-const RAW_URL = (import.meta.env.VITE_API_URL || 'https://api.intelligrid.online')
+const RAW_URL = (import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1')
     .replace(/\/+$/, '') // strip trailing slashes
-    .replace('intelligrid-solutions-production.up.railway.app', 'api.intelligrid.online') // legacy Railway guard
 
 const BASE_URL = RAW_URL.endsWith('/api/v1') ? RAW_URL : `${RAW_URL}/api/v1`
 

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useAgentStream } from '../services/useAgentStream'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.intelligrid.online'
+const API_URL = (import.meta.env.VITE_API_URL || 'https://backend.intelligrid.online/api/v1').replace(/\/api\/v1\/?$/, '')
 
 function timeAgo(date) {
   if (!date) return 'Never'
